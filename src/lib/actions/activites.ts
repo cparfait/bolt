@@ -320,9 +320,27 @@ export async function enregistrerCreneau(
           : "";
   }
 
-  return succes(
-    `Créneau enregistré — ${gen.creees} séance${gen.creees > 1 ? "s" : ""} planifiée${gen.creees > 1 ? "s" : ""}.${notification}`,
-  );
+  // Le bilan porte sur l'état du calendrier, pas sur le seul delta : après un
+  // ré-enregistrement sans changement, « 0 séance planifiée » se lisait comme
+  // un échec alors que toutes les séances existaient déjà.
+  const s = (n: number) => (n > 1 ? "s" : "");
+  const total = gen.creees + gen.existantes;
+  let calendrier: string;
+  if (total === 0) {
+    calendrier =
+      "aucune séance sur cette période — vérifiez les dates et les périodes de fermeture";
+  } else if (gen.creees === 0 && gen.supprimees === 0) {
+    calendrier = `calendrier inchangé, ${total} séance${s(total)} planifiée${s(total)}`;
+  } else {
+    const delta = [
+      gen.creees > 0 ? `${gen.creees} séance${s(gen.creees)} ajoutée${s(gen.creees)}` : null,
+      gen.supprimees > 0 ? `${gen.supprimees} retirée${s(gen.supprimees)}` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    calendrier = `${delta} — ${total} séance${s(total)} au calendrier`;
+  }
+  return succes(`Créneau enregistré — ${calendrier}.${notification}`);
 }
 
 export async function supprimerCreneau(id: string): Promise<void> {
