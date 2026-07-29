@@ -6,7 +6,9 @@ import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { aujourdhui, fmtDate, fmtDateLongue, fmtHorodatage, JOUR_LABELS } from "@/lib/dates";
 import { effectifsParActivite } from "@/lib/inscriptions";
+import { estHorsAnnuaire } from "@/lib/comptes";
 import { Badge, Card, EmptyState, PageHeader, Stat } from "@/components/ui";
+import { EmailAgentForm, RattacherAdForm } from "@/components/agent-identite-forms";
 import { RetirerForm } from "@/components/inscription-actions";
 import { Panneau } from "@/components/panneau";
 import {
@@ -23,9 +25,16 @@ import {
 } from "@/lib/constants";
 
 /** Fiche d'un agent : ce à quoi il est inscrit, et s'il vient réellement. */
-export default async function FicheAgent({ params }: { params: Promise<{ id: string }> }) {
+export default async function FicheAgent({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ fusion?: string }>;
+}) {
   await requireUser("GESTIONNAIRE");
   const { id } = await params;
+  const { fusion } = await searchParams;
   const saison = await saisonCourante();
 
   const agent = await prisma.user.findUnique({ where: { id } });
@@ -102,6 +111,12 @@ export default async function FicheAgent({ params }: { params: Promise<{ id: str
   const manquees = presences.filter((p) => p.etat === "ABSENT").length;
   const taux = presences.length > 0 ? Math.round((venues / presences.length) * 100) : 0;
 
+  // Un participant créé à la main : son identité n'appartient à aucun annuaire,
+  // c'est donc ici qu'elle se corrige. Les comptes locaux sont dans le même cas
+  // pour l'adresse, mais ils n'ont pas vocation à rejoindre l'Active Directory.
+  const horsAnnuaire = estHorsAnnuaire(agent.login);
+  const emailModifiable = horsAnnuaire || agent.isLocal;
+
   return (
     <>
       <Link
@@ -116,6 +131,11 @@ export default async function FicheAgent({ params }: { params: Promise<{ id: str
         subtitle={[agent.login, agent.service, agent.direction].filter(Boolean).join(" · ")}
       >
         <Badge>{ROLE_LABELS[agent.role]}</Badge>
+        {horsAnnuaire && (
+          <Badge color="bg-amber-100 text-amber-800 ring-amber-500/20">
+            Hors annuaire
+          </Badge>
+        )}
         {!agent.active && <Badge>Compte désactivé</Badge>}
         {agent.email && (
           <a
@@ -145,6 +165,37 @@ export default async function FicheAgent({ params }: { params: Promise<{ id: str
           value={agent.lastLoginAt ? fmtDate(agent.lastLoginAt) : "jamais"}
         />
       </div>
+
+      {fusion && (
+        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm text-emerald-800">
+          Fiches fusionnées. L&apos;historique du participant hors annuaire a été
+          repris sur ce compte, et l&apos;agent le retrouvera à sa prochaine
+          connexion.
+        </div>
+      )}
+
+      {emailModifiable && (
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          <Panneau
+            titre="Adresse e-mail"
+            sousTitre={
+              horsAnnuaire
+                ? "Participant hors annuaire : son adresse se saisit ici"
+                : "Compte local : son adresse se saisit ici"
+            }
+          >
+            <EmailAgentForm userId={agent.id} email={agent.email} />
+          </Panneau>
+          {horsAnnuaire && (
+            <Panneau
+              titre="Rattacher à un compte Active Directory"
+              sousTitre="Son compte a fini par être créé"
+            >
+              <RattacherAdForm userId={agent.id} />
+            </Panneau>
+          )}
+        </div>
+      )}
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <Panneau

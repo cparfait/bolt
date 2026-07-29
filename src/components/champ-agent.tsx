@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Search } from "lucide-react";
-import { rechercherAgents, rechercherAgentsConnus } from "@/lib/actions/agents";
+import {
+  rechercherAgents,
+  rechercherAgentsConnus,
+  rechercherComptesAd,
+} from "@/lib/actions/agents";
 import type { Candidat } from "@/lib/comptes";
 import { Field, Input } from "@/components/ui";
 
@@ -23,11 +27,13 @@ export function ChampAgent({
   hint = "Nom, prénom, identifiant ou adresse e-mail. La recherche couvre les comptes Bolt et l'annuaire Active Directory.",
   // « connus » restreint aux agents déjà présents dans Bolt : c'est ce que voit
   // un animateur, à qui l'on n'ouvre pas le répertoire de la collectivité.
+  // « ad » écarte les participants hors annuaire, qui ne sont pas des cibles
+  // de rattachement valables.
   source = "annuaire",
 }: {
   label?: string;
   hint?: string;
-  source?: "annuaire" | "connus";
+  source?: "annuaire" | "connus" | "ad";
 }) {
   const [terme, setTerme] = useState("");
   const [resultats, setResultats] = useState<Candidat[]>([]);
@@ -41,7 +47,11 @@ export function ChampAgent({
     const minuteur = setTimeout(() => {
       demarrer(async () =>
         setResultats(
-          source === "connus" ? await rechercherAgentsConnus(q) : await rechercherAgents(q),
+          source === "connus"
+            ? await rechercherAgentsConnus(q)
+            : source === "ad"
+              ? await rechercherComptesAd(q)
+              : await rechercherAgents(q),
         ),
       );
     }, 350);
@@ -97,7 +107,9 @@ export function ChampAgent({
               <p className="px-4 py-3 text-sm text-slate-400">
                 {source === "connus"
                   ? "Aucun agent trouvé parmi ceux déjà connus de Bolt. Le service des sports peut le chercher dans l'annuaire."
-                  : "Aucun agent trouvé. Vérifiez l'orthographe, ou synchronisez l'annuaire depuis les paramètres."}
+                  : source === "ad"
+                    ? "Aucun compte Active Directory à ce nom. Son compte n'est peut-être pas encore créé, ou l'annuaire demande une synchronisation."
+                    : "Aucun agent trouvé. Vérifiez l'orthographe, ou synchronisez l'annuaire depuis les paramètres."}
               </p>
             ) : (
               <ul className="divide-y divide-slate-100">

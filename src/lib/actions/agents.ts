@@ -1,11 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import type { InscriptionStatut } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import {
   chercherComptes,
   creerParticipantHorsAnnuaire,
+  estHorsAnnuaire,
   type Candidat,
 } from "@/lib/comptes";
 import { inscrireDirectement } from "@/lib/inscriptions";
@@ -256,6 +259,313 @@ export async function creerAgentHorsAnnuaire(
   revalidatePath("/inscriptions");
   revalidatePath("/agents");
   return succes(`${nom} créé (identifiant ${user.login}).${suite}`);
+}
+
+/**
+ * Change l'adresse d'un participant qui ne vient pas de l'annuaire.
+ *
+ * Réservé aux comptes hors annuaire et aux comptes locaux : pour un agent de
+ * l'Active Directory, l'adresse appartient à l'annuaire et la prochaine
+ * synchronisation écraserait toute saisie. C'est pourtant l'adresse qui décide
+ * de tout le reste — connexion par lien, rappels de séance, annonces
+ * d'annulation. Un participant créé sans adresse en est privé jusqu'à ce qu'on
+ * la lui renseigne, et jusqu'ici il fallait le recréer pour cela.
+ */
+export async function modifierEmailAgent(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const userId = String(formData.get("userId") ?? "");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+
+  const agent = await prisma.user.findUnique({ where: { id: userId } });
+  if (!agent) return erreur("Agent introuvable.");
+  if (!estHorsAnnuaire(agent.login) && !agent.isLocal) {
+    return erreur(
+      "Cet agent vient de l'Active Directory : son adresse y est gérée, et la prochaine synchronisation écraserait la saisie.",
+    );
+  }
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return erreur("Adresse e-mail invalide.");
+  }
+  if (email) {
+    const doublon = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" }, id: { not: agent.id } },
+      select: { displayName: true },
+    });
+    if (doublon) {
+      return erreur(`Cette adresse est déjà celle de ${doublon.displayName}.`);
+    }
+  }
+
+  await prisma.user.update({
+    where: { id: agent.id },
+    data: { email: email || null },
+  });
+  await audit("AGENT_EMAIL_MODIFIE", {
+    userId: admin.id,
+    cible: agent.displayName,
+    details: email || "adresse retirée",
+  });
+  revalidatePath(`/agents/${agent.id}`);
+  return succes(email ? `Adresse enregistrée : ${email}.` : "Adresse retirée.");
+}
+
+/**
+ * Identité d'un compte dans l'annuaire : le miroir d'abord, l'annuaire en
+ * direct ensuite. Renvoie null si le sAMAccountName n'y figure pas.
+ */
+async function identiteAnnuaire(login: string) {
+  const cle = login.trim().toLowerCase();
+  const miroir = await prisma.adAccount.findFirst({
+    where: { samAccountName: { equals: cle, mode: "insensitive" } },
+  });
+  if (miroir) {
+    return {
+      login: miroir.samAccountName.toLowerCase(),
+      nom: miroir.displayName ?? miroir.samAccountName,
+      email: miroir.email,
+      service: miroir.service,
+      direction: miroir.direction,
+    };
+  }
+  try {
+    const ldap = await getLdapSettings();
+    if (ldap?.bindDn && ldap?.bindPassword) {
+      const [trouve] = await ldapSearchAccounts(ldap, cle, 1);
+      if (trouve && trouve.samAccountName.toLowerCase() === cle) {
+        return {
+          login: cle,
+          nom: trouve.displayName ?? trouve.samAccountName,
+          email: trouve.email ?? null,
+          service: trouve.service ?? null,
+          direction: trouve.direction ?? null,
+        };
+      }
+    }
+  } catch {
+    // annuaire injoignable : un compte Bolt existant suffit à rattacher
+  }
+  return null;
+}
+
+/**
+ * Départage deux inscriptions concurrentes lors d'une fusion : on garde la
+ * plus engageante. Perdre une place validée au profit d'un refus serait le
+ * pire des arbitrages automatiques.
+ */
+const FORCE_STATUT: Record<InscriptionStatut, number> = {
+  VALIDEE: 4,
+  LISTE_ATTENTE: 3,
+  EN_ATTENTE: 2,
+  DESISTEE: 1,
+  REFUSEE: 0,
+};
+
+/**
+ * Rattache un participant hors annuaire au compte Active Directory qu'il a
+ * fini par obtenir — l'apprenti titularisé, le stagiaire dont le compte arrive
+ * trois semaines après son arrivée.
+ *
+ * Deux situations, et c'est toute la difficulté. Si l'agent n'a jamais eu de
+ * compte Bolt, on renomme simplement le sien : l'historique suit sans qu'une
+ * seule ligne ne bouge. Si un compte existe déjà — parce qu'il s'est connecté,
+ * ou qu'on l'a inscrit ailleurs sous son vrai identifiant — il faut fusionner
+ * les deux fiches, en réglant les collisions : une même personne peut être
+ * inscrite deux fois au même créneau, ou pointée deux fois à la même séance.
+ *
+ * Le compte de l'annuaire l'emporte toujours comme survivant : c'est son
+ * identifiant que l'Active Directory présentera à la prochaine connexion.
+ */
+export async function rattacherCompteAd(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const userId = String(formData.get("userId") ?? "");
+  const cible = String(formData.get("login") ?? "").trim().toLowerCase();
+
+  const source = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { coach: { select: { id: true } } },
+  });
+  if (!source) return erreur("Participant introuvable.");
+  if (!estHorsAnnuaire(source.login)) {
+    return erreur("Ce compte vient déjà de l'annuaire : il n'y a rien à rattacher.");
+  }
+  if (!cible) return erreur("Sélectionnez le compte Active Directory correspondant.");
+  if (estHorsAnnuaire(cible)) {
+    return erreur(
+      "Choisissez un compte de l'annuaire, pas un autre participant hors annuaire.",
+    );
+  }
+
+  const [existant, identite] = await Promise.all([
+    prisma.user.findUnique({
+      where: { login: cible },
+      include: { coach: { select: { id: true } } },
+    }),
+    identiteAnnuaire(cible),
+  ]);
+  if (!existant && !identite) {
+    return erreur(
+      "Ce compte est introuvable dans l'annuaire. Synchronisez l'annuaire, ou vérifiez l'identifiant.",
+    );
+  }
+
+  // ── Cas simple : aucun compte Bolt en face, on renomme ───────────────────
+  if (!existant) {
+    const ad = identite!;
+    await prisma.user.update({
+      where: { id: source.id },
+      data: {
+        login: ad.login,
+        displayName: ad.nom || source.displayName,
+        email: ad.email ?? source.email,
+        service: ad.service ?? source.service,
+        direction: ad.direction ?? source.direction,
+      },
+    });
+    await audit("AGENT_RATTACHE_AD", {
+      userId: admin.id,
+      cible: source.displayName,
+      details: `${source.login} → ${ad.login} (renommage, historique conservé)`,
+    });
+    revalidatePath(`/agents/${source.id}`);
+    revalidatePath("/agents");
+    return succes(
+      `Rattaché au compte ${ad.login}. Son historique le suit, et il retrouvera ses inscriptions à sa prochaine connexion.`,
+    );
+  }
+
+  // ── Cas fusion : deux fiches pour une même personne ──────────────────────
+  if (source.coach && existant.coach) {
+    return erreur(
+      "Les deux comptes sont rattachés à un animateur. Détachez-en un avant de fusionner.",
+    );
+  }
+
+  const bilan = { inscriptions: 0, presences: 0, absences: 0, doublons: 0 };
+
+  await prisma.$transaction(async (tx) => {
+    // Inscriptions : une par créneau et par agent. En cas de collision, la
+    // plus engageante l'emporte, à égalité la plus ancienne.
+    const [insSource, insCible] = await Promise.all([
+      tx.inscription.findMany({ where: { userId: source.id } }),
+      tx.inscription.findMany({ where: { userId: existant.id } }),
+    ]);
+    const parCreneau = new Map(insCible.map((i) => [i.creneauId, i]));
+    for (const i of insSource) {
+      const rivale = parCreneau.get(i.creneauId);
+      if (!rivale) {
+        await tx.inscription.update({ where: { id: i.id }, data: { userId: existant.id } });
+        bilan.inscriptions += 1;
+        continue;
+      }
+      bilan.doublons += 1;
+      const gardeSource =
+        FORCE_STATUT[i.statut] > FORCE_STATUT[rivale.statut] ||
+        (FORCE_STATUT[i.statut] === FORCE_STATUT[rivale.statut] &&
+          i.demandeAt < rivale.demandeAt);
+      if (gardeSource) {
+        await tx.inscription.delete({ where: { id: rivale.id } });
+        await tx.inscription.update({ where: { id: i.id }, data: { userId: existant.id } });
+        bilan.inscriptions += 1;
+      } else {
+        await tx.inscription.delete({ where: { id: i.id } });
+      }
+    }
+
+    // Présences : un même fait ne se compte qu'une fois. En cas de doublon on
+    // garde le pointage le plus récent — c'est la dernière correction.
+    const [prSource, prCible] = await Promise.all([
+      tx.presence.findMany({ where: { userId: source.id } }),
+      tx.presence.findMany({ where: { userId: existant.id } }),
+    ]);
+    const parSeance = new Map(prCible.map((p) => [p.seanceId, p]));
+    for (const p of prSource) {
+      const rivale = parSeance.get(p.seanceId);
+      if (!rivale) {
+        await tx.presence.update({ where: { id: p.id }, data: { userId: existant.id } });
+        bilan.presences += 1;
+        continue;
+      }
+      bilan.doublons += 1;
+      if (p.saisiAt > rivale.saisiAt) {
+        await tx.presence.delete({ where: { id: rivale.id } });
+        await tx.presence.update({ where: { id: p.id }, data: { userId: existant.id } });
+        bilan.presences += 1;
+      } else {
+        await tx.presence.delete({ where: { id: p.id } });
+      }
+    }
+
+    const absSource = await tx.absenceAnnoncee.findMany({ where: { userId: source.id } });
+    const absCible = new Set(
+      (
+        await tx.absenceAnnoncee.findMany({
+          where: { userId: existant.id },
+          select: { seanceId: true },
+        })
+      ).map((a) => a.seanceId),
+    );
+    for (const a of absSource) {
+      if (absCible.has(a.seanceId)) {
+        await tx.absenceAnnoncee.delete({ where: { id: a.id } });
+        bilan.doublons += 1;
+      } else {
+        await tx.absenceAnnoncee.update({ where: { id: a.id }, data: { userId: existant.id } });
+        bilan.absences += 1;
+      }
+    }
+
+    // Le journal suit la personne : sans cela, la suppression du compte
+    // source dénouerait ses entrées et l'on perdrait la trace de qui a agi.
+    await tx.auditLog.updateMany({
+      where: { userId: source.id },
+      data: { userId: existant.id },
+    });
+    if (source.coach) {
+      await tx.coach.update({
+        where: { id: source.coach.id },
+        data: { userId: existant.id },
+      });
+    }
+
+    // Ce que le compte hors annuaire savait et que l'annuaire ignore : on ne
+    // le jette pas, on ne l'impose pas non plus à ce qui vient de l'AD.
+    await tx.user.update({
+      where: { id: existant.id },
+      data: {
+        email: existant.email ?? source.email,
+        service: existant.service ?? source.service,
+        direction: existant.direction ?? source.direction,
+      },
+    });
+
+    await tx.user.delete({ where: { id: source.id } });
+  });
+
+  await audit("AGENT_FUSIONNE_AD", {
+    userId: admin.id,
+    cible: existant.displayName,
+    details: `${source.login} fusionné dans ${existant.login} — ${bilan.inscriptions} inscription(s), ${bilan.presences} présence(s), ${bilan.absences} absence(s), ${bilan.doublons} doublon(s) écarté(s)`,
+  });
+  revalidatePath("/agents");
+  revalidatePath("/inscriptions");
+  redirect(`/agents/${existant.id}?fusion=1`);
+}
+
+/**
+ * Recherche restreinte aux comptes issus de l'annuaire.
+ *
+ * Sert au rattachement : proposer un autre participant hors annuaire comme
+ * cible n'aurait aucun sens — on cherche précisément un vrai sAMAccountName.
+ */
+export async function rechercherComptesAd(query: string): Promise<Candidat[]> {
+  await requireUser("GESTIONNAIRE");
+  return (await rechercherAgents(query)).filter((c) => !estHorsAnnuaire(c.login));
 }
 
 /**

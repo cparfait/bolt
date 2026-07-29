@@ -19,10 +19,21 @@ export type Candidat = {
 };
 
 /**
+ * Préfixe des participants créés hors annuaire. Il ne peut jamais entrer en
+ * collision avec un sAMAccountName, ce qui permet de reconnaître ces comptes
+ * à leur seul identifiant — et de les rattacher plus tard à un vrai compte AD.
+ */
+export const PREFIXE_HORS_ANNUAIRE = "no_ad.";
+
+/** Vrai pour un participant créé à la main, absent de l'Active Directory. */
+export function estHorsAnnuaire(login: string): boolean {
+  return login.toLowerCase().startsWith(PREFIXE_HORS_ANNUAIRE);
+}
+
+/**
  * Identifiant unique pour un participant hors annuaire, dérivé de son nom.
- * Préfixé « no_ad. » : il ne peut jamais entrer en collision avec un
- * sAMAccountName si la personne obtient un compte AD plus tard. Le suffixe
- * numérique traite les homonymes, fréquents à l'échelle d'une collectivité.
+ * Le suffixe numérique traite les homonymes, fréquents à l'échelle d'une
+ * collectivité.
  */
 async function identifiantLibre(nom: string): Promise<string> {
   const slug = nom
@@ -33,7 +44,9 @@ async function identifiantLibre(nom: string): Promise<string> {
     .replace(/^\.+|\.+$/g, "")
     .slice(0, 28);
   // Un nom entièrement composé de ponctuation ne doit pas produire « no_ad. ».
-  const base = slug ? `no_ad.${slug}` : "no_ad.participant";
+  const base = slug
+    ? `${PREFIXE_HORS_ANNUAIRE}${slug}`
+    : `${PREFIXE_HORS_ANNUAIRE}participant`;
 
   for (let n = 0; n < 100; n++) {
     const candidat = n === 0 ? base : `${base}.${n + 1}`;
