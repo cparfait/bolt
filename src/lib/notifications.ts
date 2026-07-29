@@ -45,24 +45,37 @@ export async function notifierSeanceRetablie(
           activite: { select: { nom: true } },
           inscriptions: {
             where: { statut: "VALIDEE" },
-            include: { user: { select: { displayName: true, email: true } } },
+            include: { user: { select: { id: true, displayName: true, email: true } } },
           },
         },
+      },
+      // Symétrique de l'annulation : celui qui était attendu sur cette seule
+      // séance a rayé la date, il faut la lui rendre.
+      participations: {
+        include: { user: { select: { id: true, displayName: true, email: true } } },
       },
     },
   });
   if (!seance) return { destinataires: 0, envoyes: 0 };
 
-  const inscrits = seance.creneau.inscriptions;
+  // Un même agent peut être inscrit au créneau et annoncé sur la séance.
+  const inscrits = [
+    ...new Map(
+      [
+        ...seance.creneau.inscriptions.map((i) => i.user),
+        ...seance.participations.map((p) => p.user),
+      ].map((u) => [u.id, u]),
+    ).values(),
+  ];
   const g = await getGeneralSettings();
   let envoyes = 0;
-  for (const i of inscrits) {
-    if (!i.user.email) continue;
+  for (const u of inscrits) {
+    if (!u.email) continue;
     const res = await envoyerMail(
-      i.user.email,
+      u.email,
       `Séance maintenue — ${seance.creneau.activite.nom}`,
       [
-        `Bonjour ${i.user.displayName.split(" ")[0]},`,
+        `Bonjour ${u.displayName.split(" ")[0]},`,
         `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du ${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}${seance.creneau.lieu ? ` (${seance.creneau.lieu})` : ""}, aura finalement bien lieu.`,
         `Elle avait été annulée : vous pouvez la réinscrire à votre agenda.`,
         g.contactEmail
@@ -108,6 +121,12 @@ export async function notifierSeancesAnnulees(
           },
         },
       },
+      // Attendus à cette seule séance : ils se déplacent au même titre qu'un
+      // inscrit, et n'ont même pas le créneau des semaines suivantes pour se
+      // rattraper. Les oublier, c'est les envoyer devant une porte close.
+      participations: {
+        include: { user: { select: { id: true, displayName: true, email: true } } },
+      },
     },
     orderBy: { date: "asc" },
   });
@@ -120,18 +139,25 @@ export async function notifierSeancesAnnulees(
 
   for (const s of seances) {
     const ligne = `• ${s.creneau.activite.nom} — ${fmtDateLongue(s.date)}, ${s.creneau.heureDebut}–${s.creneau.heureFin}${s.creneau.lieu ? ` (${s.creneau.lieu})` : ""}`;
-    for (const i of s.creneau.inscriptions) {
-      concernes.add(i.user.id);
-      if (!i.user.email) continue;
-      const agent = parAgent.get(i.user.id) ?? {
-        nom: i.user.displayName,
-        email: i.user.email,
+    // Un agent peut être inscrit au créneau *et* annoncé sur la séance : la
+    // `Map` par agent et le dédoublonnage des lignes lui garantissent un seul
+    // message, sans date répétée.
+    const destinataires = [
+      ...s.creneau.inscriptions.map((i) => i.user),
+      ...s.participations.map((p) => p.user),
+    ];
+    for (const u of destinataires) {
+      concernes.add(u.id);
+      if (!u.email) continue;
+      const agent = parAgent.get(u.id) ?? {
+        nom: u.displayName,
+        email: u.email,
         activites: new Set<string>(),
         lignes: [],
       };
       agent.activites.add(s.creneau.activite.nom);
-      agent.lignes.push(ligne);
-      parAgent.set(i.user.id, agent);
+      if (!agent.lignes.includes(ligne)) agent.lignes.push(ligne);
+      parAgent.set(u.id, agent);
     }
   }
 

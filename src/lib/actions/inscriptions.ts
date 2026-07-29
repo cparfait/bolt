@@ -58,35 +58,16 @@ export async function desisterAction(
     },
   });
   await renumeroterFile(inscription.creneauId);
-  const promu = await promouvoirListeAttente(inscription.creneauId);
+  const promu = await promouvoirEtPrevenir(inscription.creneauId);
 
   await audit("INSCRIPTION_DESISTEE", {
     userId: user.id,
     cible: inscription.creneau.activite.nom,
   });
 
-  if (promu?.user.email) {
-    const g = await getGeneralSettings();
-    await envoyerMail(
-      promu.user.email,
-      `Une place s'est libérée en ${promu.creneau.activite.nom}`,
-      [
-        `Bonjour ${promu.user.displayName.split(" ")[0]},`,
-        `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}). Votre inscription est confirmée.`,
-        g.contactEmail
-          ? `Si vous ne souhaitez plus participer, prévenez le service des sports : ${g.contactEmail}.`
-          : `Si vous ne souhaitez plus participer, prévenez le service des sports.`,
-      ].join("\n\n"),
-    );
-  }
-
   revalidatePath("/mes-activites");
   revalidatePath("/inscriptions");
-  return succes(
-    promu
-      ? `Désinscription enregistrée. ${promu.user.displayName} a été inscrit depuis la liste d'attente.`
-      : "Désinscription enregistrée.",
-  );
+  return succes(`Désinscription enregistrée.${promu}`);
 }
 
 /** Le service des sports arbitre une demande. */
@@ -154,8 +135,11 @@ export async function deciderInscription(
       userId: admin.id,
       cible: inscription.user.displayName,
     });
+    // Rétrograder un inscrit libère sa place : la file avance, comme sur un
+    // désistement. Sans cela elle restait figée jusqu'au prochain départ.
+    const promu = await promouvoirEtPrevenir(inscription.creneauId);
     revalidatePath("/inscriptions");
-    return succes(`${inscription.user.displayName} placé en liste d'attente.`);
+    return succes(`${inscription.user.displayName} placé en liste d'attente.${promu}`);
   }
 
   if (decision === "refuser") {
@@ -175,6 +159,8 @@ export async function deciderInscription(
       cible: inscription.user.displayName,
       details: motif,
     });
+    // Refuser une inscription déjà validée rend sa place au groupe.
+    const promu = await promouvoirEtPrevenir(inscription.creneauId);
     if (inscription.user.email) {
       await envoyerMail(
         inscription.user.email,
@@ -187,10 +173,38 @@ export async function deciderInscription(
       );
     }
     revalidatePath("/inscriptions");
-    return succes("Demande refusée.");
+    return succes(`Demande refusée.${promu}`);
   }
 
   return erreur("Décision inconnue.");
+}
+
+/**
+ * Promeut le premier de la file après une décision qui a pu libérer une place,
+ * et le prévient. Renvoie le fragment de message à ajouter au compte rendu.
+ *
+ * `promouvoirListeAttente` est seul juge de l'existence d'une place : appeler
+ * cette fonction sur une décision qui n'en libère aucune ne fait rien.
+ */
+async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
+  const promu = await promouvoirListeAttente(creneauId);
+  if (!promu) return "";
+
+  if (promu.user.email) {
+    const g = await getGeneralSettings();
+    await envoyerMail(
+      promu.user.email,
+      `Une place s'est libérée en ${promu.creneau.activite.nom}`,
+      [
+        `Bonjour ${promu.user.displayName.split(" ")[0]},`,
+        `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}). Votre inscription est confirmée.`,
+        g.contactEmail
+          ? `Si vous ne souhaitez plus participer, prévenez le service des sports : ${g.contactEmail}.`
+          : `Si vous ne souhaitez plus participer, prévenez le service des sports.`,
+      ].join("\n\n"),
+    );
+  }
+  return ` ${promu.user.displayName} a été inscrit depuis la liste d'attente.`;
 }
 
 /** Inscription directe par le service des sports (agent sans accès, dossier papier). */

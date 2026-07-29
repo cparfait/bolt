@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 import { envoyerMail } from "./mail";
 import { getGeneralSettings, getSetting, setSetting } from "./settings";
-import { fmtDateLongue } from "./dates";
+import { aujourdhui, fmtDateLongue } from "./dates";
 import { audit } from "./audit";
 
 /**
@@ -45,8 +45,11 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
     where: {
       statut: "PLANIFIEE",
       rappelEnvoyeAt: null,
-      // `date` est un jour calendaire : on compare à la date d'horizon.
-      date: { gte: new Date(maintenant.toISOString().slice(0, 10)), lte: horizon },
+      // `date` est un jour calendaire : la borne basse est le jour courant
+      // dans le fuseau de la collectivité, et non la date UTC. Entre minuit et
+      // 2 h à Paris, celle-ci désigne encore la veille — et une séance d'hier
+      // restée non émargée déclenchait un « votre séance a lieu hier ».
+      date: { gte: aujourdhui(), lte: horizon },
     },
     include: {
       creneau: {
@@ -58,6 +61,9 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
           },
         },
       },
+      // Un agent qui a prévenu de son absence n'a pas besoin qu'on lui rappelle
+      // la séance à laquelle il vient de dire qu'il ne viendrait pas.
+      absences: { select: { userId: true } },
     },
     take: 50, // garde-fou : jamais plus de 50 séances par passage
   });
@@ -66,7 +72,9 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
   let ignores = 0;
 
   for (const s of seances) {
+    const prevenus = new Set(s.absences.map((a) => a.userId));
     for (const i of s.creneau.inscriptions) {
+      if (prevenus.has(i.userId)) continue;
       if (!i.user.email) {
         ignores += 1;
         continue;
