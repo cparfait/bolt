@@ -74,7 +74,10 @@ export async function envoyerLienConnexion(emailBrut: string): Promise<void> {
   });
 
   const base = (g.appUrl || process.env.BOLT_PUBLIC_URL || "").replace(/\/+$/, "");
-  const lien = `${base}/connexion/lien?token=${token}`;
+  // Doit pointer sur le gestionnaire de route qui consomme le jeton
+  // (src/app/acces/lien/route.ts) : toute autre adresse renvoie un 404, et le
+  // lien reçu par courriel devient une impasse.
+  const lien = `${base}/acces/lien?token=${token}`;
 
   await envoyerMail(
     user.email!,
