@@ -191,7 +191,7 @@ export async function rechercherAgentsConnus(query: string): Promise<Candidat[]>
  * ces participants n'existent nulle part — ni sur les feuilles, ni dans le
  * bilan de fréquentation, alors qu'ils occupent bien une place.
  *
- * L'identifiant est préfixé « ext. » : il ne peut donc jamais entrer en
+ * L'identifiant est préfixé « no_ad. » : il ne peut donc jamais entrer en
  * collision avec un sAMAccountName si la personne obtient un compte AD plus
  * tard. Le compte n'a pas de mot de passe — la connexion, si elle est
  * nécessaire, passe par le lien envoyé sur l'adresse renseignée.
@@ -277,8 +277,8 @@ async function identifiantLibre(nom: string): Promise<string> {
     .replace(/[^a-z0-9]+/g, ".")
     .replace(/^\.+|\.+$/g, "")
     .slice(0, 28);
-  // Un nom entièrement composé de ponctuation ne doit pas produire « ext. ».
-  const base = slug ? `ext.${slug}` : "ext.participant";
+  // Un nom entièrement composé de ponctuation ne doit pas produire « no_ad. ».
+  const base = slug ? `no_ad.${slug}` : "no_ad.participant";
 
   for (let n = 0; n < 100; n++) {
     const candidat = n === 0 ? base : `${base}.${n + 1}`;

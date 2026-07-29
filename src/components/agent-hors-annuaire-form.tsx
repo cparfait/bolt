@@ -66,7 +66,7 @@ export function AgentHorsAnnuaireForm({
       )}
 
       <p className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-xs text-slate-500">
-        L&apos;identifiant est attribué automatiquement, préfixé «&nbsp;ext.&nbsp;» :
+        L&apos;identifiant est attribué automatiquement, préfixé «&nbsp;no_ad.&nbsp;» :
         il ne peut donc pas entrer en conflit si la personne obtient un compte
         Active Directory plus tard. Le compte n&apos;a pas de mot de passe — la
         connexion, si elle est utile, se fait par le lien envoyé sur l&apos;adresse
