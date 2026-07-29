@@ -5,7 +5,7 @@ import { Check, Undo2, X } from "lucide-react";
 import type { EtatPresence } from "@prisma/client";
 import { depointerAction, pointerAction } from "@/lib/actions/seances";
 import type { LigneFeuille } from "@/lib/emargement";
-import { Card, Stat } from "@/components/ui";
+import { BadgePonctuel, Card, Stat } from "@/components/ui";
 
 /**
  * Feuille de présence du back-office.
@@ -78,11 +78,20 @@ export function FeuilleGestion({
         <Stat label="Inscrits" value={effectif} />
         <Stat label="Présents" value={presents} accent="text-emerald-600 bg-emerald-50" />
         <Stat label="Pointés" value={`${pointes}/${lignes.length}`} />
+        {/* Tant que rien n'est pointé, il n'y a pas de taux : afficher « 0 % »
+            se lisait « personne n'est venu », alors que la feuille n'a
+            simplement pas encore été remplie — le cas de toute séance à venir. */}
         <Stat
           label="Taux de présence"
-          value={pointes > 0 ? Math.round((presents / pointes) * 100) : 0}
-          suffixe="%"
-          hint={pointes < lignes.length ? "sur les participants déjà pointés" : undefined}
+          value={pointes > 0 ? Math.round((presents / pointes) * 100) : "—"}
+          suffixe={pointes > 0 ? "%" : undefined}
+          hint={
+            pointes === 0
+              ? "aucun pointage pour l'instant"
+              : pointes < lignes.length
+                ? "sur les participants déjà pointés"
+                : undefined
+          }
         />
       </div>
 
@@ -101,11 +110,7 @@ export function FeuilleGestion({
                 <div className="min-w-0">
                   <p className="text-sm font-medium">
                     {l.nom}
-                    {l.ponctuel && (
-                      <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-600">
-                        invité
-                      </span>
-                    )}
+                    {l.ponctuel && <BadgePonctuel className="ml-2" />}
                   </p>
                   {(l.service || l.direction) && (
                     <p className="truncate text-xs text-slate-400">
@@ -141,15 +146,25 @@ export function FeuilleGestion({
                       </button>
                     );
                   })}
+                  {/* Sur un participant annoncé mais pas encore pointé, ce
+                      bouton ne défait pas un pointage : il le retire de la
+                      feuille. Sans cela, un ajout erroné sur une séance à venir
+                      y restait sans recours. Un inscrit au créneau, lui, n'a
+                      rien à effacer tant qu'il n'est pas pointé — et sa place
+                      ne se retire pas d'ici. */}
                   <button
                     type="button"
-                    disabled={verrouillee || etat === null}
-                    aria-label={`${l.nom} — effacer le pointage`}
+                    disabled={verrouillee || (etat === null && !l.ponctuel)}
+                    aria-label={
+                      etat === null
+                        ? `${l.nom} — retirer de la feuille`
+                        : `${l.nom} — effacer le pointage`
+                    }
                     onClick={() => effacer(l.userId)}
                     className="col-span-2 flex min-h-[36px] items-center justify-center gap-1.5 rounded-lg text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 sm:col-span-1 sm:min-h-0 sm:px-2.5 sm:py-1.5"
                   >
                     <Undo2 className="h-3.5 w-3.5" />
-                    Effacer
+                    {etat === null ? "Retirer" : "Effacer"}
                   </button>
                 </div>
               </li>

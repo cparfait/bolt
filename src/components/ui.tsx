@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Ticket } from "lucide-react";
 import type {
   CSSProperties,
   InputHTMLAttributes,
@@ -24,6 +25,27 @@ export function Badge({
 }
 
 /** Pastille aux couleurs d'une activité (couleur libre, hors palette Tailwind). */
+/**
+ * Signale, sur une feuille, quelqu'un qui n'est pas inscrit au créneau : il
+ * vient pour cette séance-là seulement — essai, remplacement, passage isolé.
+ *
+ * L'icône de ticket porte l'information à elle seule, d'un coup d'œil : une
+ * entrée, pas un abonnement. Le mot « invité » employé jusqu'ici pouvait se
+ * lire comme un statut sans dire l'essentiel — que cette personne ne reviendra
+ * pas forcément, et qu'elle n'occupe pas de place pour la saison.
+ */
+export function BadgePonctuel({ className = "" }: { className?: string }) {
+  return (
+    <span
+      title="Présent pour cette séance seulement — non inscrit au créneau pour la saison"
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700 ring-1 ring-brand-600/20 ${className}`}
+    >
+      <Ticket className="h-3 w-3" aria-hidden />
+      séance seule
+    </span>
+  );
+}
+
 export function PastilleActivite({ couleur, nom }: { couleur: string; nom: string }) {
   return (
     <span

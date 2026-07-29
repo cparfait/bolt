@@ -55,6 +55,11 @@ export async function depointerAction(seanceId: string, userId: string): Promise
   if (!seance) return;
   if (seance.clotureeAt && !estGestionnaire(acteur)) return;
   await retirerPresence(seanceId, userId);
+  // « Effacer » défait l'ajout autant que le pointage : sans cela, un
+  // participant annoncé par erreur resterait sur la feuille sans moyen de l'en
+  // retirer. Un inscrit au créneau n'est pas concerné — il n'a pas de ligne
+  // d'annonce, et sa place lui reste.
+  await prisma.participationPonctuelle.deleteMany({ where: { seanceId, userId } });
   revalidatePath(`/seances/${seanceId}`);
 }
 
@@ -266,35 +271,32 @@ export async function ajouterParticipant(
   const agent = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
   if (!userId || !agent) return erreur("Agent introuvable.");
 
-  // Une séance à venir n'a pas de présence à constater : pointer « présent »
-  // par avance créditait l'agent d'une assiduité fictive (100 % avant sa
-  // première venue). S'il s'agit de le prévoir pour la suite, l'inscription au
-  // créneau suffit — il figurera sur la feuille le jour venu.
-  if (seance.date > aujourdhui()) {
-    if (formData.get("inscrire") !== "on") {
-      return erreur(
-        "Cette séance n'a pas encore eu lieu : on ne pointe pas une présence par avance. Pour prévoir sa venue, cochez l'inscription au créneau.",
-      );
-    }
-    const suite = await inscrireAuCreneau(
-      seance.creneauId,
-      userId,
-      agent.displayName,
-      estGestionnaire(acteur) ? acteur.displayName : null,
-    );
-    revalidatePath(`/seances/${seanceId}`);
-    revalidatePath("/inscriptions");
-    return succes(
-      `Séance à venir : ${agent.displayName} n'est pas pointé, il sera sur la feuille le jour même.${suite}`,
-    );
+  // Sur une séance à venir, la personne est **attendue** : on ne peut pas
+  // constater une présence qui n'a pas encore eu lieu — c'est ce qui créditait
+  // l'agent de 100 % d'assiduité avant sa première venue. On l'annonce donc sur
+  // cette séance-là, et sur elle seule : réclamer l'inscription au créneau
+  // reviendrait à lui réserver une place toute la saison alors qu'il n'en
+  // demande qu'une. Elle reste possible, mais c'est un choix distinct.
+  const aVenir = seance.date > aujourdhui();
+  if (aVenir) {
+    await prisma.participationPonctuelle.upsert({
+      where: { seanceId_userId: { seanceId, userId } },
+      update: { ajoutePar: acteur.displayName },
+      create: { seanceId, userId, ajoutePar: acteur.displayName },
+    });
+    await audit("PARTICIPANT_ATTENDU", {
+      userId: acteur.id,
+      cible: agent.displayName,
+      details: seanceId,
+    });
+  } else {
+    await enregistrerPresence(seanceId, userId, "PRESENT", `user:${acteur.login}`);
+    await audit("PARTICIPANT_PONCTUEL", {
+      userId: acteur.id,
+      cible: agent.displayName,
+      details: seanceId,
+    });
   }
-
-  await enregistrerPresence(seanceId, userId, "PRESENT", `user:${acteur.login}`);
-  await audit("PARTICIPANT_PONCTUEL", {
-    userId: acteur.id,
-    cible: agent.displayName,
-    details: seanceId,
-  });
 
   const suite =
     formData.get("inscrire") === "on"
@@ -308,7 +310,11 @@ export async function ajouterParticipant(
 
   revalidatePath(`/seances/${seanceId}`);
   revalidatePath("/inscriptions");
-  return succes(`${agent.displayName} ajouté à la séance.${suite}`);
+  return succes(
+    aVenir
+      ? `${agent.displayName} est attendu à cette séance. Il figure sur la feuille et sera pointé le jour venu.${suite}`
+      : `${agent.displayName} ajouté à la séance.${suite}`,
+  );
 }
 
 /** Inscrit au créneau un agent venu ponctuellement, et décrit le résultat. */

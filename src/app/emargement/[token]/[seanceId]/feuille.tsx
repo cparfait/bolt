@@ -5,6 +5,7 @@ import { Check, CheckCheck, X } from "lucide-react";
 import type { EtatPresence } from "@prisma/client";
 import { pointerEmargement } from "@/lib/actions/emargement";
 import type { LigneFeuille } from "@/lib/emargement";
+import { BadgePonctuel } from "@/components/ui";
 
 /**
  * Feuille de présence tactile.
@@ -126,11 +127,7 @@ export function Feuille({
                     </p>
                   )}
                 </div>
-                {l.ponctuel && (
-                  <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-600">
-                    invité
-                  </span>
-                )}
+                {l.ponctuel && <BadgePonctuel />}
               </div>
 
               {l.absenceAnnoncee && (

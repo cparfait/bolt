@@ -35,6 +35,7 @@ export async function feuilleDeSeance(seanceId: string) {
       creneau: { include: { activite: true, animateurs: true, saison: true } },
       presences: { include: { user: true } },
       absences: true,
+      participations: { include: { user: true } },
     },
   });
   if (!seance) return null;
@@ -75,6 +76,25 @@ export async function feuilleDeSeance(seanceId: string) {
       direction: p.user.direction,
       inscriptionId: p.inscriptionId,
       etat: p.etat,
+      ponctuel: true,
+      absenceAnnoncee: prevenus.has(p.userId),
+      motifAbsence: prevenus.get(p.userId) ?? null,
+    });
+  }
+
+  // Attendus à cette seule séance sans y avoir encore été pointés : le service
+  // des sports les a annoncés à l'avance. Sans cette reprise ils n'apparaîtraient
+  // sur la feuille qu'après coup, et l'animateur n'aurait personne à pointer.
+  const dejaListes = new Set(lignes.map((l) => l.userId));
+  for (const p of seance.participations) {
+    if (dejaListes.has(p.userId)) continue;
+    lignes.push({
+      userId: p.userId,
+      nom: p.user.displayName,
+      service: p.user.service,
+      direction: p.user.direction,
+      inscriptionId: null,
+      etat: null,
       ponctuel: true,
       absenceAnnoncee: prevenus.has(p.userId),
       motifAbsence: prevenus.get(p.userId) ?? null,
@@ -148,13 +168,21 @@ export async function feuillesAttendues<
   if (seances.length === 0) return seances;
 
   const creneauIds = [...new Set(seances.map((s) => s.creneauId))];
-  const [inscriptions, pointages] = await Promise.all([
+  const seanceIds = seances.map((s) => s.id);
+  const [inscriptions, pointages, attendus] = await Promise.all([
     prisma.inscription.findMany({
       where: { creneauId: { in: creneauIds }, statut: "VALIDEE" },
       select: { creneauId: true, decisionAt: true, demandeAt: true },
     }),
     prisma.presence.findMany({
-      where: { seanceId: { in: seances.map((s) => s.id) } },
+      where: { seanceId: { in: seanceIds } },
+      select: { seanceId: true },
+      distinct: ["seanceId"],
+    }),
+    // Un participant annoncé sur cette seule séance suffit à la rendre
+    // émargeable, même si son créneau n'a aucun inscrit.
+    prisma.participationPonctuelle.findMany({
+      where: { seanceId: { in: seanceIds } },
       select: { seanceId: true },
       distinct: ["seanceId"],
     }),
@@ -167,10 +195,12 @@ export async function feuillesAttendues<
     else parCreneau.set(i.creneauId, [i]);
   }
   const pointees = new Set(pointages.map((p) => p.seanceId));
+  const annoncees = new Set(attendus.map((p) => p.seanceId));
 
   return seances.filter(
     (s) =>
       pointees.has(s.id) ||
+      annoncees.has(s.id) ||
       (parCreneau.get(s.creneauId) ?? []).some((i) => participeALaSeance(i, s.date)),
   );
 }

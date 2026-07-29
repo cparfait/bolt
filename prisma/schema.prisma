@@ -37,10 +37,11 @@ model User {
   createdAt    DateTime @default(now())
   lastLoginAt  DateTime?
 
-  coach        Coach?
-  inscriptions Inscription[]
-  presences    Presence[]
-  absences     AbsenceAnnoncee[]
+  coach          Coach?
+  inscriptions   Inscription[]
+  presences      Presence[]
+  absences       AbsenceAnnoncee[]
+  participations ParticipationPonctuelle[]
   auditLogs    AuditLog[]
   magicTokens  MagicToken[]
 
@@ -269,9 +270,10 @@ model Seance {
   // quel que soit le nombre de déclenchements.
   rappelEnvoyeAt DateTime?
 
-  creneau   Creneau           @relation(fields: [creneauId], references: [id], onDelete: Cascade)
-  presences Presence[]
-  absences  AbsenceAnnoncee[]
+  creneau        Creneau                   @relation(fields: [creneauId], references: [id], onDelete: Cascade)
+  presences      Presence[]
+  absences       AbsenceAnnoncee[]
+  participations ParticipationPonctuelle[]
 
   createdAt DateTime @default(now())
 
@@ -291,6 +293,29 @@ model AbsenceAnnoncee {
   seanceId  String
   userId    String
   motif     String?
+  createdAt DateTime @default(now())
+
+  seance Seance @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([seanceId, userId])
+  @@index([userId])
+}
+
+// Participation à **une seule** séance, sans inscription au créneau : l'agent
+// qui vient essayer, remplacer un collègue, ou profiter d'une séance isolée.
+//
+// Symétrique d'AbsenceAnnoncee, et distincte de Presence pour la même raison :
+// une présence est un constat, qui ne s'établit que le jour venu. La créer par
+// avance ferait basculer la séance en « émargée » et créditerait l'agent d'une
+// assiduité qu'il n'a pas encore. Inscrire au créneau ne conviendrait pas
+// davantage : cela l'engagerait sur toutes les séances de la saison, alors
+// qu'il n'en demande qu'une.
+model ParticipationPonctuelle {
+  id        String   @id @default(cuid())
+  seanceId  String
+  userId    String
+  ajoutePar String? // qui l'attend : gestionnaire ou animateur
   createdAt DateTime @default(now())
 
   seance Seance @relation(fields: [seanceId], references: [id], onDelete: Cascade)

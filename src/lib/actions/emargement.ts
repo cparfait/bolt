@@ -107,11 +107,12 @@ export async function pointerEmargement(
   if (!ETATS.includes(etat as EtatPresence)) return;
 
   // La feuille publique ne crée pas de ligne pour n'importe quel compte de la
-  // collectivité : il faut être inscrit au créneau, **ou** figurer déjà sur la
-  // feuille. Sans ce second cas, un participant ajouté à la volée était pointé
-  // présent à sa création puis impossible à corriger — le bouton « absent »
-  // restait sans effet.
-  const [inscrit, dejaSurLaFeuille] = await Promise.all([
+  // collectivité : il faut être inscrit au créneau, figurer déjà sur la feuille,
+  // **ou** avoir été annoncé sur cette séance par le service des sports. Sans le
+  // deuxième cas, un participant ajouté à la volée était pointé présent à sa
+  // création puis impossible à corriger ; sans le troisième, un agent attendu
+  // pour une séance unique apparaissait sur la feuille sans pouvoir être pointé.
+  const [inscrit, dejaSurLaFeuille, attendu] = await Promise.all([
     prisma.inscription.findFirst({
       where: { creneauId: seance.creneauId, userId, statut: "VALIDEE" },
       select: { id: true },
@@ -120,8 +121,12 @@ export async function pointerEmargement(
       where: { seanceId_userId: { seanceId, userId } },
       select: { id: true },
     }),
+    prisma.participationPonctuelle.findUnique({
+      where: { seanceId_userId: { seanceId, userId } },
+      select: { id: true },
+    }),
   ]);
-  if (!inscrit && !dejaSurLaFeuille) return;
+  if (!inscrit && !dejaSurLaFeuille && !attendu) return;
 
   await enregistrerPresence(seanceId, userId, etat as EtatPresence, `coach:${coach.id}`);
   revalidatePath(`/emargement/${token}/${seanceId}`);
@@ -208,12 +213,13 @@ export async function rechercherParticipantEmargement(
   const ctx = await seanceDuCoach(token, seanceId);
   if (!ctx) return [];
 
-  const [presences, inscriptions] = await Promise.all([
+  const [presences, inscriptions, attendus] = await Promise.all([
     prisma.presence.findMany({ where: { seanceId }, select: { userId: true } }),
     prisma.inscription.findMany({
       where: { creneauId: ctx.seance.creneauId, statut: "VALIDEE" },
       select: { userId: true, decisionAt: true, demandeAt: true },
     }),
+    prisma.participationPonctuelle.findMany({ where: { seanceId }, select: { userId: true } }),
   ]);
   // Un inscrit postérieur à la séance n'est pas sur cette feuille : il doit
   // rester proposable à l'ajout, comme n'importe quel participant ponctuel.
@@ -221,6 +227,7 @@ export async function rechercherParticipantEmargement(
     ...new Set(
       [
         ...presences,
+        ...attendus,
         ...inscriptions.filter((i) => participeALaSeance(i, ctx.seance.date)),
       ].map((x) => x.userId),
     ),
