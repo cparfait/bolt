@@ -246,11 +246,27 @@ export default async function TableauDeBord({
     });
   };
 
-  const [ind, activites, aValider, seancesPeriode, aEmarger, lachages, nbJour, nbSemaine, nbMois] =
-    await Promise.all([
+  const [
+    ind,
+    activites,
+    aValider,
+    enListeAttente,
+    seancesPeriode,
+    aEmarger,
+    lachages,
+    nbJour,
+    nbSemaine,
+    nbMois,
+  ] = await Promise.all([
     indicateurs(filtre),
     parActivite(filtre),
     prisma.inscription.count({ where: { statut: "EN_ATTENTE", creneau: { saisonId: saison.id } } }),
+    // La liste d'attente compte aussi : personne ne la promeut si le créneau
+    // reste plein toute la saison, c'est au service d'ouvrir une place ou de
+    // prévenir l'agent. Sans ce chiffre, elle dormait sur la page Inscriptions.
+    prisma.inscription.count({
+      where: { statut: "LISTE_ATTENTE", creneau: { saisonId: saison.id } },
+    }),
     prisma.seance.findMany({
       where: {
         date: { gte: periode.debut, lte: periode.fin },
@@ -272,6 +288,8 @@ export default async function TableauDeBord({
     compteur("semaine"),
     compteur("mois"),
   ]);
+
+  const aTraiter = aValider + enListeAttente;
 
   const onglets: { vue: Vue; nombre: number }[] = [
     { vue: "jour", nombre: nbJour },
@@ -318,12 +336,21 @@ export default async function TableauDeBord({
           href="/statistiques"
         />
         <Stat
-          label="Demandes à traiter"
-          value={aValider}
-          accent={aValider > 0 ? "text-amber-600 bg-amber-50" : "text-slate-400 bg-slate-50"}
+          label="Inscriptions à traiter"
+          value={aTraiter}
+          accent={aTraiter > 0 ? "text-amber-600 bg-amber-50" : "text-slate-400 bg-slate-50"}
           icon={<ClipboardCheck className="h-4 w-4" />}
           href="/inscriptions"
-          hint={aValider > 0 ? "à arbitrer" : "rien en attente"}
+          hint={
+            aTraiter === 0
+              ? "rien en attente"
+              : [
+                  aValider > 0 ? `${aValider} à arbitrer` : null,
+                  enListeAttente > 0 ? `${enListeAttente} en liste d'attente` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+          }
         />
         <Stat
           label="Feuilles non transmises"
@@ -335,21 +362,34 @@ export default async function TableauDeBord({
         />
       </div>
 
-      {/* Une demande d'inscription qui attend bloque un agent : elle passe
-          avant les indicateurs de fond, avec le lien qui la traite. */}
-      {aValider > 0 && (
+      {/* Une inscription qui attend bloque un agent : elle passe avant les
+          indicateurs de fond, avec le lien qui la traite. Les deux situations
+          restent distinctes — l'une appelle une décision, l'autre une place. */}
+      {aTraiter > 0 && (
         <Link
           href="/inscriptions"
           className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-5 transition hover:border-amber-300"
         >
           <ClipboardCheck className="h-5 w-5 shrink-0 text-amber-600" />
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-amber-800">
-              {aValider} {pluriel(aValider, "demande")} d&apos;inscription{" "}
-              {pluriel(aValider, "attend", "attendent")} une décision
-            </span>
+            {aValider > 0 && (
+              <span className="block text-sm font-semibold text-amber-800">
+                {aValider} {pluriel(aValider, "demande")} d&apos;inscription{" "}
+                {pluriel(aValider, "attend", "attendent")} une décision
+              </span>
+            )}
+            {enListeAttente > 0 && (
+              <span className="block text-sm font-semibold text-amber-800">
+                {enListeAttente} {pluriel(enListeAttente, "agent")}{" "}
+                {pluriel(enListeAttente, "est", "sont")} en liste d&apos;attente
+              </span>
+            )}
             <span className="block text-sm text-amber-700">
-              Inscrire, placer en liste d&apos;attente ou refuser
+              {aValider > 0 && enListeAttente > 0
+                ? "Arbitrer les demandes, et ouvrir une place ou prévenir ceux qui attendent."
+                : aValider > 0
+                  ? "Inscrire, placer en liste d'attente ou refuser."
+                  : "Ouvrir un créneau, augmenter la capacité, ou prévenir qu'il n'y aura pas de place."}
             </span>
           </span>
           <span className="shrink-0 text-sm font-medium text-amber-800 underline">
