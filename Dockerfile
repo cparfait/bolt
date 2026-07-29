@@ -15,6 +15,15 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 RUN npx prisma generate && npx next build
 
+# ── CLI Prisma (migrations au démarrage) ───────────────────────────────────
+# La CLI et toutes ses dépendances transitives (@prisma/config → effect, c12…),
+# installées seules : les copier une à une depuis node_modules casse à chaque
+# montée de version de Prisma.
+FROM node:22-alpine AS prisma-cli
+WORKDIR /cli
+COPY package-lock.json ./
+RUN npm install --no-save "prisma@$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")"
+
 # ── Image finale ───────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -26,11 +35,11 @@ RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-# CLI Prisma pour appliquer les migrations au démarrage
+# client Prisma généré (au cas où le tracing standalone l'aurait exclu)
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.bin ./node_modules/.bin
+# CLI Prisma et ses dépendances, fusionnées dans node_modules
+COPY --from=prisma-cli --chown=nextjs:nodejs /cli/node_modules ./node_modules
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
 
 USER nextjs
