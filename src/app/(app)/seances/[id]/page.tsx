@@ -102,9 +102,7 @@ export default async function SeanceDetail({
         <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <p className="font-semibold">Séance hors récurrence</p>
           <p className="mt-0.5">
-            Le créneau a lieu le {JOUR_LABELS[seance.creneau.jour].toLowerCase()} :
-            cette séance est antérieure au changement de jour, et conservée parce
-            qu&apos;elle porte de l&apos;émargement.
+            {`Le créneau a lieu le ${JOUR_LABELS[seance.creneau.jour].toLowerCase()} : cette séance est antérieure au changement de jour, et conservée parce qu'elle porte de l'émargement.`}
           </p>
         </div>
       )}
