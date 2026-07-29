@@ -61,9 +61,9 @@ services:
       TZ: Europe/Paris
       # COOKIE_SECURE: "0"   # décommentez si l'accès se fait en http
     volumes:
-      # certificat de l'AC interne pour le LDAPS — dans Bolt, Paramètres →
-      # Annuaire, renseigner le chemin /certs/ca.pem
-      - /home/sysadmin/docker/bolt/certs:/certs:ro
+      # certificat de l'AC interne (partagé entre les apps du serveur) pour le
+      # LDAPS — dans Bolt, Paramètres → Annuaire, renseigner /certs/ca.pem
+      - /home/sysadmin/docker/ca_chatillon:/certs:ro
     networks:
       - bolt_net
       - containers-lan
