@@ -18,6 +18,61 @@ export type Candidat = {
   source: "compte" | "annuaire";
 };
 
+/**
+ * Identifiant unique pour un participant hors annuaire, dérivé de son nom.
+ * Préfixé « no_ad. » : il ne peut jamais entrer en collision avec un
+ * sAMAccountName si la personne obtient un compte AD plus tard. Le suffixe
+ * numérique traite les homonymes, fréquents à l'échelle d'une collectivité.
+ */
+async function identifiantLibre(nom: string): Promise<string> {
+  const slug = nom
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // accents décomposés par la normalisation
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .slice(0, 28);
+  // Un nom entièrement composé de ponctuation ne doit pas produire « no_ad. ».
+  const base = slug ? `no_ad.${slug}` : "no_ad.participant";
+
+  for (let n = 0; n < 100; n++) {
+    const candidat = n === 0 ? base : `${base}.${n + 1}`;
+    const pris = await prisma.user.findUnique({
+      where: { login: candidat },
+      select: { id: true },
+    });
+    if (!pris) return candidat;
+  }
+  // Repli improbable : 100 homonymes exacts.
+  return `${base}.${Date.now().toString(36)}`;
+}
+
+/**
+ * Crée un participant absent de l'Active Directory : élu, agent d'un autre
+ * organisme, stagiaire en attente de compte. Le compte n'a pas de mot de passe
+ * — la connexion, si elle est utile, passe par le lien envoyé sur l'adresse
+ * renseignée. Comme `chercherComptes`, ce helper ne porte aucun contrôle
+ * d'accès : il incombe aux actions appelantes.
+ */
+export async function creerParticipantHorsAnnuaire(donnees: {
+  nom: string;
+  email?: string | null;
+  direction?: string | null;
+  service?: string | null;
+}) {
+  return prisma.user.create({
+    data: {
+      login: await identifiantLibre(donnees.nom),
+      displayName: donnees.nom,
+      email: donnees.email || null,
+      direction: donnees.direction || null,
+      service: donnees.service || null,
+      role: "AGENT",
+      isLocal: false, // aucun mot de passe : ni AD, ni compte local
+    },
+  });
+}
+
 export async function chercherComptes(
   query: string,
   exclus: string[] = [],

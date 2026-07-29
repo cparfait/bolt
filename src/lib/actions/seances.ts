@@ -266,6 +266,29 @@ export async function ajouterParticipant(
   const agent = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
   if (!userId || !agent) return erreur("Agent introuvable.");
 
+  // Une séance à venir n'a pas de présence à constater : pointer « présent »
+  // par avance créditait l'agent d'une assiduité fictive (100 % avant sa
+  // première venue). S'il s'agit de le prévoir pour la suite, l'inscription au
+  // créneau suffit — il figurera sur la feuille le jour venu.
+  if (seance.date > aujourdhui()) {
+    if (formData.get("inscrire") !== "on") {
+      return erreur(
+        "Cette séance n'a pas encore eu lieu : on ne pointe pas une présence par avance. Pour prévoir sa venue, cochez l'inscription au créneau.",
+      );
+    }
+    const suite = await inscrireAuCreneau(
+      seance.creneauId,
+      userId,
+      agent.displayName,
+      estGestionnaire(acteur) ? acteur.displayName : null,
+    );
+    revalidatePath(`/seances/${seanceId}`);
+    revalidatePath("/inscriptions");
+    return succes(
+      `Séance à venir : ${agent.displayName} n'est pas pointé, il sera sur la feuille le jour même.${suite}`,
+    );
+  }
+
   await enregistrerPresence(seanceId, userId, "PRESENT", `user:${acteur.login}`);
   await audit("PARTICIPANT_PONCTUEL", {
     userId: acteur.id,

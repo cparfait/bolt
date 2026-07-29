@@ -18,7 +18,11 @@ import { enregistrerPresence, saisieOuverte } from "@/lib/emargement";
 import { participeALaSeance } from "@/lib/inscriptions";
 import { notifierSeanceRetablie, notifierSeancesAnnulees } from "@/lib/notifications";
 import { clientIp } from "@/lib/net";
-import { chercherComptes, type Candidat } from "@/lib/comptes";
+import {
+  chercherComptes,
+  creerParticipantHorsAnnuaire,
+  type Candidat,
+} from "@/lib/comptes";
 import { erreur, succes, type ActionState } from "./types";
 
 /**
@@ -225,11 +229,47 @@ export async function rechercherParticipantEmargement(
 }
 
 /**
+ * Services connus de la collectivité, pour situer un participant créé à la
+ * volée. On expose la liste des services — pas l'annuaire nominatif : le
+ * niveau organigramme suffit au service des sports pour identifier la
+ * personne, sans faire de la feuille publique un répertoire d'agents.
+ */
+export async function listerServicesEmargement(
+  token: string,
+  seanceId: string,
+): Promise<string[]> {
+  const ctx = await seanceDuCoach(token, seanceId);
+  if (!ctx) return [];
+
+  const [comptes, annuaire] = await Promise.all([
+    prisma.user.findMany({
+      where: { active: true, service: { not: null } },
+      select: { service: true },
+      distinct: ["service"],
+    }),
+    prisma.adAccount.findMany({
+      where: { enabled: true, service: { not: null } },
+      select: { service: true },
+      distinct: ["service"],
+    }),
+  ]);
+  return [...new Set([...comptes, ...annuaire].map((x) => x.service!).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "fr"))
+    .slice(0, 200);
+}
+
+/**
  * Ajout d'un participant venu sans être inscrit, depuis la feuille mobile.
  *
  * Il est pointé présent — c'est le fait constaté — et l'animateur peut
  * proposer son inscription au créneau dans le même geste. Cette demande part
  * en attente : l'animateur signale, le service des sports arbitre.
+ *
+ * Si la personne est introuvable dans Bolt (élu, agent sans compte, membre
+ * d'un organisme partenaire), l'animateur peut la créer par son nom
+ * (`nomLibre`), en la situant au besoin par son service. Le compte créé est
+ * un participant hors annuaire (identifiant « no_ad.… »), comme ceux que crée
+ * le service des sports — qui en est informé par le journal.
  */
 export async function ajouterParticipantEmargement(
   _prev: ActionState,
@@ -238,16 +278,47 @@ export async function ajouterParticipantEmargement(
   const token = String(formData.get("token") ?? "");
   const seanceId = String(formData.get("seanceId") ?? "");
   const login = String(formData.get("login") ?? "").trim();
-  if (!login) return erreur("Sélectionnez un agent.");
+  const nomLibre = String(formData.get("nomLibre") ?? "").trim().replace(/\s+/g, " ");
+  if (!login && nomLibre.length < 2) return erreur("Sélectionnez un agent.");
 
   const ctx = await seanceDuCoach(token, seanceId);
   if (!ctx) return erreur("Séance introuvable.");
   const { coach, seance } = ctx;
   if (seance.clotureeAt) return erreur("Feuille déjà transmise.");
   if (seance.statut === "ANNULEE") return erreur("Cette séance est annulée.");
+  // Même fenêtre que le pointage : ajouter quelqu'un, c'est le pointer présent,
+  // et une présence ne se constate pas sur une séance qui n'a pas eu lieu.
+  if (!saisieOuverte(seance.date)) {
+    return erreur(
+      seance.date > aujourdhui()
+        ? "Cette séance n'a pas encore eu lieu : ajoutez le participant le jour même."
+        : "La fenêtre de saisie de cette séance est passée : contactez le service des sports.",
+    );
+  }
 
-  const agent = await prisma.user.findUnique({ where: { login: login.toLowerCase() } });
-  if (!agent || !agent.active) return erreur("Agent introuvable.");
+  let agent;
+  if (login) {
+    agent = await prisma.user.findUnique({ where: { login: login.toLowerCase() } });
+    if (!agent || !agent.active) return erreur("Agent introuvable.");
+  } else {
+    // Création à la volée depuis une page jointe sur Internet : le plafond
+    // horaire borne ce qu'une session compromise pourrait injecter comme
+    // comptes, sans gêner l'usage réel — quelques invités par séance au plus.
+    if (!rateLimit(`hors-annuaire:${coach.id}`, 5, 3600).ok) {
+      return erreur(
+        "Trop de participants créés d'affilée. Réessayez plus tard, ou signalez-les au service des sports.",
+      );
+    }
+    agent = await creerParticipantHorsAnnuaire({
+      nom: nomLibre,
+      service: String(formData.get("service") ?? "").trim() || null,
+    });
+    await audit("AGENT_HORS_ANNUAIRE_CREE", {
+      acteur: `${coach.prenom} ${coach.nom}`,
+      cible: nomLibre,
+      details: `${agent.login} — créé depuis la feuille d'émargement`,
+    });
+  }
 
   await enregistrerPresence(seanceId, agent.id, "PRESENT", `coach:${coach.id}`);
   await audit("PARTICIPANT_PONCTUEL", {

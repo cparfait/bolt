@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState, useTransition } from "react";
 import { Search, UserPlus } from "lucide-react";
 import {
   ajouterParticipantEmargement,
+  listerServicesEmargement,
   rechercherParticipantEmargement,
 } from "@/lib/actions/emargement";
 import type { Candidat } from "@/lib/comptes";
@@ -87,6 +88,17 @@ function Selecteur({
   const [resultats, setResultats] = useState<Candidat[]>([]);
   const [choisi, setChoisi] = useState<Candidat | null>(null);
   const [cherche, demarrer] = useTransition();
+  // Personne introuvable dans Bolt : l'animateur la crée par son nom, située
+  // au besoin par son service — la liste des services n'expose pas l'annuaire.
+  const [horsAnnuaire, setHorsAnnuaire] = useState(false);
+  const [services, setServices] = useState<string[] | null>(null);
+
+  const activerHorsAnnuaire = () => {
+    setHorsAnnuaire(true);
+    if (services === null) {
+      listerServicesEmargement(token, seanceId).then(setServices);
+    }
+  };
 
   // Anti-rebond : la saisie se fait au pouce, sur un réseau souvent médiocre.
   useEffect(() => {
@@ -105,6 +117,7 @@ function Selecteur({
   return (
     <>
       <input type="hidden" name="login" value={choisi?.login ?? ""} />
+      <input type="hidden" name="nomLibre" value={horsAnnuaire ? terme.trim() : ""} />
 
       <label className="block">
         <span className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -117,6 +130,7 @@ function Selecteur({
             onChange={(e) => {
               setTerme(e.target.value);
               setChoisi(null);
+              setHorsAnnuaire(false);
             }}
             placeholder="Nom de l'agent"
             autoComplete="off"
@@ -125,15 +139,24 @@ function Selecteur({
         </span>
       </label>
 
-      {!choisi && terme.trim().length >= 2 && (
+      {!choisi && !horsAnnuaire && terme.trim().length >= 2 && (
         <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white">
           {cherche && affiches.length === 0 ? (
             <p className="px-4 py-3 text-sm text-slate-400">Recherche…</p>
           ) : affiches.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">
-              Aucun agent trouvé. Signalez-le au service des sports, qui pourra
-              l&apos;ajouter.
-            </p>
+            <div className="space-y-2 px-4 py-3">
+              <p className="text-sm text-slate-400">
+                Personne ne porte ce nom dans Bolt — élu, stagiaire ou invité
+                d&apos;un autre organisme, peut-être.
+              </p>
+              <button
+                type="button"
+                onClick={activerHorsAnnuaire}
+                className="w-full rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-medium text-indigo-700 active:bg-indigo-100"
+              >
+                Ajouter « {terme.trim()} » quand même
+              </button>
+            </div>
           ) : (
             <ul className="divide-y divide-slate-100">
               {affiches.map((c) => (
@@ -152,6 +175,33 @@ function Selecteur({
               ))}
             </ul>
           )}
+        </div>
+      )}
+
+      {horsAnnuaire && (
+        <div className="space-y-2.5 rounded-xl border border-indigo-200 bg-white p-3.5">
+          <p className="text-sm text-slate-600">
+            <span className="font-medium">{terme.trim()}</span> sera créé comme
+            participant hors annuaire — le service des sports pourra compléter
+            sa fiche.
+          </p>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-500">
+              Son service, si vous le connaissez
+            </span>
+            <select
+              name="service"
+              defaultValue=""
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base outline-none focus:border-indigo-500"
+            >
+              <option value="">Je ne sais pas / extérieur</option>
+              {(services ?? []).map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       )}
 
@@ -181,10 +231,14 @@ function Selecteur({
         <SubmitButton
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.99] disabled:opacity-50"
           pendingLabel="Ajout…"
-          disabled={!choisi}
+          disabled={!choisi && !horsAnnuaire}
         >
           <UserPlus className="h-4 w-4" />
-          {choisi ? `Ajouter ${choisi.nom.split(" ")[0]}` : "Choisissez un agent"}
+          {choisi
+            ? `Ajouter ${choisi.nom.split(" ")[0]}`
+            : horsAnnuaire
+              ? `Ajouter ${terme.trim().split(" ")[0]}`
+              : "Choisissez un agent"}
         </SubmitButton>
       </div>
     </>

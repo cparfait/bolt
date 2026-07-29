@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { chercherComptes, type Candidat } from "@/lib/comptes";
+import {
+  chercherComptes,
+  creerParticipantHorsAnnuaire,
+  type Candidat,
+} from "@/lib/comptes";
 import { inscrireDirectement } from "@/lib/inscriptions";
 import { requireUser } from "@/lib/session";
 import { erreur, succes, type ActionState } from "./types";
@@ -226,17 +230,7 @@ export async function creerAgentHorsAnnuaire(
     }
   }
 
-  const user = await prisma.user.create({
-    data: {
-      login: await identifiantLibre(nom),
-      displayName: nom,
-      email: email || null,
-      direction: direction || null,
-      service: service || null,
-      role: "AGENT",
-      isLocal: false, // aucun mot de passe : ni AD, ni compte local
-    },
-  });
+  const user = await creerParticipantHorsAnnuaire({ nom, email, direction, service });
 
   let suite = "";
   if (creneauId) {
@@ -262,34 +256,6 @@ export async function creerAgentHorsAnnuaire(
   revalidatePath("/inscriptions");
   revalidatePath("/agents");
   return succes(`${nom} créé (identifiant ${user.login}).${suite}`);
-}
-
-/**
- * Identifiant unique pour un participant hors annuaire, dérivé de son nom.
- * Le suffixe numérique traite les homonymes, fréquents à l'échelle d'une
- * collectivité.
- */
-async function identifiantLibre(nom: string): Promise<string> {
-  const slug = nom
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // accents décomposés par la normalisation
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ".")
-    .replace(/^\.+|\.+$/g, "")
-    .slice(0, 28);
-  // Un nom entièrement composé de ponctuation ne doit pas produire « no_ad. ».
-  const base = slug ? `no_ad.${slug}` : "no_ad.participant";
-
-  for (let n = 0; n < 100; n++) {
-    const candidat = n === 0 ? base : `${base}.${n + 1}`;
-    const pris = await prisma.user.findUnique({
-      where: { login: candidat },
-      select: { id: true },
-    });
-    if (!pris) return candidat;
-  }
-  // Repli improbable : 100 homonymes exacts.
-  return `${base}.${Date.now().toString(36)}`;
 }
 
 /**

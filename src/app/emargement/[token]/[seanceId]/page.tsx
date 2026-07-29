@@ -155,12 +155,25 @@ export default async function FeuillePage({
           )}
 
         {lignes.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 px-4 py-10 text-center">
-            <p className="text-sm font-medium text-slate-600">Aucun inscrit sur ce créneau</p>
-            <p className="mt-1 text-sm text-slate-400">
-              Le service des sports doit d&apos;abord valider des inscriptions.
-            </p>
-          </div>
+          /* Feuille vide mais séance pointable : l'ajout reste offert — un
+             créneau tout neuf accueille souvent ses premiers venus avant que
+             la moindre inscription soit validée, et sans ce geste leur venue
+             n'existerait nulle part. */
+          <>
+            {!verrouillee && !avantPointage && (
+              <AjouterParticipantMobile token={token} seanceId={seanceId} />
+            )}
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 px-4 py-10 text-center">
+              <p className="text-sm font-medium text-slate-600">
+                Aucun inscrit sur ce créneau
+              </p>
+              <p className="mt-1 text-sm text-slate-400">
+                {!verrouillee && !avantPointage
+                  ? "Quelqu'un est venu quand même ? Ajoutez-le ci-dessus : il sera pointé présent."
+                  : "Le service des sports doit d'abord valider des inscriptions."}
+              </p>
+            </div>
+          </>
         ) : avantPointage ? (
           /* Liste simplement consultable : pointer une séance qui n'a pas eu
              lieu n'aurait aucun sens, et la feuille interactive afficherait une
