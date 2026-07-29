@@ -5,7 +5,13 @@ import { prisma } from "@/lib/db";
 import { estGestionnaire, requireUser } from "@/lib/session";
 import { feuilleDeSeance } from "@/lib/emargement";
 import { cloturerSeance, retablirSeance, rouvrirSeance } from "@/lib/actions/seances";
-import { aujourdhui, fmtDateLongue, fmtHorodatage } from "@/lib/dates";
+import {
+  JOUR_LABELS,
+  aujourdhui,
+  fmtDateLongue,
+  fmtHorodatage,
+  jourDeLaDate,
+} from "@/lib/dates";
 import { Badge, Card, EmptyState, PageHeader, btnSecondary } from "@/components/ui";
 import { Panneau } from "@/components/panneau";
 import { BoutonAction } from "@/components/bouton-action";
@@ -85,6 +91,21 @@ export default async function SeanceDetail({
         <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <p className="font-semibold">Séance annulée</p>
           {seance.motifAnnulation && <p className="mt-0.5">{seance.motifAnnulation}</p>}
+        </div>
+      )}
+
+      {/* Le créneau a changé de jour depuis : la séance reste au calendrier
+          parce qu'elle porte de l'émargement, mais elle ne tombe plus sur le
+          jour de la récurrence. Sans ce mot, on lit une Musculation « mercredi »
+          un lundi et l'on croit à un défaut du planning. */}
+      {jourDeLaDate(seance.date) !== seance.creneau.jour && (
+        <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <p className="font-semibold">Séance hors récurrence</p>
+          <p className="mt-0.5">
+            Le créneau a lieu le {JOUR_LABELS[seance.creneau.jour].toLowerCase()} :
+            cette séance est antérieure au changement de jour, et conservée parce
+            qu&apos;elle porte de l&apos;émargement.
+          </p>
         </div>
       )}
 

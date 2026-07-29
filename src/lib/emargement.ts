@@ -156,6 +156,16 @@ export async function retirerPresence(seanceId: string, userId: string): Promise
 }
 
 /**
+ * Fenêtre de réclamation des feuilles manquantes.
+ *
+ * Deux mois : au-delà, la séance est trop ancienne pour qu'un animateur s'en
+ * souvienne. Le jour même est exclu — une séance du soir n'est pas en retard à
+ * midi. La tuile du tableau de bord et le filtre du planning s'appuient tous
+ * deux dessus, sans quoi l'une annonçait zéro et l'autre listait des séances.
+ */
+export const JOURS_FEUILLES_MANQUANTES = 60;
+
+/**
  * Restreint une liste de séances à celles qui ont réellement une feuille à
  * compléter : au moins un inscrit attendu à cette date, ou un pointage déjà
  * saisi. Une séance sans personne n'a rien à émarger — la réclamer met

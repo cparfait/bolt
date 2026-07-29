@@ -14,7 +14,7 @@ import { saisonCourante } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import { decrocheurs, indicateurs, parActivite } from "@/lib/stats";
 import { declencherRappelsSiBesoin } from "@/lib/rappels";
-import { feuillesAttendues } from "@/lib/emargement";
+import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
 import { prochainesSeancesDe } from "@/lib/actions/absences";
 import { MesSeances } from "@/components/mes-seances";
 import { RechercheRapide } from "@/components/recherche-rapide";
@@ -220,7 +220,7 @@ export default async function TableauDeBord({
                   </div>
                   <Badge color={SEANCE_STATUT_COLORS[s.statut]}>
                     {s.statut === "FAITE"
-                      ? `${s._count.presences} pointés`
+                      ? `${s._count.presences} ${pluriel(s._count.presences, "pointé")}`
                       : SEANCE_STATUT_LABELS[s.statut]}
                   </Badge>
                 </li>
@@ -280,7 +280,10 @@ export default async function TableauDeBord({
     prisma.seance.findMany({
       where: {
         statut: "PLANIFIEE",
-        date: { lt: aujourdhui(), gte: ajouterJours(aujourdhui(), -30) },
+        date: {
+          lt: aujourdhui(),
+          gte: ajouterJours(aujourdhui(), -JOURS_FEUILLES_MANQUANTES),
+        },
         creneau: { saisonId: saison.id },
       },
       select: { id: true, date: true, creneauId: true },
@@ -362,7 +365,7 @@ export default async function TableauDeBord({
           value={aEmarger}
           accent={aEmarger > 0 ? "text-red-600 bg-red-50" : "text-slate-400 bg-slate-50"}
           icon={<AlertTriangle className="h-4 w-4" />}
-          hint="30 derniers jours"
+          hint={`${JOURS_FEUILLES_MANQUANTES} derniers jours`}
           href="/seances?periode=manquantes"
         />
       </div>
@@ -386,7 +389,8 @@ export default async function TableauDeBord({
             {enListeAttente > 0 && (
               <span className="block text-sm font-semibold text-amber-800">
                 {enListeAttente} {pluriel(enListeAttente, "agent")}{" "}
-                {pluriel(enListeAttente, "est", "sont")} en liste d&apos;attente
+                {pluriel(enListeAttente, "est", "sont")}{" "}
+                en liste d&apos;attente
               </span>
             )}
             <span className="block text-sm text-amber-700">
@@ -478,7 +482,7 @@ export default async function TableauDeBord({
                   </div>
                   <Badge color={SEANCE_STATUT_COLORS[s.statut]}>
                     {s.statut === "FAITE"
-                      ? `${s._count.presences} pointés`
+                      ? `${s._count.presences} ${pluriel(s._count.presences, "pointé")}`
                       : SEANCE_STATUT_LABELS[s.statut]}
                   </Badge>
                 </li>

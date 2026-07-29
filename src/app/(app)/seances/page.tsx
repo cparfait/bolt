@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { estGestionnaire, requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { aujourdhui, ajouterJours, fmtDateComplete, isoDate } from "@/lib/dates";
-import { feuillesAttendues } from "@/lib/emargement";
+import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
 import { Badge, EmptyState, PageHeader, Select, btnSecondary } from "@/components/ui";
 import { FiltreActivites } from "@/components/filtre-activites";
 import { FiltreForm } from "@/components/filtre-form";
@@ -18,7 +18,11 @@ const PERIODES = {
   mois: { label: "30 prochains jours", avant: 0, apres: 30 },
   passees: { label: "30 derniers jours", avant: 30, apres: 0 },
   saison: { label: "Toute la saison", avant: null, apres: null },
-  manquantes: { label: "Feuilles non transmises", avant: 60, apres: 0 },
+  manquantes: {
+    label: "Feuilles non transmises",
+    avant: JOURS_FEUILLES_MANQUANTES,
+    apres: -1, // le jour même est encore à venir : une séance du soir n'est pas en retard
+  },
 } as const;
 
 type Periode = keyof typeof PERIODES;
@@ -170,8 +174,9 @@ export default async function SeancesPage({
         <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <p className="text-sm text-amber-800">
-            {seances.length} séance{seances.length > 1 ? "s" : ""} sans émargement.
-            Relancez l&apos;animateur ou complétez la feuille vous-même.
+            {seances.length} {pluriel(seances.length, "séance")}{" "}
+            sans émargement. Relancez l&apos;animateur ou complétez la feuille
+            vous-même.
           </p>
         </div>
       )}
