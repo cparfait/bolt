@@ -101,13 +101,22 @@ export async function pointerEmargement(
   if (!saisieOuverte(seance.date)) return;
   if (!ETATS.includes(etat as EtatPresence)) return;
 
-  // L'agent doit être inscrit au créneau : la feuille publique ne permet pas
-  // de créer une ligne pour n'importe quel compte de la collectivité.
-  const inscrit = await prisma.inscription.findFirst({
-    where: { creneauId: seance.creneauId, userId, statut: "VALIDEE" },
-    select: { id: true },
-  });
-  if (!inscrit) return;
+  // La feuille publique ne crée pas de ligne pour n'importe quel compte de la
+  // collectivité : il faut être inscrit au créneau, **ou** figurer déjà sur la
+  // feuille. Sans ce second cas, un participant ajouté à la volée était pointé
+  // présent à sa création puis impossible à corriger — le bouton « absent »
+  // restait sans effet.
+  const [inscrit, dejaSurLaFeuille] = await Promise.all([
+    prisma.inscription.findFirst({
+      where: { creneauId: seance.creneauId, userId, statut: "VALIDEE" },
+      select: { id: true },
+    }),
+    prisma.presence.findUnique({
+      where: { seanceId_userId: { seanceId, userId } },
+      select: { id: true },
+    }),
+  ]);
+  if (!inscrit && !dejaSurLaFeuille) return;
 
   await enregistrerPresence(seanceId, userId, etat as EtatPresence, `coach:${coach.id}`);
   revalidatePath(`/emargement/${token}/${seanceId}`);
@@ -272,10 +281,34 @@ export async function ajouterParticipantEmargement(
     }
   }
 
+  // La capacité ne bloque jamais l'animateur : la personne est là, devant lui,
+  // et une feuille qui refuse de l'enregistrer produit une fréquentation
+  // fausse. On l'informe du dépassement — et le service des sports le lit au
+  // journal — mais l'ajout passe.
+  const [surLaFeuille, creneau] = await Promise.all([
+    prisma.presence.count({ where: { seanceId, etat: "PRESENT" } }),
+    prisma.creneau.findUnique({
+      where: { id: seance.creneauId },
+      select: { capacite: true },
+    }),
+  ]);
+  const capacite = creneau?.capacite ?? 0;
+  const depassement =
+    capacite > 0 && surLaFeuille > capacite
+      ? ` Attention : ${surLaFeuille} présents pour ${capacite} places prévues.`
+      : "";
+  if (depassement) {
+    await audit("SEANCE_CAPACITE_DEPASSEE", {
+      acteur: `${coach.prenom} ${coach.nom}`,
+      cible: `${seance.creneau.activite.nom} ${seance.date.toISOString().slice(0, 10)}`,
+      details: `${surLaFeuille}/${capacite}`,
+    });
+  }
+
   revalidatePath(`/emargement/${token}/${seanceId}`);
   revalidatePath(`/seances/${seanceId}`);
   revalidatePath("/inscriptions");
-  return succes(`${agent.displayName} ajouté à la feuille.${suite}`);
+  return succes(`${agent.displayName} ajouté à la feuille.${suite}${depassement}`);
 }
 
 /**
