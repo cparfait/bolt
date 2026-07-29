@@ -33,11 +33,11 @@ export function PinForm({ token, prenom }: { token: string; prenom: string }) {
           required
           autoFocus
           placeholder="••••••"
-          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-4 text-center text-2xl tracking-[0.4em] tabular-nums outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-4 text-center text-2xl tracking-[0.4em] tabular-nums outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
         />
       </label>
       <SubmitButton
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-brand-500 disabled:opacity-50"
         pendingLabel="Vérification…"
       >
         <KeyRound className="h-4 w-4" /> Accéder à mes séances

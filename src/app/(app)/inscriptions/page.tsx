@@ -144,7 +144,7 @@ export default async function InscriptionsPage({
                 <div className="min-w-0">
                   <Link
                     href={`/agents/${d.userId}`}
-                    className="text-sm font-medium hover:text-indigo-600"
+                    className="text-sm font-medium hover:text-brand-600"
                   >
                     {d.user.displayName}
                   </Link>
@@ -261,7 +261,7 @@ export default async function InscriptionsPage({
                             encore ? » se pose en lisant une liste d'inscrits. */}
                         <Link
                           href={`/agents/${i.userId}`}
-                          className="min-w-0 rounded px-1 -mx-1 hover:text-indigo-600"
+                          className="min-w-0 rounded px-1 -mx-1 hover:text-brand-600"
                         >
                           {i.user.displayName}
                           {i.user.service && (
@@ -288,7 +288,7 @@ export default async function InscriptionsPage({
                         <li key={i.id} className="flex items-center justify-between gap-3">
                           <Link
                             href={`/agents/${i.userId}`}
-                            className="min-w-0 hover:text-indigo-600"
+                            className="min-w-0 hover:text-brand-600"
                           >
                             <span className="mr-2 tabular-nums text-blue-600">
                               {i.rang}.

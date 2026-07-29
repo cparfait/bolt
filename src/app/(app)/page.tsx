@@ -211,7 +211,7 @@ export default async function TableauDeBord({
               {seances.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
                   <div>
-                    <Link href={`/seances/${s.id}`} className="font-medium hover:text-indigo-600">
+                    <Link href={`/seances/${s.id}`} className="font-medium hover:text-brand-600">
                       {s.creneau.activite.nom}
                     </Link>
                     <p className="text-xs text-slate-400">
@@ -436,13 +436,13 @@ export default async function TableauDeBord({
                 href={o.vue === "jour" ? "/" : `/?vue=${o.vue}`}
                 className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
                   vue === o.vue
-                    ? "bg-indigo-600 text-white"
+                    ? "bg-brand-600 text-white"
                     : "bg-slate-50 text-slate-600 hover:bg-slate-100"
                 }`}
               >
                 {VUES[o.vue].label}
                 <span
-                  className={`ml-1.5 tabular-nums ${vue === o.vue ? "text-indigo-100" : "text-slate-400"}`}
+                  className={`ml-1.5 tabular-nums ${vue === o.vue ? "text-brand-100" : "text-slate-400"}`}
                 >
                   {o.nombre}
                 </span>
@@ -459,7 +459,7 @@ export default async function TableauDeBord({
                   <div className="min-w-0">
                     <Link
                       href={`/seances/${s.id}`}
-                      className="font-medium hover:text-indigo-600"
+                      className="font-medium hover:text-brand-600"
                     >
                       <span
                         className="mr-2 inline-block h-2 w-2 rounded-full align-middle"

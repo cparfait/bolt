@@ -128,7 +128,7 @@ export function Field({
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-500";
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50 disabled:text-slate-500";
 
 // suppressHydrationWarning : les gestionnaires de mots de passe injectent des
 // attributs dans les champs avant l'hydratation React — sans conséquence
@@ -159,7 +159,7 @@ export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
 }
 
 export const btnPrimary =
-  "inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50";
+  "inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-500 disabled:opacity-50";
 export const btnSecondary =
   "inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50";
 export const btnDanger =
@@ -186,7 +186,7 @@ export function Stat({
   label,
   value,
   suffixe,
-  accent = "text-indigo-600 bg-indigo-50",
+  accent = "text-brand-600 bg-brand-50",
   icon,
   hint,
   href,
@@ -229,7 +229,7 @@ export function Stat({
 /** Barre de progression horizontale (taux de remplissage, de présence…). */
 export function Jauge({
   valeur,
-  couleur = "#4f46e5",
+  couleur = "#006e46",
   className = "",
 }: {
   valeur: number; // 0–100

@@ -65,7 +65,7 @@ export default async function AnimateursPage() {
                       <Badge
                         color={
                           c.acces === "LIEN"
-                            ? "bg-indigo-100 text-indigo-700 ring-indigo-500/20"
+                            ? "bg-brand-100 text-brand-700 ring-brand-500/20"
                             : "bg-slate-100 text-slate-600 ring-slate-500/20"
                         }
                       >
@@ -184,7 +184,7 @@ export default async function AnimateursPage() {
                 )}
 
                 <details className="mt-4">
-                  <summary className="cursor-pointer text-sm font-medium text-indigo-600">
+                  <summary className="cursor-pointer text-sm font-medium text-brand-600">
                     Modifier la fiche
                   </summary>
                   <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4">

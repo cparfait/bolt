@@ -195,7 +195,7 @@ export default async function SeancesPage({
               <h2 className="flex flex-wrap items-baseline gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 first:border-t-0">
                 <span className="first-letter:uppercase">{fmtDateComplete(jour)}</span>
                 {jour === today && (
-                  <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold normal-case text-indigo-700">
+                  <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold normal-case text-brand-700">
                     aujourd&apos;hui
                   </span>
                 )}

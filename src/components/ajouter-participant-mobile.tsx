@@ -47,7 +47,7 @@ export function AjouterParticipantMobile({
   return (
     <form
       action={action}
-      className="mb-3 space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4"
+      className="mb-3 space-y-3 rounded-2xl border border-brand-200 bg-brand-50/50 p-4"
     >
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="seanceId" value={seanceId} />
@@ -134,7 +134,7 @@ function Selecteur({
             }}
             placeholder="Nom de l'agent"
             autoComplete="off"
-            className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-9 pr-3.5 text-base outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+            className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-9 pr-3.5 text-base outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
           />
         </span>
       </label>
@@ -152,7 +152,7 @@ function Selecteur({
               <button
                 type="button"
                 onClick={activerHorsAnnuaire}
-                className="w-full rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-medium text-indigo-700 active:bg-indigo-100"
+                className="w-full rounded-lg border border-brand-200 bg-brand-50 px-3 py-2.5 text-sm font-medium text-brand-700 active:bg-brand-100"
               >
                 Ajouter « {terme.trim()} » quand même
               </button>
@@ -179,7 +179,7 @@ function Selecteur({
       )}
 
       {horsAnnuaire && (
-        <div className="space-y-2.5 rounded-xl border border-indigo-200 bg-white p-3.5">
+        <div className="space-y-2.5 rounded-xl border border-brand-200 bg-white p-3.5">
           <p className="text-sm text-slate-600">
             <span className="font-medium">{terme.trim()}</span> sera créé comme
             participant hors annuaire — le service des sports pourra compléter
@@ -192,7 +192,7 @@ function Selecteur({
             <select
               name="service"
               defaultValue=""
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base outline-none focus:border-indigo-500"
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base outline-none focus:border-brand-500"
             >
               <option value="">Je ne sais pas / extérieur</option>
               {(services ?? []).map((s) => (
@@ -229,7 +229,7 @@ function Selecteur({
           Fermer
         </button>
         <SubmitButton
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.99] disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.99] disabled:opacity-50"
           pendingLabel="Ajout…"
           disabled={!choisi && !horsAnnuaire}
         >

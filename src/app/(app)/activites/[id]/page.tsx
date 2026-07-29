@@ -270,7 +270,7 @@ export default async function ActiviteDetail({
                       scroll={false}
                       className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
                         enEdition === c.id
-                          ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                          ? "border-brand-300 bg-brand-50 text-brand-700"
                           : "border-slate-200 text-slate-600 hover:bg-slate-50"
                       }`}
                     >
@@ -303,7 +303,7 @@ export default async function ActiviteDetail({
                 {enEdition === c.id && (
                   <div
                     id="creneau"
-                    className="mt-4 scroll-mt-20 rounded-xl border-2 border-indigo-200 bg-indigo-50/30 p-5"
+                    className="mt-4 scroll-mt-20 rounded-xl border-2 border-brand-200 bg-brand-50/30 p-5"
                   >
                     <CreneauForm
                       {...proprietesCreneau}

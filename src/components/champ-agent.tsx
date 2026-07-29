@@ -71,7 +71,7 @@ export function ChampAgent({
       </Field>
 
       {choisi ? (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-200 bg-indigo-50/60 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3">
           <div className="min-w-0">
             <p className="text-sm font-medium">{choisi.nom}</p>
             <p className="truncate text-xs text-slate-500">

@@ -45,11 +45,11 @@ export function ActionsSeance({
             name="commentaire"
             rows={2}
             placeholder="Matériel manquant, incident, remarque…"
-            className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+            className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
           />
         </label>
         <SubmitButton
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-4 text-base font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-4 text-base font-semibold text-white shadow-sm transition active:scale-[0.99] disabled:opacity-50"
           pendingLabel="Transmission…"
         >
           <Send className="h-4 w-4" /> Transmettre la feuille

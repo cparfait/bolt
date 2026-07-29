@@ -130,7 +130,7 @@ function Liens({
             onClick={onClick}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
               active
-                ? "bg-indigo-50 text-indigo-700"
+                ? "bg-brand-50 text-brand-700"
                 : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
             }`}
           >
@@ -158,7 +158,7 @@ export function Sidebar({ role, compteurs }: { role: Role; compteurs?: Compteurs
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
       <div className="flex h-14 items-center gap-2.5 border-b border-slate-100 px-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
           <Dumbbell className="h-4 w-4" />
         </span>
         <span className="text-lg font-semibold tracking-tight">Bolt</span>
@@ -179,7 +179,7 @@ export function NavMobile({ role, compteurs }: { role: Role; compteurs?: Compteu
   return (
     <details className="group border-b border-slate-200 bg-white md:hidden">
       <summary className="flex h-14 cursor-pointer list-none items-center gap-2.5 px-4">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
           <Dumbbell className="h-4 w-4" />
         </span>
         <span className="text-lg font-semibold tracking-tight">Bolt</span>

@@ -128,7 +128,7 @@ export function RechercheRapide() {
                     onMouseEnter={() => setSurligne(i)}
                     onClick={() => ouvrirFiche(s)}
                     className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition ${
-                      i === surligne ? "bg-indigo-50" : "hover:bg-slate-50"
+                      i === surligne ? "bg-brand-50" : "hover:bg-slate-50"
                     }`}
                   >
                     <span className="min-w-0">

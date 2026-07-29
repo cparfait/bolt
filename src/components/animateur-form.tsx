@@ -63,7 +63,7 @@ export function AnimateurForm({ initial }: { initial?: AnimateurInitial }) {
               key={m}
               className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
                 acces === m
-                  ? "border-indigo-300 bg-indigo-50/50"
+                  ? "border-brand-300 bg-brand-50/50"
                   : "border-slate-200 hover:bg-slate-50"
               }`}
             >

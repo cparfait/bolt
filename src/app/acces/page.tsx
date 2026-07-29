@@ -18,7 +18,7 @@ export default async function AccesPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/20">
             <Dumbbell className="h-6 w-6" />
           </span>
           <div className="text-center">
@@ -50,7 +50,7 @@ export default async function AccesPage() {
 
         <p className="mt-6 text-center text-xs text-slate-400">
           Vous êtes sur un poste du réseau ?{" "}
-          <Link href="/connexion" className="font-medium text-indigo-600 hover:underline">
+          <Link href="/connexion" className="font-medium text-brand-600 hover:underline">
             Connexion habituelle
           </Link>
         </p>

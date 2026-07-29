@@ -9,7 +9,7 @@ import type { PointMois } from "@/lib/stats";
  */
 export function HistogrammeMensuel({
   points,
-  couleur = "#4f46e5",
+  couleur = "#006e46",
 }: {
   points: PointMois[];
   couleur?: string;

@@ -70,19 +70,19 @@ export function InstallerApp() {
   };
 
   return (
-    <div className="mb-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3.5">
+    <div className="mb-4 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-indigo-900">
+          <p className="text-sm font-semibold text-brand-900">
             Gardez vos feuilles à portée de main
           </p>
           {invite ? (
-            <p className="mt-1 text-sm text-indigo-800">
+            <p className="mt-1 text-sm text-brand-800">
               Installez l&apos;application : votre lien personnel sera accessible
               en une touche, sans le rechercher dans vos messages.
             </p>
           ) : (
-            <p className="mt-1 flex flex-wrap items-center gap-1 text-sm text-indigo-800">
+            <p className="mt-1 flex flex-wrap items-center gap-1 text-sm text-brand-800">
               Touchez <Share className="h-4 w-4 shrink-0" /> puis
               <span className="inline-flex items-center gap-1 font-medium">
                 <SquarePlus className="h-4 w-4 shrink-0" /> Sur l&apos;écran
@@ -96,7 +96,7 @@ export function InstallerApp() {
           type="button"
           onClick={fermer}
           aria-label="Masquer"
-          className="shrink-0 rounded-lg p-1 text-indigo-400 transition active:bg-indigo-100"
+          className="shrink-0 rounded-lg p-1 text-brand-400 transition active:bg-brand-100"
         >
           <X className="h-4 w-4" />
         </button>
@@ -111,7 +111,7 @@ export function InstallerApp() {
             setInvite(null);
             if (outcome === "accepted") setFerme(true);
           }}
-          className="mt-3 w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.99]"
+          className="mt-3 w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.99]"
         >
           Installer sur l&apos;écran d&apos;accueil
         </button>

@@ -30,7 +30,7 @@ export default async function FeuillePage({
           <p className="mt-3 text-sm text-slate-500">Votre session a expiré.</p>
           <Link
             href={`/emargement/${token}`}
-            className="mt-4 inline-flex rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white"
+            className="mt-4 inline-flex rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white"
           >
             Ressaisir mon code
           </Link>

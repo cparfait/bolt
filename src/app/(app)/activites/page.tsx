@@ -241,7 +241,7 @@ export default async function ActivitesPage({
               {a.creneaux.length > 0 && (
                 <Link
                   href={`/activites/${a.id}?nouveau=1#nouveau`}
-                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                  className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800"
                 >
                   <Plus className="h-3.5 w-3.5" /> Ajouter un créneau à {a.nom}
                 </Link>

@@ -19,13 +19,13 @@ import { SEANCE_STATUT_LABELS } from "./constants";
  * personne n'a envie de remettre en forme un tableau avant une réunion.
  */
 
-const INDIGO = "FF4F46E5";
+const MARQUE = "FF006E46";
 const ARDOISE = "FFF1F5F9";
 
 function enTete(ws: ExcelJS.Worksheet) {
   const ligne = ws.getRow(1);
   ligne.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-  ligne.fill = { type: "pattern", pattern: "solid", fgColor: { argb: INDIGO } };
+  ligne.fill = { type: "pattern", pattern: "solid", fgColor: { argb: MARQUE } };
   ligne.alignment = { vertical: "middle" };
   ligne.height = 22;
   ws.views = [{ state: "frozen", ySplit: 1 }];

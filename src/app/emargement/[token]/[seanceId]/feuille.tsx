@@ -127,7 +127,7 @@ export function Feuille({
                   )}
                 </div>
                 {l.ponctuel && (
-                  <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600">
+                  <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-600">
                     invité
                   </span>
                 )}
@@ -182,7 +182,7 @@ export function Feuille({
           </div>
           <a
             href="#transmettre"
-            className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition active:scale-95"
+            className="rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition active:scale-95"
           >
             Terminer
           </a>

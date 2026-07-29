@@ -103,7 +103,7 @@ export default async function ParametresSaisons() {
             </div>
 
             <details className="mb-4">
-              <summary className="cursor-pointer text-sm font-medium text-indigo-600">
+              <summary className="cursor-pointer text-sm font-medium text-brand-600">
                 Modifier les dates
               </summary>
               <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4">

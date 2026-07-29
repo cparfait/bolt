@@ -102,7 +102,7 @@ export function FeuilleGestion({
                   <p className="text-sm font-medium">
                     {l.nom}
                     {l.ponctuel && (
-                      <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600">
+                      <span className="ml-2 rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-600">
                         invité
                       </span>
                     )}

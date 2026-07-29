@@ -120,7 +120,7 @@ export default async function FicheAgent({ params }: { params: Promise<{ id: str
         {agent.email && (
           <a
             href={`mailto:${agent.email}`}
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600"
           >
             <Mail className="h-4 w-4" /> {agent.email}
           </a>

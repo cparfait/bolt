@@ -2,6 +2,22 @@
 
 @theme {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Teinte de la collectivité, déclinée en nuancier complet : les classes
+     `bg-brand-600`, `ring-brand-100`, `hover:bg-brand-500`… en découlent
+     toutes. Changer la couleur de marque se fait donc ici, et nulle part
+     ailleurs. Le 600 est la teinte de référence — rgb(0, 110, 70). */
+  --color-brand-50: #edfcf7;
+  --color-brand-100: #d4f7ea;
+  --color-brand-200: #a9efd5;
+  --color-brand-300: #70e1b7;
+  --color-brand-400: #25d091;
+  --color-brand-500: #04905d;
+  --color-brand-600: #006e46;
+  --color-brand-700: #005737;
+  --color-brand-800: #00452c;
+  --color-brand-900: #013723;
+  --color-brand-950: #011e13;
 }
 
 body {

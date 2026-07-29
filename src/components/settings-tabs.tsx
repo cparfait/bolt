@@ -28,7 +28,7 @@ export function OngletsParametres({ estAdmin }: { estAdmin: boolean }) {
             href={o.href}
             className={`rounded-t-lg border-b-2 px-3.5 py-2 text-sm font-medium transition ${
               actif
-                ? "border-indigo-600 text-indigo-700"
+                ? "border-brand-600 text-brand-700"
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >

@@ -215,7 +215,7 @@ export function CalendrierSeances({
                 <span
                   className={`text-xs tabular-nums ${
                     j.aujourdHui
-                      ? "flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 font-semibold text-white"
+                      ? "flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 font-semibold text-white"
                       : j.horsMois
                         ? "text-slate-300"
                         : "text-slate-500"

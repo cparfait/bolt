@@ -102,7 +102,7 @@ export function AnnulerSeanceCoach({
           required
           maxLength={200}
           placeholder="Salle indisponible, arrêt de travail…"
-          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-base outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-base outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
         />
       </label>
 
@@ -113,7 +113,7 @@ export function AnnulerSeanceCoach({
         <div className="space-y-2">
           <label
             className={`flex items-center gap-3 rounded-xl border px-3.5 py-3 text-sm transition ${
-              lot ? "border-slate-200" : "border-indigo-300 bg-indigo-50/60"
+              lot ? "border-slate-200" : "border-brand-300 bg-brand-50/60"
             }`}
           >
             <input
@@ -129,7 +129,7 @@ export function AnnulerSeanceCoach({
           {suivantes.length > 0 && (
             <label
               className={`block rounded-xl border px-3.5 py-3 text-sm transition ${
-                lot ? "border-indigo-300 bg-indigo-50/60" : "border-slate-200"
+                lot ? "border-brand-300 bg-brand-50/60" : "border-slate-200"
               }`}
             >
               <span className="flex items-center gap-3">
@@ -146,7 +146,7 @@ export function AnnulerSeanceCoach({
                 <select
                   value={jusqua}
                   onChange={(e) => setJusqua(e.target.value)}
-                  className="mt-2.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-base outline-none focus:border-indigo-500"
+                  className="mt-2.5 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-base outline-none focus:border-brand-500"
                 >
                   {suivantes.map((s) => (
                     <option key={s.date} value={s.date}>

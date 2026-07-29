@@ -40,7 +40,7 @@ export function DecisionForm({ id }: { id: string }) {
         <input
           name="motif"
           placeholder="Motif (si refus)"
-          className="w-40 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-indigo-400"
+          className="w-40 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-brand-400"
         />
       </div>
     </form>

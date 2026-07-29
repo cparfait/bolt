@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 // `themeColor` appartient à l'export `viewport` depuis Next 15 : laissé dans
 // les métadonnées, il est ignoré avec un avertissement à la construction.
-export const viewport: Viewport = { themeColor: "#4f46e5" };
+export const viewport: Viewport = { themeColor: "#006e46" };
 
 /**
  * Enveloppe des écrans d'émargement.

@@ -342,7 +342,7 @@ export function GeneralForm({ cfg }: { cfg: GeneralSettings }) {
               min={1}
               max={168}
               defaultValue={cfg.rappelHeuresAvant}
-              className="w-20 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-indigo-500"
+              className="w-20 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-brand-500"
             />
             <span className="text-xs text-slate-500">heures avant la séance</span>
           </span>

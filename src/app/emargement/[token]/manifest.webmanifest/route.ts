@@ -41,7 +41,7 @@ export async function GET(
     display: "standalone",
     orientation: "portrait",
     background_color: "#f8fafc",
-    theme_color: "#4f46e5",
+    theme_color: "#006e46",
     icons: [
       {
         src: "/icones/bolt-192.png",

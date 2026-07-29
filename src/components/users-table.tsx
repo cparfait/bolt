@@ -67,7 +67,7 @@ export function UsersTable({
                       await changerRole(u.id, e.target.value);
                     })
                   }
-                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none transition focus:border-indigo-500 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs outline-none transition focus:border-brand-500 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>

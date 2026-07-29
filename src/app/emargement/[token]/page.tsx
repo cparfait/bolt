@@ -35,7 +35,7 @@ function Coquille({ children }: { children: React.ReactNode }) {
     <main className="emargement min-h-screen bg-slate-50 p-4 pb-10">
       <div className="mx-auto w-full max-w-md">
         <div className="mb-5 mt-4 flex items-center justify-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
             <Dumbbell className="h-4.5 w-4.5" />
           </span>
           <span className="text-xl font-semibold tracking-tight">Bolt</span>

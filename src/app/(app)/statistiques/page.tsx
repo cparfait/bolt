@@ -148,7 +148,7 @@ export default async function StatistiquesPage({
             href={lien(v)}
             className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
               vue === v
-                ? "bg-indigo-600 text-white"
+                ? "bg-brand-600 text-white"
                 : "bg-slate-50 text-slate-600 hover:bg-slate-100"
             }`}
           >
@@ -540,7 +540,7 @@ async function VueAgents({ filtre, seuil }: { filtre: Filtre; seuil: number }) {
                         <td className="py-2.5 font-medium">
                           <Link
                             href={`/agents/${d.userId}`}
-                            className="hover:text-indigo-600"
+                            className="hover:text-brand-600"
                           >
                             {d.nom}
                           </Link>

@@ -57,7 +57,7 @@ export function ChangerPinCoach({ token }: { token: string }) {
           maxLength={6}
           required
           placeholder="······"
-          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-center text-lg tracking-[0.4em] outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-center text-lg tracking-[0.4em] outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
         />
       </label>
 
@@ -70,7 +70,7 @@ export function ChangerPinCoach({ token }: { token: string }) {
           maxLength={6}
           required
           placeholder="······"
-          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-center text-lg tracking-[0.4em] outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-center text-lg tracking-[0.4em] outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
         />
       </label>
 
@@ -88,7 +88,7 @@ export function ChangerPinCoach({ token }: { token: string }) {
           Fermer
         </button>
         <SubmitButton
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.99] disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.99] disabled:opacity-50"
           pendingLabel="Enregistrement…"
         >
           <KeyRound className="h-4 w-4" /> Enregistrer le code
