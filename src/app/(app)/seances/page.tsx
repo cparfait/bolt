@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, CalendarX2 } from "lucide-react";
+import { AlertTriangle, CalendarDays, CalendarX2 } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { estGestionnaire, requireUser } from "@/lib/session";
@@ -10,10 +10,13 @@ import { FiltreActivites } from "@/components/filtre-activites";
 import { FiltreForm } from "@/components/filtre-form";
 import { pluriel } from "@/lib/constants";
 
+// « saison » n'a pas de bornes en jours : elle couvre la saison entière, du
+// premier au dernier jour — les bornes se prennent alors sur la saison active.
 const PERIODES = {
   semaine: { label: "Cette semaine", avant: 0, apres: 7 },
   mois: { label: "30 prochains jours", avant: 0, apres: 30 },
   passees: { label: "30 derniers jours", avant: 30, apres: 0 },
+  saison: { label: "Toute la saison", avant: null, apres: null },
   manquantes: { label: "Feuilles non transmises", avant: 60, apres: 0 },
 } as const;
 
@@ -64,10 +67,13 @@ export default async function SeancesPage({
       ...(coachId ? { animateurs: { some: { id: coachId } } } : {}),
       ...(activite ? { activiteId: activite } : {}),
     },
-    date: {
-      gte: ajouterJours(aujourdhui(), -p.avant),
-      lte: ajouterJours(aujourdhui(), p.apres),
-    },
+    date:
+      p.avant === null || p.apres === null
+        ? { gte: saison.debut, lte: saison.fin }
+        : {
+            gte: ajouterJours(aujourdhui(), -p.avant),
+            lte: ajouterJours(aujourdhui(), p.apres),
+          },
     ...(periode === "manquantes" ? { statut: "PLANIFIEE" as const } : {}),
   };
 
@@ -92,7 +98,9 @@ export default async function SeancesPage({
         },
       },
       orderBy: [{ date: "asc" }, { creneau: { heureDebut: "asc" } }],
-      take: 200,
+      // « Toute la saison » doit tout montrer ; les autres périodes, courtes,
+      // gardent un garde-fou.
+      take: periode === "saison" ? undefined : 200,
     }),
     prisma.activite.findMany({
       where: {
@@ -135,6 +143,11 @@ export default async function SeancesPage({
             ))}
           </Select>
         </FiltreForm>
+        {estGestionnaire(user) && (
+          <Link href="/seances/calendrier" className={btnSecondary}>
+            <CalendarDays className="h-4 w-4" /> Vue calendrier
+          </Link>
+        )}
         <Link href="/seances/annuler" className={btnSecondary}>
           <CalendarX2 className="h-4 w-4" /> Annuler des séances
         </Link>
