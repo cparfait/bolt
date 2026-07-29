@@ -15,6 +15,7 @@ import {
 import { rateLimit } from "@/lib/rate-limit";
 import { aujourdhui, jourUtc } from "@/lib/dates";
 import { enregistrerPresence, saisieOuverte } from "@/lib/emargement";
+import { participeALaSeance } from "@/lib/inscriptions";
 import { notifierSeanceRetablie, notifierSeancesAnnulees } from "@/lib/notifications";
 import { clientIp } from "@/lib/net";
 import { chercherComptes, type Candidat } from "@/lib/comptes";
@@ -207,11 +208,18 @@ export async function rechercherParticipantEmargement(
     prisma.presence.findMany({ where: { seanceId }, select: { userId: true } }),
     prisma.inscription.findMany({
       where: { creneauId: ctx.seance.creneauId, statut: "VALIDEE" },
-      select: { userId: true },
+      select: { userId: true, decisionAt: true, demandeAt: true },
     }),
   ]);
+  // Un inscrit postérieur à la séance n'est pas sur cette feuille : il doit
+  // rester proposable à l'ajout, comme n'importe quel participant ponctuel.
   const dejaLa = [
-    ...new Set([...presences, ...inscriptions].map((x) => x.userId)),
+    ...new Set(
+      [
+        ...presences,
+        ...inscriptions.filter((i) => participeALaSeance(i, ctx.seance.date)),
+      ].map((x) => x.userId),
+    ),
   ];
   return chercherComptes(query, dejaLa);
 }

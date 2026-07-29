@@ -1,6 +1,7 @@
 import type { EtatPresence, Jour } from "@prisma/client";
 import { prisma } from "./db";
 import { aujourdhui, cleMois, fmtMois, isoDate, jourIndex } from "./dates";
+import { participeALaSeance } from "./inscriptions";
 
 /**
  * Statistiques de fréquentation — la finalité de l'outil côté QVT.
@@ -293,7 +294,11 @@ export async function decrocheurs(f: Filtre, seuil: number): Promise<Decrocheur[
 
   const resultat: Decrocheur[] = [];
   for (const i of inscriptions) {
-    const recentes = (parCreneau.get(i.creneauId) ?? []).slice(0, seuil);
+    // Seules comptent les séances depuis son inscription : un arrivant récent
+    // n'a pas « décroché » des séances qui ont eu lieu avant lui.
+    const recentes = (parCreneau.get(i.creneauId) ?? [])
+      .filter((s) => participeALaSeance(i, s.date))
+      .slice(0, seuil);
     if (recentes.length < seuil) continue; // pas assez d'historique pour conclure
 
     let absences = 0;
@@ -527,22 +532,24 @@ export async function assiduite(f: Filtre): Promise<Assiduite> {
           ...(f.activiteId ? { activiteId: f.activiteId } : {}),
         },
       },
-      select: { userId: true, creneauId: true },
+      select: { userId: true, creneauId: true, decisionAt: true, demandeAt: true },
     }),
   ]);
 
   const emargees = seances.filter((s) => s.statut === "FAITE");
-  const parCreneau = new Map<string, number>();
+  const parCreneau = new Map<string, Date[]>();
   for (const s of emargees) {
-    parCreneau.set(s.creneauId, (parCreneau.get(s.creneauId) ?? 0) + 1);
+    parCreneau.set(s.creneauId, [...(parCreneau.get(s.creneauId) ?? []), s.date]);
   }
 
+  // Ne lui sont « proposées » que les séances depuis son inscription : arrivé
+  // en janvier, l'agent n'a pas à traîner les séances d'automne dans son taux.
   const proposees = new Map<string, number>();
   for (const i of inscriptions) {
-    proposees.set(
-      i.userId,
-      (proposees.get(i.userId) ?? 0) + (parCreneau.get(i.creneauId) ?? 0),
-    );
+    const nb = (parCreneau.get(i.creneauId) ?? []).filter((d) =>
+      participeALaSeance(i, d),
+    ).length;
+    proposees.set(i.userId, (proposees.get(i.userId) ?? 0) + nb);
   }
 
   const venues = new Map<string, number>();

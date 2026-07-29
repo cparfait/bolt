@@ -2,6 +2,7 @@ import type { InscriptionStatut } from "@prisma/client";
 import { prisma } from "./db";
 import { getGeneralSettings } from "./settings";
 import { audit } from "./audit";
+import { isoDate } from "./dates";
 
 /**
  * Règles d'inscription.
@@ -16,6 +17,21 @@ import { audit } from "./audit";
  */
 
 export type Resultat = { ok: boolean; message: string };
+
+/**
+ * Vrai si l'inscription fait participer l'agent à une séance de cette date.
+ *
+ * On rejoint une activité à partir du jour de son inscription, pas depuis le
+ * début de la saison : les séances antérieures ne concernent pas l'agent — ni
+ * sur la feuille d'émargement, ni dans ses statistiques d'assiduité.
+ */
+export function participeALaSeance(
+  inscription: { decisionAt: Date | null; demandeAt: Date },
+  dateSeance: Date,
+): boolean {
+  const debut = inscription.decisionAt ?? inscription.demandeAt;
+  return isoDate(debut) <= isoDate(dateSeance);
+}
 
 /**
  * Périmètre sur lequel se comptent les places d'un créneau.

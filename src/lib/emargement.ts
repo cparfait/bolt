@@ -1,6 +1,7 @@
 import type { EtatPresence } from "@prisma/client";
 import { prisma } from "./db";
 import { aujourdhui, ajouterJours } from "./dates";
+import { participeALaSeance } from "./inscriptions";
 
 /** Une ligne de la feuille : l'inscrit et son état s'il a déjà été pointé. */
 export type LigneFeuille = {
@@ -38,10 +39,15 @@ export async function feuilleDeSeance(seanceId: string) {
   });
   if (!seance) return null;
 
-  const inscriptions = await prisma.inscription.findMany({
-    where: { creneauId: seance.creneauId, statut: "VALIDEE" },
-    include: { user: true },
-  });
+  // Un agent inscrit en cours de saison ne figure que sur les séances à partir
+  // de son inscription : les feuilles antérieures ne le listent pas, sans quoi
+  // il y apparaîtrait absent à des séances qui ne le concernaient pas.
+  const inscriptions = (
+    await prisma.inscription.findMany({
+      where: { creneauId: seance.creneauId, statut: "VALIDEE" },
+      include: { user: true },
+    })
+  ).filter((i) => participeALaSeance(i, seance.date));
 
   const parUser = new Map(seance.presences.map((p) => [p.userId, p]));
   const prevenus = new Map(seance.absences.map((a) => [a.userId, a.motif]));
