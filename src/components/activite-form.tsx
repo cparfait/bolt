@@ -3,16 +3,15 @@
 import { useActionState, useState } from "react";
 import { enregistrerActivite } from "@/lib/actions/activites";
 import type { ActionState } from "@/lib/actions/types";
-import { Alert, Field, Input, Select, Textarea, btnPrimary } from "@/components/ui";
+import { Alert, Field, Input, Textarea, btnPrimary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { COULEURS_ACTIVITE, ICONES_ACTIVITE } from "@/lib/constants";
+import { COULEURS_ACTIVITE } from "@/lib/constants";
 
 export type ActiviteInitiale = {
   id: string;
   nom: string;
   description: string | null;
   couleur: string;
-  icone: string;
   capacitePartagee: boolean;
   capacite: number | null;
 };
@@ -36,20 +35,9 @@ export function ActiviteForm({
       <Alert state={state} />
       {initiale && <input type="hidden" name="id" value={initiale.id} />}
       {redirigerVersFiche && <input type="hidden" name="redirigerVersFiche" value="1" />}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Nom de l'activité" required>
-          <Input name="nom" defaultValue={initiale?.nom} required placeholder="Yoga" />
-        </Field>
-        <Field label="Icône">
-          <Select name="icone" defaultValue={initiale?.icone ?? "Activity"}>
-            {ICONES_ACTIVITE.map((i) => (
-              <option key={i} value={i}>
-                {i}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
+      <Field label="Nom de l'activité" required>
+        <Input name="nom" defaultValue={initiale?.nom} required placeholder="Yoga" />
+      </Field>
       <Field label="Description" hint="Affichée aux agents dans le catalogue.">
         <Textarea
           name="description"

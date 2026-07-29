@@ -20,7 +20,6 @@ const activiteSchema = z.object({
     .string()
     .trim()
     .regex(/^#[0-9a-fA-F]{6}$/, "Couleur invalide (format #rrggbb)."),
-  icone: z.string().trim().min(1),
 });
 
 const capaciteSchema = z.coerce
@@ -39,7 +38,6 @@ export async function enregistrerActivite(
     nom: formData.get("nom"),
     description: formData.get("description"),
     couleur: formData.get("couleur"),
-    icone: formData.get("icone"),
   });
   if (!parsed.success) return erreur(parsed.error.issues[0].message);
 
@@ -58,7 +56,6 @@ export async function enregistrerActivite(
     nom: parsed.data.nom,
     description: parsed.data.description || null,
     couleur: parsed.data.couleur,
-    icone: parsed.data.icone,
     capacitePartagee,
     capacite,
   };

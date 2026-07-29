@@ -152,7 +152,6 @@ export default async function ActiviteDetail({
             nom: activite.nom,
             description: activite.description,
             couleur: activite.couleur,
-            icone: activite.icone,
             capacitePartagee: activite.capacitePartagee,
             capacite: activite.capacite,
           }}

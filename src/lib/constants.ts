@@ -64,20 +64,6 @@ export const COACH_ACCES_AIDE: Record<CoachAcces, string> = {
   LIEN: "Aucun compte : un lien personnel + un code à 6 chiffres, utilisable depuis n'importe où. Recommandé pour les prestataires extérieurs.",
 };
 
-/** Icônes lucide proposées pour illustrer une activité. */
-export const ICONES_ACTIVITE = [
-  "Activity",
-  "Dumbbell",
-  "Heart",
-  "Waves",
-  "Music",
-  "Flower2",
-  "Bike",
-  "Footprints",
-  "Zap",
-  "Target",
-] as const;
-
 /** Palette proposée pour les activités (badges, graphiques). */
 export const COULEURS_ACTIVITE = [
   "#4f46e5", // indigo
