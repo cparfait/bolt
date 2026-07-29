@@ -92,17 +92,14 @@ export default async function ActiviteDetail({
     saisonDebut: fmtDate(saison.debut),
     saisonFin: fmtDate(saison.fin),
     fermetures: optionsFermetures,
-    activites: [
-      {
-        id: activite.id,
-        nom: activite.nom,
-        capacitePartagee: activite.capacitePartagee,
-        capacite: activite.capacite,
-      },
-    ],
+    activite: {
+      id: activite.id,
+      nom: activite.nom,
+      capacitePartagee: activite.capacitePartagee,
+      capacite: activite.capacite,
+    },
     animateurs,
     lieux: lieux.map((l) => l.nom),
-    activiteId: activite.id,
   };
 
   // Capacité mutualisée : le remplissage se lit sur l'activité, pas créneau par
@@ -297,7 +294,6 @@ export default async function ActiviteDetail({
                       {...proprietesCreneau}
                       initial={{
                         id: c.id,
-                        activiteId: activite.id,
                         animateurs: c.animateurs.map((a) => a.id),
                         jour: c.jour,
                         heureDebut: c.heureDebut,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { enregistrerCreneau } from "@/lib/actions/activites";
 import type { ActionState } from "@/lib/actions/types";
 import { Alert, Field, Input, Select, btnPrimary } from "@/components/ui";
@@ -9,7 +9,6 @@ import { JOURS, JOUR_LABELS } from "@/lib/dates";
 
 export type CreneauInitial = {
   id: string;
-  activiteId: string;
   animateurs: string[]; // identifiants des animateurs rattachés
   jour: string;
   heureDebut: string;
@@ -26,7 +25,7 @@ export type CreneauInitial = {
 /** Période de fermeture de la saison, telle qu'affichée dans le formulaire. */
 export type FermetureOption = { id: string; libelle: string; periode: string };
 
-/** Activité sélectionnable, avec son mode de capacité. */
+/** Activité du créneau, avec son mode de capacité. */
 export type ActiviteOption = {
   id: string;
   nom: string;
@@ -39,82 +38,61 @@ export function CreneauForm({
   saisonDebut,
   saisonFin,
   fermetures,
-  activites,
+  activite,
   animateurs,
   lieux,
   initial,
-  activiteId,
 }: {
   saisonId: string;
   saisonDebut: string;
   saisonFin: string;
   fermetures: FermetureOption[];
-  activites: ActiviteOption[];
+  // Le formulaire vit sur la fiche d'une activité : elle est connue d'avance,
+  // inutile de la faire choisir.
+  activite: ActiviteOption;
   animateurs: { id: string; nom: string; prenom: string }[];
   lieux: string[]; // libellés actifs du référentiel
   initial?: CreneauInitial;
-  activiteId?: string;
 }) {
   const maintenuesInitiales = initial?.fermeturesMaintenues ?? [];
   const [state, action] = useActionState<ActionState, FormData>(enregistrerCreneau, null);
-  // Le champ « places » disparaît quand l'activité n'a qu'un groupe : la limite
-  // vient alors de sa fiche, et deux capacités concurrentes n'auraient aucun
-  // sens.
-  const [choisie, setChoisie] = useState(initial?.activiteId ?? activiteId ?? "");
-  const activiteChoisie = activites.find((a) => a.id === choisie);
   return (
     <form action={action} className="space-y-4">
       <Alert state={state} />
       {initial && <input type="hidden" name="id" value={initial.id} />}
       <input type="hidden" name="saisonId" value={saisonId} />
+      <input type="hidden" name="activiteId" value={activite.id} />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Activité" required>
-          <Select
-            name="activiteId"
-            value={choisie}
-            onChange={(e) => setChoisie(e.target.value)}
-            required
-          >
-            <option value="">— Choisir —</option>
-            {activites.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.nom}
-              </option>
+      {/* Plusieurs animateurs possibles : co-animation, binôme titulaire /
+          remplaçant. Chacun voit le créneau sur sa propre feuille. */}
+      <Field
+        label="Animateurs"
+        hint="Chacun verra ce créneau sur sa feuille de présence."
+      >
+        {animateurs.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            Aucun animateur actif — créez-en un dans « Animateurs ».
+          </p>
+        ) : (
+          <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-300 p-2">
+            {animateurs.map((c) => (
+              <label
+                key={c.id}
+                className="flex items-center gap-2.5 rounded px-1.5 py-1 text-sm transition hover:bg-slate-50"
+              >
+                <input
+                  type="checkbox"
+                  name="animateurs"
+                  value={c.id}
+                  defaultChecked={(initial?.animateurs ?? []).includes(c.id)}
+                  className="h-4 w-4 rounded border-slate-300"
+                />
+                {c.prenom} {c.nom}
+              </label>
             ))}
-          </Select>
-        </Field>
-        {/* Plusieurs animateurs possibles : co-animation, binôme titulaire /
-            remplaçant. Chacun voit le créneau sur sa propre feuille. */}
-        <Field
-          label="Animateurs"
-          hint="Chacun verra ce créneau sur sa feuille de présence."
-        >
-          {animateurs.length === 0 ? (
-            <p className="text-sm text-slate-400">
-              Aucun animateur actif — créez-en un dans « Animateurs ».
-            </p>
-          ) : (
-            <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-300 p-2">
-              {animateurs.map((c) => (
-                <label
-                  key={c.id}
-                  className="flex items-center gap-2.5 rounded px-1.5 py-1 text-sm transition hover:bg-slate-50"
-                >
-                  <input
-                    type="checkbox"
-                    name="animateurs"
-                    value={c.id}
-                    defaultChecked={(initial?.animateurs ?? []).includes(c.id)}
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  {c.prenom} {c.nom}
-                </label>
-              ))}
-            </div>
-          )}
-        </Field>
-      </div>
+          </div>
+        )}
+      </Field>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Jour" required>
@@ -168,11 +146,14 @@ export function CreneauForm({
             )}
           </Select>
         </Field>
-        {activiteChoisie?.capacitePartagee ? (
+        {/* Le champ « places » disparaît quand l'activité n'a qu'un groupe :
+            la limite vient alors de sa fiche, et deux capacités concurrentes
+            n'auraient aucun sens. */}
+        {activite.capacitePartagee ? (
           <Field label="Places" hint="Définies sur la fiche de l'activité.">
             <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-500">
-              Groupe unique de {activiteChoisie.capacite ?? "?"} agents, partagé
-              avec les autres créneaux de {activiteChoisie.nom}.
+              Groupe unique de {activite.capacite ?? "?"} agents, partagé
+              avec les autres créneaux de {activite.nom}.
             </p>
           </Field>
         ) : (
