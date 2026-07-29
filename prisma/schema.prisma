@@ -1,0 +1,405 @@
+// ============================================================================
+//  Bolt — suivi des activités sportives (QVT)
+//  Modèle de données : Saison → Activité → Créneau → Séance → Présence
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Utilisateurs ───────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN // DSI : tout, y compris paramètres et journal
+  GESTIONNAIRE // service des sports : activités, créneaux, inscriptions, stats
+  COACH // éducateur / animateur disposant d'un compte (AD ou local)
+  AGENT // agent de la collectivité : s'inscrit et consulte ses séances
+}
+
+model User {
+  id           String   @id @default(cuid())
+  login        String   @unique // sAMAccountName ou identifiant local
+  displayName  String
+  email        String?
+  role         Role     @default(AGENT)
+  isLocal      Boolean  @default(false) // compte local (mot de passe) vs compte AD
+  passwordHash String?
+  active       Boolean  @default(true)
+  // Rattachement hiérarchique repris de l'AD : sert aux statistiques QVT
+  // (fréquentation par direction / service) sans ressaisie.
+  direction    String?
+  service      String?
+  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime?
+
+  coach        Coach?
+  inscriptions Inscription[]
+  presences    Presence[]
+  absences     AbsenceAnnoncee[]
+  auditLogs    AuditLog[]
+  magicTokens  MagicToken[]
+
+  @@index([role])
+  @@index([email])
+}
+
+// Connexion sans mot de passe pour les agents qui ne sont pas devant un poste
+// du réseau (terrain, crèches, gardiennage) : un lien à usage unique envoyé sur
+// l'adresse professionnelle. L'adresse doit déjà exister dans le miroir de
+// l'annuaire — l'agent est donc rapproché de son compte AD, sans doublon et
+// sans perdre son rattachement direction / service.
+model MagicToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ── Animateurs / éducateurs ────────────────────────────────────────────────
+
+// Trois modes d'accès, choisis par animateur :
+//  • AD    : l'animateur est un agent de la collectivité, connexion LDAPS ;
+//  • LOCAL : identifiant + mot de passe gérés dans Bolt ;
+//  • LIEN  : lien à jeton + code PIN, sans compte — pour les prestataires
+//            externes qui ne sont pas sur le réseau (accès depuis Internet).
+enum CoachAcces {
+  AD
+  LOCAL
+  LIEN
+}
+
+model Coach {
+  id        String     @id @default(cuid())
+  nom       String
+  prenom    String
+  email     String?
+  telephone String?
+  organisme String? // association ou prestataire employeur
+  acces     CoachAcces @default(LIEN)
+  actif     Boolean    @default(true)
+  notes     String?
+
+  // acces = AD | LOCAL → compte applicatif rattaché
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // acces = LIEN → jeton d'accès distant. Le PIN est stocké haché (bcrypt).
+  token         String?   @unique
+  pinHash       String?
+  tokenCreatedAt DateTime?
+  tokenExpiresAt DateTime?
+  lastAccessAt  DateTime?
+  lastAccessIp  String?
+  pinFailedCount Int      @default(0)
+  pinLockedUntil DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creneaux Creneau[] @relation("CreneauAnimateur")
+
+  @@index([actif])
+}
+
+// ── Saisons & calendrier ───────────────────────────────────────────────────
+
+model Saison {
+  id     String   @id @default(cuid())
+  nom    String   @unique // « 2026-2027 »
+  debut  DateTime @db.Date
+  fin    DateTime @db.Date
+  active Boolean  @default(false) // une seule saison active à la fois
+
+  creneaux   Creneau[]
+  fermetures Fermeture[]
+
+  createdAt DateTime @default(now())
+}
+
+// Période sans séance : vacances scolaires, jours fériés, fermeture de la
+// piscine… Exclue de la génération du calendrier, sauf pour les créneaux
+// explicitement maintenus.
+model Fermeture {
+  id       String   @id @default(cuid())
+  saisonId String
+  libelle  String
+  debut    DateTime @db.Date
+  fin      DateTime @db.Date
+
+  saison Saison @relation(fields: [saisonId], references: [id], onDelete: Cascade)
+
+  // Créneaux qui continuent malgré cette période : toutes les activités ne
+  // s'arrêtent pas aux vacances scolaires — la musculation en libre accès
+  // tourne souvent toute l'année, l'aquagym s'arrête avec la piscine.
+  creneauxMaintenus Creneau[] @relation("CreneauMaintenu")
+
+  @@index([saisonId])
+}
+
+// ── Lieux ──────────────────────────────────────────────────────────────────
+
+// Référentiel des lieux de pratique, saisi une fois dans les paramètres et
+// proposé en liste sur les créneaux. Saisi librement, « Gymnase municipal »
+// s'écrivait de quatre façons et les filtres devenaient inutilisables.
+//
+// Le créneau conserve malgré tout le libellé en clair (`Creneau.lieu`) plutôt
+// qu'une clé étrangère : les séances passées et les exports gardent ainsi le
+// lieu tel qu'il était, et supprimer un lieu du référentiel n'efface pas
+// l'historique. Renommer un lieu propage le nouveau libellé aux créneaux qui
+// le portaient.
+model Lieu {
+  id      String  @id @default(cuid())
+  nom     String  @unique // « Gymnase municipal — salle 2 »
+  adresse String?
+  notes   String? // accès, code de porte, consignes de la gardienne
+  actif   Boolean @default(true)
+  ordre   Int     @default(0)
+
+  createdAt DateTime @default(now())
+}
+
+// ── Activités & créneaux ───────────────────────────────────────────────────
+
+model Activite {
+  id          String  @id @default(cuid())
+  nom         String  @unique // Yoga, Musculation, Aquagym…
+  description String?
+  couleur     String  @default("#4f46e5") // teinte des badges et graphiques
+  icone       String  @default("Activity") // nom d'icône lucide
+  actif       Boolean @default(true)
+  ordre       Int     @default(0)
+
+  // Capacité mutualisée entre les créneaux de l'activité.
+  //
+  // Par défaut, chaque créneau a ses propres places : le yoga du lundi et celui
+  // du jeudi accueillent deux groupes distincts, dimensionnés séparément. Mais
+  // une activité peut aussi n'ouvrir qu'un seul groupe réparti sur plusieurs
+  // créneaux — la musculation prend 10 agents, qui viennent le lundi, le jeudi,
+  // ou les deux. La place est alors attachée à l'agent et non au créneau :
+  // elle ne se compte qu'une fois, et la file d'attente est commune.
+  capacitePartagee Boolean @default(false)
+  capacite         Int? // effectif du groupe, quand la capacité est mutualisée
+
+  creneaux Creneau[]
+
+  createdAt DateTime @default(now())
+}
+
+enum Jour {
+  LUNDI
+  MARDI
+  MERCREDI
+  JEUDI
+  VENDREDI
+  SAMEDI
+  DIMANCHE
+}
+
+// Un créneau = une occurrence hebdomadaire d'une activité sur une saison.
+// « Musculation 2×/semaine » = deux créneaux rattachés à la même activité.
+model Creneau {
+  id         String  @id @default(cuid())
+  saisonId   String
+  activiteId String
+
+  jour       Jour
+  heureDebut String // « 12:15 » (heure locale Europe/Paris)
+  heureFin   String // « 13:15 »
+  lieu       String?
+  // Places de ce créneau. Ignorée quand l'activité mutualise sa capacité :
+  // c'est alors `Activite.capacite` qui fait foi.
+  capacite   Int     @default(20)
+
+  ouvertInscription Boolean @default(true)
+  // Bornes optionnelles : par défaut, celles de la saison.
+  dateDebut DateTime? @db.Date
+  dateFin   DateTime? @db.Date
+
+  saison       Saison        @relation(fields: [saisonId], references: [id], onDelete: Cascade)
+  activite     Activite      @relation(fields: [activiteId], references: [id], onDelete: Restrict)
+  // Plusieurs animateurs possibles : co-animation, binôme titulaire/remplaçant,
+  // ou simplement deux intervenants qui se relaient d'une semaine sur l'autre.
+  // Chacun d'eux voit le créneau sur sa propre feuille d'émargement.
+  animateurs   Coach[]       @relation("CreneauAnimateur")
+  seances      Seance[]
+  inscriptions Inscription[]
+  // Périodes de fermeture pendant lesquelles ce créneau continue malgré tout.
+  fermeturesMaintenues Fermeture[] @relation("CreneauMaintenu")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([saisonId])
+  @@index([activiteId])
+}
+
+// ── Séances ────────────────────────────────────────────────────────────────
+
+enum SeanceStatut {
+  PLANIFIEE
+  FAITE // émargement saisi
+  ANNULEE
+}
+
+model Seance {
+  id        String       @id @default(cuid())
+  creneauId String
+  date      DateTime     @db.Date
+  statut    SeanceStatut @default(PLANIFIEE)
+
+  motifAnnulation String?
+  commentaire     String? // mot de l'animateur (matériel, incident…)
+
+  // Clôture : fige la feuille. Seul un gestionnaire peut rouvrir.
+  clotureeAt  DateTime?
+  clotureePar String?
+
+  // Rappel envoyé aux inscrits la veille. Horodaté pour garantir un seul envoi,
+  // quel que soit le nombre de déclenchements.
+  rappelEnvoyeAt DateTime?
+
+  creneau   Creneau           @relation(fields: [creneauId], references: [id], onDelete: Cascade)
+  presences Presence[]
+  absences  AbsenceAnnoncee[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([creneauId, date])
+  @@index([date])
+  @@index([statut])
+}
+
+// Absence prévenue à l'avance par l'agent lui-même.
+//
+// Volontairement distincte de Presence : créer une présence sur une séance
+// future la ferait basculer en « émargée », ce qui fausserait le suivi des
+// feuilles manquantes et les statistiques. C'est une intention, pas un constat —
+// l'agent peut d'ailleurs finalement venir, et l'animateur le pointer présent.
+model AbsenceAnnoncee {
+  id        String   @id @default(cuid())
+  seanceId  String
+  userId    String
+  motif     String?
+  createdAt DateTime @default(now())
+
+  seance Seance @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([seanceId, userId])
+  @@index([userId])
+}
+
+// L'émargement ne constate qu'un fait : la personne était là, ou non. Savoir
+// qu'elle avait prévenu relève d'AbsenceAnnoncee, saisie à l'avance par l'agent
+// lui-même — et affichée à l'animateur en face du nom au moment de pointer.
+enum EtatPresence {
+  PRESENT
+  ABSENT
+}
+
+// Une ligne d'émargement. Rattachée à l'utilisateur plutôt qu'à l'inscription
+// pour couvrir les participants ponctuels (agent venu remplacer un absent) et
+// simplifier les statistiques individuelles.
+model Presence {
+  id            String       @id @default(cuid())
+  seanceId      String
+  userId        String
+  inscriptionId String? // null = participant ponctuel, hors inscription
+  etat          EtatPresence
+  commentaire   String?
+
+  saisiAt  DateTime @default(now())
+  saisiPar String? // « coach:<id> » ou « user:<login> »
+
+  seance      Seance       @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inscription Inscription? @relation(fields: [inscriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([seanceId, userId])
+  @@index([userId])
+  @@index([etat])
+}
+
+// ── Inscriptions ───────────────────────────────────────────────────────────
+
+enum InscriptionStatut {
+  EN_ATTENTE // demande de l'agent, à arbitrer par le service des sports
+  VALIDEE
+  LISTE_ATTENTE // créneau complet
+  REFUSEE
+  DESISTEE // l'agent s'est désinscrit ou a été retiré
+}
+
+model Inscription {
+  id        String            @id @default(cuid())
+  creneauId String
+  userId    String
+  statut    InscriptionStatut @default(EN_ATTENTE)
+  rang      Int? // position en liste d'attente
+
+  demandeAt  DateTime  @default(now())
+  decisionAt DateTime?
+  decidePar  String?
+  motif      String? // motif de refus ou de désistement
+  commentaire String? // message de l'agent (contrainte horaire, niveau…)
+
+  creneau   Creneau    @relation(fields: [creneauId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  presences Presence[]
+
+  @@unique([creneauId, userId])
+  @@index([statut])
+  @@index([userId])
+}
+
+// ── Paramétrage, annuaire miroir & journal ─────────────────────────────────
+
+model Setting {
+  key       String   @id // « ldap », « smtp », « general »
+  value     String // JSON sérialisé
+  updatedAt DateTime @updatedAt
+}
+
+// Miroir en lecture seule de l'annuaire AD, rafraîchi par la synchronisation.
+// Permet de rechercher un agent à inscrire sans interroger l'AD à chaque frappe.
+model AdAccount {
+  samAccountName String   @id
+  displayName    String?
+  email          String?
+  dn             String
+  ou             String
+  direction      String?
+  service        String?
+  enabled        Boolean  @default(true)
+  lastLogon      DateTime?
+  syncedAt       DateTime @default(now())
+
+  @@index([enabled])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String // CONNEXION, EMARGEMENT, INSCRIPTION_VALIDEE…
+  userId    String?
+  acteur    String? // libellé lisible quand il n'y a pas d'utilisateur (animateur par lien)
+  cible     String?
+  details   String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([action])
+}

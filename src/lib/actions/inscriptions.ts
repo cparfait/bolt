@@ -1,0 +1,295 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/session";
+import { audit } from "@/lib/audit";
+import {
+  demanderInscription,
+  placeDisponiblePour,
+  prochainRang,
+  promouvoirListeAttente,
+  renumeroterFile,
+} from "@/lib/inscriptions";
+import { envoyerMail } from "@/lib/mail";
+import { getGeneralSettings } from "@/lib/settings";
+import { assurerCompteAgent } from "./agents";
+import { erreur, succes, type ActionState } from "./types";
+
+/** Un agent demande son inscription à un créneau. */
+export async function inscrireAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const creneauId = String(formData.get("creneauId") ?? "");
+  const commentaire = String(formData.get("commentaire") ?? "");
+  const res = await demanderInscription(user.id, creneauId, commentaire);
+  revalidatePath("/mes-activites");
+  revalidatePath("/inscriptions");
+  return res.ok ? succes(res.message) : erreur(res.message);
+}
+
+/** Un agent se désiste — la place repart aussitôt à la liste d'attente. */
+export async function desisterAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const id = String(formData.get("id") ?? "");
+  const inscription = await prisma.inscription.findUnique({
+    where: { id },
+    include: { creneau: { include: { activite: true } } },
+  });
+  if (!inscription) return erreur("Inscription introuvable.");
+  // Un agent ne peut se désister que de sa propre inscription.
+  if (inscription.userId !== user.id && user.role !== "ADMIN" && user.role !== "GESTIONNAIRE") {
+    return erreur("Action non autorisée.");
+  }
+
+  await prisma.inscription.update({
+    where: { id },
+    data: {
+      statut: "DESISTEE",
+      rang: null,
+      decisionAt: new Date(),
+      decidePar: user.displayName,
+      motif: String(formData.get("motif") ?? "") || null,
+    },
+  });
+  await renumeroterFile(inscription.creneauId);
+  const promu = await promouvoirListeAttente(inscription.creneauId);
+
+  await audit("INSCRIPTION_DESISTEE", {
+    userId: user.id,
+    cible: inscription.creneau.activite.nom,
+  });
+
+  if (promu?.user.email) {
+    const g = await getGeneralSettings();
+    await envoyerMail(
+      promu.user.email,
+      `Une place s'est libérée en ${promu.creneau.activite.nom}`,
+      [
+        `Bonjour ${promu.user.displayName.split(" ")[0]},`,
+        `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}). Votre inscription est confirmée.`,
+        g.contactEmail
+          ? `Si vous ne souhaitez plus participer, prévenez le service des sports : ${g.contactEmail}.`
+          : `Si vous ne souhaitez plus participer, prévenez le service des sports.`,
+      ].join("\n\n"),
+    );
+  }
+
+  revalidatePath("/mes-activites");
+  revalidatePath("/inscriptions");
+  return succes(
+    promu
+      ? `Désinscription enregistrée. ${promu.user.displayName} a été inscrit depuis la liste d'attente.`
+      : "Désinscription enregistrée.",
+  );
+}
+
+/** Le service des sports arbitre une demande. */
+export async function deciderInscription(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const id = String(formData.get("id") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  const motif = String(formData.get("motif") ?? "").trim();
+
+  const inscription = await prisma.inscription.findUnique({
+    where: { id },
+    include: { user: true, creneau: { include: { activite: true } } },
+  });
+  if (!inscription) return erreur("Demande introuvable.");
+
+  if (decision === "valider") {
+    if (!(await placeDisponiblePour(inscription.creneauId, inscription.userId))) {
+      return erreur(
+        "Le créneau est complet. Augmentez la capacité ou placez l'agent en liste d'attente.",
+      );
+    }
+    await prisma.inscription.update({
+      where: { id },
+      data: {
+        statut: "VALIDEE",
+        rang: null,
+        decisionAt: new Date(),
+        decidePar: admin.displayName,
+        motif: null,
+      },
+    });
+    await audit("INSCRIPTION_VALIDEE", {
+      userId: admin.id,
+      cible: `${inscription.user.displayName} → ${inscription.creneau.activite.nom}`,
+    });
+    if (inscription.user.email) {
+      await envoyerMail(
+        inscription.user.email,
+        `Inscription confirmée — ${inscription.creneau.activite.nom}`,
+        [
+          `Bonjour ${inscription.user.displayName.split(" ")[0]},`,
+          `Votre inscription à ${inscription.creneau.activite.nom} est confirmée : ${inscription.creneau.jour.toLowerCase()} de ${inscription.creneau.heureDebut} à ${inscription.creneau.heureFin}${inscription.creneau.lieu ? ` — ${inscription.creneau.lieu}` : ""}.`,
+          `Bonne pratique !`,
+        ].join("\n\n"),
+      );
+    }
+    revalidatePath("/inscriptions");
+    return succes(`${inscription.user.displayName} est inscrit.`);
+  }
+
+  if (decision === "attente") {
+    await prisma.inscription.update({
+      where: { id },
+      data: {
+        statut: "LISTE_ATTENTE",
+        rang: await prochainRang(inscription.creneauId),
+        decisionAt: new Date(),
+        decidePar: admin.displayName,
+      },
+    });
+    await audit("INSCRIPTION_EN_ATTENTE", {
+      userId: admin.id,
+      cible: inscription.user.displayName,
+    });
+    revalidatePath("/inscriptions");
+    return succes(`${inscription.user.displayName} placé en liste d'attente.`);
+  }
+
+  if (decision === "refuser") {
+    await prisma.inscription.update({
+      where: { id },
+      data: {
+        statut: "REFUSEE",
+        rang: null,
+        decisionAt: new Date(),
+        decidePar: admin.displayName,
+        motif: motif || null,
+      },
+    });
+    await renumeroterFile(inscription.creneauId);
+    await audit("INSCRIPTION_REFUSEE", {
+      userId: admin.id,
+      cible: inscription.user.displayName,
+      details: motif,
+    });
+    if (inscription.user.email) {
+      await envoyerMail(
+        inscription.user.email,
+        `Votre demande — ${inscription.creneau.activite.nom}`,
+        [
+          `Bonjour ${inscription.user.displayName.split(" ")[0]},`,
+          `Votre demande d'inscription à ${inscription.creneau.activite.nom} n'a pas pu être retenue${motif ? ` : ${motif}` : "."}`,
+          `D'autres créneaux restent ouverts : consultez le catalogue dans Bolt.`,
+        ].join("\n\n"),
+      );
+    }
+    revalidatePath("/inscriptions");
+    return succes("Demande refusée.");
+  }
+
+  return erreur("Décision inconnue.");
+}
+
+/** Inscription directe par le service des sports (agent sans accès, dossier papier). */
+export async function inscrireAgentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const creneauId = String(formData.get("creneauId") ?? "");
+  const login = String(formData.get("login") ?? "").trim();
+  if (!creneauId || !login) return erreur("Sélectionnez un agent et un créneau.");
+
+  // L'agent vient peut-être de l'annuaire sans jamais s'être connecté : son
+  // compte applicatif est créé à cet instant, avec son rattachement.
+  const userId = await assurerCompteAgent(login);
+  if (!userId) return erreur("Agent introuvable dans l'annuaire.");
+
+  const agent = await prisma.user.findUnique({ where: { id: userId } });
+  const creneau = await prisma.creneau.findUnique({
+    where: { id: creneauId },
+    include: { activite: true },
+  });
+  if (!agent || !creneau) return erreur("Agent ou créneau introuvable.");
+
+  const complet = !(await placeDisponiblePour(creneauId, userId));
+  const existante = await prisma.inscription.findUnique({
+    where: { creneauId_userId: { creneauId, userId } },
+  });
+  if (existante && ["VALIDEE", "LISTE_ATTENTE"].includes(existante.statut)) {
+    return erreur(`${agent.displayName} est déjà positionné sur ce créneau.`);
+  }
+
+  const data = {
+    statut: complet ? ("LISTE_ATTENTE" as const) : ("VALIDEE" as const),
+    rang: complet ? await prochainRang(creneauId) : null,
+    decisionAt: new Date(),
+    decidePar: admin.displayName,
+    motif: null,
+  };
+
+  if (existante) {
+    await prisma.inscription.update({ where: { id: existante.id }, data });
+  } else {
+    await prisma.inscription.create({ data: { creneauId, userId, ...data } });
+  }
+
+  await audit("INSCRIPTION_MANUELLE", {
+    userId: admin.id,
+    cible: `${agent.displayName} → ${creneau.activite.nom}`,
+  });
+  revalidatePath("/inscriptions");
+  return succes(
+    complet
+      ? `${agent.displayName} placé en liste d'attente (créneau complet).`
+      : `${agent.displayName} inscrit à ${creneau.activite.nom}.`,
+  );
+}
+
+/** Relance groupée des agents qui ne viennent plus. */
+export async function relancerDecrocheurs(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const emails = formData.getAll("email").map(String).filter(Boolean);
+  if (emails.length === 0) return erreur("Aucun destinataire sélectionné.");
+
+  const g = await getGeneralSettings();
+  const message = String(formData.get("message") ?? "").trim();
+  let envoyes = 0;
+  const echecs: string[] = [];
+
+  for (const email of emails) {
+    const res = await envoyerMail(
+      email,
+      "Vos activités sportives — on ne vous voit plus",
+      message ||
+        [
+          `Bonjour,`,
+          `Nous avons remarqué que vous n'avez pas participé à vos dernières séances. Si vos disponibilités ont changé, vous pouvez vous désinscrire depuis Bolt : cela libérera votre place pour un collègue en liste d'attente.`,
+          `Et si c'est un simple contretemps, nous serons ravis de vous revoir à la prochaine séance !`,
+          g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
+        ].join("\n\n"),
+    );
+    if (res.ok) envoyes += 1;
+    else echecs.push(email);
+  }
+
+  await audit("RELANCE_DECROCHEURS", {
+    userId: admin.id,
+    details: `${envoyes}/${emails.length} envoyés`,
+  });
+
+  if (envoyes === 0) {
+    return erreur(`Aucun message envoyé. Vérifiez la configuration de la messagerie.`);
+  }
+  return succes(
+    echecs.length > 0
+      ? `${envoyes} message(s) envoyé(s). Échecs : ${echecs.join(", ")}.`
+      : `${envoyes} message(s) envoyé(s).`,
+  );
+}

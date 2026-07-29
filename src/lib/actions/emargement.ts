@@ -1,0 +1,396 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import type { EtatPresence } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { audit } from "@/lib/audit";
+import {
+  changerPin,
+  coachAutorise,
+  fermerSessionCoach,
+  verifierPin,
+} from "@/lib/coach-access";
+import { rateLimit } from "@/lib/rate-limit";
+import { aujourdhui, jourUtc } from "@/lib/dates";
+import { enregistrerPresence, saisieOuverte } from "@/lib/emargement";
+import { notifierSeanceRetablie, notifierSeancesAnnulees } from "@/lib/notifications";
+import { clientIp } from "@/lib/net";
+import { chercherComptes, type Candidat } from "@/lib/comptes";
+import { erreur, succes, type ActionState } from "./types";
+
+/**
+ * Actions de la feuille d'émargement publique.
+ *
+ * Toutes vérifient d'abord `coachAutorise(token)` : le jeton présent dans
+ * l'URL ne suffit jamais à écrire, la session PIN doit être ouverte. Et toutes
+ * revérifient que la séance appartient bien à un créneau de cet animateur —
+ * sans quoi un identifiant de séance deviné permettrait d'écrire ailleurs.
+ */
+
+const ETATS: EtatPresence[] = ["PRESENT", "ABSENT"];
+
+export async function validerPinAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const token = String(formData.get("token") ?? "");
+  const pin = String(formData.get("pin") ?? "");
+  const ip = clientIp(await headers());
+  const res = await verifierPin(token, pin, ip);
+  if (!res.ok) return erreur(res.message);
+  redirect(`/emargement/${token}`);
+}
+
+/** L'animateur remplace le code reçu par un code qu'il retiendra. */
+export async function changerPinAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const token = String(formData.get("token") ?? "");
+  const coach = await coachAutorise(token);
+  if (!coach) return erreur("Session expirée. Ressaisissez votre code.");
+
+  // Coupe-circuit : le formulaire n'est servi qu'à une session ouverte, mais
+  // rien n'empêcherait d'y marteler des combinaisons pour deviner l'ancien code.
+  const ip = clientIp(await headers());
+  if (!rateLimit(`pin-change:${ip}`, 10, 600).ok) {
+    return erreur("Trop de tentatives. Patientez quelques minutes.");
+  }
+
+  const res = await changerPin(
+    coach.id,
+    String(formData.get("ancien") ?? ""),
+    String(formData.get("nouveau") ?? ""),
+  );
+  if (!res.ok) return erreur(res.message);
+  revalidatePath(`/emargement/${token}`);
+  return succes(res.message);
+}
+
+export async function quitterAction(formData: FormData): Promise<void> {
+  const token = String(formData.get("token") ?? "");
+  await fermerSessionCoach();
+  redirect(`/emargement/${token}`);
+}
+
+/** Vérifie que la séance relève bien de l'animateur porteur du jeton. */
+async function seanceDuCoach(token: string, seanceId: string) {
+  const coach = await coachAutorise(token);
+  if (!coach) return null;
+  const seance = await prisma.seance.findFirst({
+    where: { id: seanceId, creneau: { animateurs: { some: { id: coach.id } } } },
+    include: { creneau: { include: { activite: true } } },
+  });
+  if (!seance) return null;
+  return { coach, seance };
+}
+
+export async function pointerEmargement(
+  token: string,
+  seanceId: string,
+  userId: string,
+  etat: string,
+): Promise<void> {
+  const ctx = await seanceDuCoach(token, seanceId);
+  if (!ctx) return;
+  const { coach, seance } = ctx;
+  if (seance.clotureeAt) return;
+  if (seance.statut === "ANNULEE") return;
+  if (!saisieOuverte(seance.date)) return;
+  if (!ETATS.includes(etat as EtatPresence)) return;
+
+  // L'agent doit être inscrit au créneau : la feuille publique ne permet pas
+  // de créer une ligne pour n'importe quel compte de la collectivité.
+  const inscrit = await prisma.inscription.findFirst({
+    where: { creneauId: seance.creneauId, userId, statut: "VALIDEE" },
+    select: { id: true },
+  });
+  if (!inscrit) return;
+
+  await enregistrerPresence(seanceId, userId, etat as EtatPresence, `coach:${coach.id}`);
+  revalidatePath(`/emargement/${token}/${seanceId}`);
+}
+
+export async function cloturerEmargement(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const token = String(formData.get("token") ?? "");
+  const seanceId = String(formData.get("seanceId") ?? "");
+  const ctx = await seanceDuCoach(token, seanceId);
+  if (!ctx) return erreur("Séance introuvable.");
+  const { coach, seance } = ctx;
+  if (seance.clotureeAt) return succes("Feuille déjà transmise.");
+
+  const pointes = await prisma.presence.count({ where: { seanceId } });
+  if (pointes === 0) {
+    return erreur("Pointez au moins un participant avant de transmettre la feuille.");
+  }
+
+  await prisma.seance.update({
+    where: { id: seanceId },
+    data: {
+      clotureeAt: new Date(),
+      clotureePar: `${coach.prenom} ${coach.nom}`,
+      commentaire: String(formData.get("commentaire") ?? "").trim() || seance.commentaire,
+    },
+  });
+  await audit("SEANCE_CLOTUREE", {
+    acteur: `${coach.prenom} ${coach.nom}`,
+    cible: `${seance.creneau.activite.nom} ${seance.date.toISOString().slice(0, 10)}`,
+  });
+
+  revalidatePath(`/emargement/${token}`);
+  redirect(`/emargement/${token}?transmise=1`);
+}
+
+export async function annulerSeanceEmargement(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const token = String(formData.get("token") ?? "");
+  const seanceId = String(formData.get("seanceId") ?? "");
+  const motif = String(formData.get("motif") ?? "").trim();
+  if (!motif) return erreur("Indiquez pourquoi la séance n'a pas eu lieu.");
+
+  const ctx = await seanceDuCoach(token, seanceId);
+  if (!ctx) return erreur("Séance introuvable.");
+  const { coach, seance } = ctx;
+  if (seance.clotureeAt) return erreur("Feuille déjà transmise.");
+
+  await prisma.seance.update({
+    where: { id: seanceId },
+    data: {
+      statut: "ANNULEE",
+      motifAnnulation: motif,
+      clotureeAt: new Date(),
+      clotureePar: `${coach.prenom} ${coach.nom}`,
+    },
+  });
+  await audit("SEANCE_ANNULEE", {
+    acteur: `${coach.prenom} ${coach.nom}`,
+    cible: `${seance.creneau.activite.nom} ${seance.date.toISOString().slice(0, 10)}`,
+    details: motif,
+  });
+
+  revalidatePath(`/emargement/${token}`);
+  redirect(`/emargement/${token}?annulee=1`);
+}
+
+/**
+ * Recherche d'un agent à ajouter à la feuille, pour l'animateur par lien.
+ *
+ * Restreinte aux agents déjà connus de Bolt, et amputée de ceux qui figurent
+ * déjà sur la feuille : la page est jointe depuis Internet, il n'est pas
+ * question d'en faire un annuaire de la collectivité.
+ */
+export async function rechercherParticipantEmargement(
+  token: string,
+  seanceId: string,
+  query: string,
+): Promise<Candidat[]> {
+  const ctx = await seanceDuCoach(token, seanceId);
+  if (!ctx) return [];
+
+  const [presences, inscriptions] = await Promise.all([
+    prisma.presence.findMany({ where: { seanceId }, select: { userId: true } }),
+    prisma.inscription.findMany({
+      where: { creneauId: ctx.seance.creneauId, statut: "VALIDEE" },
+      select: { userId: true },
+    }),
+  ]);
+  const dejaLa = [
+    ...new Set([...presences, ...inscriptions].map((x) => x.userId)),
+  ];
+  return chercherComptes(query, dejaLa);
+}
+
+/**
+ * Ajout d'un participant venu sans être inscrit, depuis la feuille mobile.
+ *
+ * Il est pointé présent — c'est le fait constaté — et l'animateur peut
+ * proposer son inscription au créneau dans le même geste. Cette demande part
+ * en attente : l'animateur signale, le service des sports arbitre.
+ */
+export async function ajouterParticipantEmargement(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const token = String(formData.get("token") ?? "");
+  const seanceId = String(formData.get("seanceId") ?? "");
+  const login = String(formData.get("login") ?? "").trim();
+  if (!login) return erreur("Sélectionnez un agent.");
+
+  const ctx = await seanceDuCoach(token, seanceId);
+  if (!ctx) return erreur("Séance introuvable.");
+  const { coach, seance } = ctx;
+  if (seance.clotureeAt) return erreur("Feuille déjà transmise.");
+  if (seance.statut === "ANNULEE") return erreur("Cette séance est annulée.");
+
+  const agent = await prisma.user.findUnique({ where: { login: login.toLowerCase() } });
+  if (!agent || !agent.active) return erreur("Agent introuvable.");
+
+  await enregistrerPresence(seanceId, agent.id, "PRESENT", `coach:${coach.id}`);
+  await audit("PARTICIPANT_PONCTUEL", {
+    acteur: `${coach.prenom} ${coach.nom}`,
+    cible: agent.displayName,
+    details: seanceId,
+  });
+
+  let suite = "";
+  if (formData.get("inscrire") === "on") {
+    const existante = await prisma.inscription.findUnique({
+      where: { creneauId_userId: { creneauId: seance.creneauId, userId: agent.id } },
+    });
+    if (existante && ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"].includes(existante.statut)) {
+      suite = " Il était déjà positionné sur ce créneau.";
+    } else {
+      const data = {
+        statut: "EN_ATTENTE" as const,
+        rang: null,
+        demandeAt: new Date(),
+        decisionAt: null,
+        decidePar: null,
+        motif: null,
+        commentaire: `Venu à la séance du ${seance.date.toISOString().slice(0, 10)}, signalé par l'animateur`,
+      };
+      if (existante) {
+        await prisma.inscription.update({ where: { id: existante.id }, data });
+      } else {
+        await prisma.inscription.create({
+          data: { creneauId: seance.creneauId, userId: agent.id, ...data },
+        });
+      }
+      await audit("INSCRIPTION_DEPUIS_SEANCE", {
+        acteur: `${coach.prenom} ${coach.nom}`,
+        cible: agent.displayName,
+        details: "EN_ATTENTE",
+      });
+      suite = " Demande d'inscription transmise au service des sports.";
+    }
+  }
+
+  revalidatePath(`/emargement/${token}/${seanceId}`);
+  revalidatePath(`/seances/${seanceId}`);
+  revalidatePath("/inscriptions");
+  return succes(`${agent.displayName} ajouté à la feuille.${suite}`);
+}
+
+/**
+ * Rétablit une séance que l'animateur avait annulée par anticipation.
+ *
+ * L'empêchement se lève parfois — remplaçant trouvé, salle rendue —, et sans
+ * ce geste il fallait appeler le service des sports. Les inscrits sont
+ * reprévenus : ils avaient rayé la date de leur agenda.
+ *
+ * Limité aux séances à venir et non émargées : rétablir une séance passée
+ * reviendrait à réécrire l'historique.
+ */
+export async function retablirSeanceAVenir(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const token = String(formData.get("token") ?? "");
+  const seanceId = String(formData.get("seanceId") ?? "");
+
+  const ctx = await seanceDuCoach(token, seanceId);
+  if (!ctx) return erreur("Séance introuvable.");
+  const { coach, seance } = ctx;
+  if (seance.statut !== "ANNULEE") return erreur("Cette séance n'est pas annulée.");
+  if (seance.date < aujourdhui()) {
+    return erreur("Séance passée : le service des sports peut encore la rétablir.");
+  }
+
+  await prisma.seance.update({
+    where: { id: seanceId },
+    data: { statut: "PLANIFIEE", motifAnnulation: null, clotureeAt: null, clotureePar: null },
+  });
+  await audit("SEANCE_RETABLIE", {
+    acteur: `${coach.prenom} ${coach.nom}`,
+    cible: `${seance.creneau.activite.nom} ${seance.date.toISOString().slice(0, 10)}`,
+  });
+
+  const res = await notifierSeanceRetablie(seanceId);
+
+  revalidatePath(`/emargement/${token}`);
+  revalidatePath(`/emargement/${token}/${seanceId}`);
+  revalidatePath("/seances");
+  revalidatePath("/mes-activites");
+  return succes(
+    res.envoyes > 0
+      ? `Séance rétablie. ${res.envoyes} inscrit${res.envoyes > 1 ? "s" : ""} prévenu${res.envoyes > 1 ? "s" : ""}.`
+      : "Séance rétablie.",
+  );
+}
+
+/**
+ * Annulation par l'animateur d'une séance **à venir**, et éventuellement des
+ * suivantes du même créneau jusqu'à une date.
+ *
+ * Distincte de la déclaration « la séance n'a pas eu lieu » : ici il prévient,
+ * et les inscrits sont donc informés par courriel — un seul message chacun,
+ * même pour six semaines d'arrêt. La feuille n'est pas close : le service des
+ * sports peut rétablir les séances si l'empêchement se lève.
+ */
+export async function annulerSeanceAVenir(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const token = String(formData.get("token") ?? "");
+  const seanceId = String(formData.get("seanceId") ?? "");
+  const motif = String(formData.get("motif") ?? "").trim();
+  const jusqua = String(formData.get("jusqua") ?? "").trim();
+  if (!motif) return erreur("Indiquez pourquoi la séance n'aura pas lieu.");
+
+  const ctx = await seanceDuCoach(token, seanceId);
+  if (!ctx) return erreur("Séance introuvable.");
+  const { coach, seance } = ctx;
+  if (seance.statut === "ANNULEE") return erreur("Cette séance est déjà annulée.");
+  if (seance.date < aujourdhui()) {
+    return erreur("Séance passée : ouvrez sa feuille pour la déclarer non tenue.");
+  }
+
+  // Le lot ne dépasse jamais le créneau de la séance ouverte : un empêchement
+  // porte sur un rendez-vous hebdomadaire, pas sur toute l'activité.
+  const fin = jusqua ? jourUtc(jusqua) : seance.date;
+  if (fin < seance.date) return erreur("La date de reprise doit suivre cette séance.");
+
+  const seances = await prisma.seance.findMany({
+    where: {
+      creneauId: seance.creneauId,
+      statut: "PLANIFIEE",
+      date: { gte: seance.date, lte: fin },
+    },
+    orderBy: { date: "asc" },
+    select: { id: true },
+  });
+  if (seances.length === 0) return erreur("Aucune séance à annuler sur cette période.");
+  const ids = seances.map((s) => s.id);
+
+  await prisma.seance.updateMany({
+    where: { id: { in: ids } },
+    data: { statut: "ANNULEE", motifAnnulation: motif },
+  });
+  await audit("SEANCE_ANNULEE_AVANCE", {
+    acteur: `${coach.prenom} ${coach.nom}`,
+    cible: `${seance.creneau.activite.nom} — ${ids.length} séance(s) à partir du ${seance.date.toISOString().slice(0, 10)}`,
+    details: motif,
+  });
+
+  const res = await notifierSeancesAnnulees(ids, motif);
+  const quoi =
+    ids.length > 1 ? `${ids.length} séances annulées` : "Séance annulée";
+
+  revalidatePath(`/emargement/${token}`);
+  revalidatePath("/seances");
+  revalidatePath("/mes-activites");
+  return succes(
+    res.envoyes > 0
+      ? `${quoi}. ${res.envoyes} inscrit${res.envoyes > 1 ? "s" : ""} prévenu${res.envoyes > 1 ? "s" : ""}.`
+      : res.destinataires > 0
+        ? `${quoi}, mais aucun inscrit n'a pu être prévenu par courriel. Signalez-le au service des sports.`
+        : `${quoi}. Aucun inscrit à prévenir.`,
+  );
+}
