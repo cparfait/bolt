@@ -9,7 +9,12 @@ import {
 } from "lucide-react";
 import { resoudreLien } from "@/lib/coach-access";
 import { quitterAction } from "@/lib/actions/emargement";
-import { JOURS_SAISIE_COACH, saisieOuverte, seancesDuCoach } from "@/lib/emargement";
+import {
+  feuillesAttendues,
+  JOURS_SAISIE_COACH,
+  saisieOuverte,
+  seancesDuCoach,
+} from "@/lib/emargement";
 import { aujourdhui, fmtDateLongue, isoDate } from "@/lib/dates";
 import { ChangerPinCoach } from "@/components/changer-pin-coach";
 import { InstallerApp } from "@/components/installer-app";
@@ -119,13 +124,17 @@ export default async function EmargementAccueil({
   const duJour = seances.filter((s) => isoDate(s.date) === today);
   // « À compléter » couvre deux cas : la feuille jamais ouverte, et celle
   // commencée mais non transmise. Ne retenir que PLANIFIEE laissait la seconde
-  // invisible — or c'est le rattrapage le plus fréquent.
-  const aRattraper = seances.filter(
-    (s) =>
-      isoDate(s.date) < today &&
-      !s.clotureeAt &&
-      s.statut !== "ANNULEE" &&
-      saisieOuverte(s.date),
+  // invisible — or c'est le rattrapage le plus fréquent. Les séances sans
+  // personne (aucun inscrit à cette date, rien de pointé) sont écartées :
+  // il n'y a pas de feuille à compléter.
+  const aRattraper = await feuillesAttendues(
+    seances.filter(
+      (s) =>
+        isoDate(s.date) < today &&
+        !s.clotureeAt &&
+        s.statut !== "ANNULEE" &&
+        saisieOuverte(s.date),
+    ),
   );
   const aVenir = seances.filter((s) => isoDate(s.date) > today).slice(0, 5);
 

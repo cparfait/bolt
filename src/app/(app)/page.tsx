@@ -14,6 +14,7 @@ import { saisonCourante } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import { decrocheurs, indicateurs, parActivite } from "@/lib/stats";
 import { declencherRappelsSiBesoin } from "@/lib/rappels";
+import { feuillesAttendues } from "@/lib/emargement";
 import { prochainesSeancesDe } from "@/lib/actions/absences";
 import { MesSeances } from "@/components/mes-seances";
 import { RechercheRapide } from "@/components/recherche-rapide";
@@ -252,7 +253,7 @@ export default async function TableauDeBord({
     aValider,
     enListeAttente,
     seancesPeriode,
-    aEmarger,
+    seancesSansEmargement,
     lachages,
     nbJour,
     nbSemaine,
@@ -276,12 +277,13 @@ export default async function TableauDeBord({
       orderBy: [{ date: "asc" }, { creneau: { heureDebut: "asc" } }],
       take: 60,
     }),
-    prisma.seance.count({
+    prisma.seance.findMany({
       where: {
         statut: "PLANIFIEE",
         date: { lt: aujourdhui(), gte: ajouterJours(aujourdhui(), -30) },
         creneau: { saisonId: saison.id },
       },
+      select: { id: true, date: true, creneauId: true },
     }),
     decrocheurs(filtre, g.absencesAvantRelance),
     compteur("jour"),
@@ -290,6 +292,9 @@ export default async function TableauDeBord({
   ]);
 
   const aTraiter = aValider + enListeAttente;
+  // Même règle que la liste « Feuilles non transmises » : une séance sans
+  // inscrit attendu ni pointage n'a pas de feuille à réclamer.
+  const aEmarger = (await feuillesAttendues(seancesSansEmargement)).length;
 
   const onglets: { vue: Vue; nombre: number }[] = [
     { vue: "jour", nombre: nbJour },

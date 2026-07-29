@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { estGestionnaire, requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { aujourdhui, ajouterJours, fmtDateComplete, isoDate } from "@/lib/dates";
+import { feuillesAttendues } from "@/lib/emargement";
 import { Badge, EmptyState, PageHeader, Select, btnSecondary } from "@/components/ui";
 import { FiltreActivites } from "@/components/filtre-activites";
 import { FiltreForm } from "@/components/filtre-form";
@@ -77,7 +78,7 @@ export default async function SeancesPage({
     ...(periode === "manquantes" ? { statut: "PLANIFIEE" as const } : {}),
   };
 
-  const [seances, activites] = await Promise.all([
+  const [seancesBrutes, activites] = await Promise.all([
     prisma.seance.findMany({
       where,
       include: {
@@ -115,6 +116,11 @@ export default async function SeancesPage({
       select: { id: true, nom: true, couleur: true, actif: true },
     }),
   ]);
+
+  // Une séance sans inscrit attendu ni pointage n'a pas de feuille à réclamer :
+  // inutile de relancer un animateur pour une salle vide.
+  const seances =
+    periode === "manquantes" ? await feuillesAttendues(seancesBrutes) : seancesBrutes;
 
   // Regroupement par jour : la lecture d'un planning se fait par date.
   const parJour = new Map<string, typeof seances>();

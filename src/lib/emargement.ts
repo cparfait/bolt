@@ -136,6 +136,46 @@ export async function retirerPresence(seanceId: string, userId: string): Promise
 }
 
 /**
+ * Restreint une liste de séances à celles qui ont réellement une feuille à
+ * compléter : au moins un inscrit attendu à cette date, ou un pointage déjà
+ * saisi. Une séance sans personne n'a rien à émarger — la réclamer met
+ * l'animateur devant une feuille vide, qu'il ne peut d'ailleurs pas
+ * transmettre puisque la clôture exige au moins un pointage.
+ */
+export async function feuillesAttendues<
+  T extends { id: string; date: Date; creneauId: string },
+>(seances: T[]): Promise<T[]> {
+  if (seances.length === 0) return seances;
+
+  const creneauIds = [...new Set(seances.map((s) => s.creneauId))];
+  const [inscriptions, pointages] = await Promise.all([
+    prisma.inscription.findMany({
+      where: { creneauId: { in: creneauIds }, statut: "VALIDEE" },
+      select: { creneauId: true, decisionAt: true, demandeAt: true },
+    }),
+    prisma.presence.findMany({
+      where: { seanceId: { in: seances.map((s) => s.id) } },
+      select: { seanceId: true },
+      distinct: ["seanceId"],
+    }),
+  ]);
+
+  const parCreneau = new Map<string, { decisionAt: Date | null; demandeAt: Date }[]>();
+  for (const i of inscriptions) {
+    const liste = parCreneau.get(i.creneauId);
+    if (liste) liste.push(i);
+    else parCreneau.set(i.creneauId, [i]);
+  }
+  const pointees = new Set(pointages.map((p) => p.seanceId));
+
+  return seances.filter(
+    (s) =>
+      pointees.has(s.id) ||
+      (parCreneau.get(s.creneauId) ?? []).some((i) => participeALaSeance(i, s.date)),
+  );
+}
+
+/**
  * Séances d'un animateur autour d'aujourd'hui.
  * La feuille s'ouvre sur la séance du jour ; la fenêtre glissante permet de
  * rattraper un oubli de la veille sans naviguer dans un calendrier.
