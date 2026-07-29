@@ -76,7 +76,7 @@ const items: Item[] = [
     href: "/parametres",
     label: "Paramètres",
     icon: Settings,
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "GESTIONNAIRE"],
     groupe: "gestion",
   },
   {

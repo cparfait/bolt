@@ -21,7 +21,7 @@ export default async function ParametresLieux({
 }: {
   searchParams: Promise<{ lieu?: string }>;
 }) {
-  await requireUser("ADMIN");
+  await requireUser("GESTIONNAIRE");
   const { lieu: enEdition } = await searchParams;
 
   const lieux = await prisma.lieu.findMany({

@@ -7,17 +7,19 @@ const onglets = [
   { href: "/parametres", label: "Général" },
   { href: "/parametres/saisons", label: "Saisons & calendrier" },
   { href: "/parametres/lieux", label: "Lieux" },
-  { href: "/parametres/annuaire", label: "Annuaire (LDAPS)" },
-  { href: "/parametres/messagerie", label: "Messagerie" },
-  { href: "/parametres/utilisateurs", label: "Comptes & rôles" },
-  { href: "/parametres/journal", label: "Journal" },
+  { href: "/parametres/annuaire", label: "Annuaire (LDAPS)", adminSeul: true },
+  { href: "/parametres/messagerie", label: "Messagerie", adminSeul: true },
+  { href: "/parametres/utilisateurs", label: "Comptes & rôles", adminSeul: true },
+  { href: "/parametres/journal", label: "Journal", adminSeul: true },
 ];
 
-export function OngletsParametres() {
+export function OngletsParametres({ estAdmin }: { estAdmin: boolean }) {
   const pathname = usePathname();
   return (
     <nav className="flex flex-wrap gap-1.5 border-b border-slate-200 pb-px">
-      {onglets.map((o) => {
+      {onglets
+        .filter((o) => estAdmin || !o.adminSeul)
+        .map((o) => {
         const actif =
           o.href === "/parametres" ? pathname === o.href : pathname.startsWith(o.href);
         return (

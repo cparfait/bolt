@@ -1,8 +1,10 @@
+import { requireUser } from "@/lib/session";
 import { getSmtpSettings } from "@/lib/settings";
 import { Card } from "@/components/ui";
 import { SmtpForm } from "@/components/settings-forms";
 
 export default async function ParametresMessagerie() {
+  await requireUser("ADMIN");
   const cfg = await getSmtpSettings();
   return (
     <div className="space-y-6">

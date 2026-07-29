@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/session";
 import { getLdapSettings } from "@/lib/settings";
 import { Card, Stat } from "@/components/ui";
 import { LdapForm, LdapOutils } from "@/components/settings-forms";
 import { fmtHorodatage } from "@/lib/dates";
 
 export default async function ParametresAnnuaire() {
+  await requireUser("ADMIN");
   const [cfg, comptes, dernier] = await Promise.all([
     getLdapSettings(),
     prisma.adAccount.count(),

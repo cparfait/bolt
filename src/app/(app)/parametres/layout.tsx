@@ -6,7 +6,9 @@ import { OngletsParametres } from "@/components/settings-tabs";
 export default async function ParametresLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  await requireUser("ADMIN");
+  // Le service des sports accède au paramétrage métier (général, saisons,
+  // lieux) ; les onglets techniques restent gardés page par page côté ADMIN.
+  const user = await requireUser("GESTIONNAIRE");
   return (
     <>
       <PageHeader title="Paramètres" subtitle="Configuration de Bolt">
@@ -17,7 +19,7 @@ export default async function ParametresLayout({
           Retour au tableau de bord
         </Link>
       </PageHeader>
-      <OngletsParametres />
+      <OngletsParametres estAdmin={user.role === "ADMIN"} />
       <div className="mt-6">{children}</div>
     </>
   );

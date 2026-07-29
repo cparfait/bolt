@@ -181,7 +181,7 @@ export async function enregistrerGeneral(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const admin = await requireUser("ADMIN");
+  const user = await requireUser("GESTIONNAIRE");
   const actuel = await getGeneralSettings();
   const cfg = {
     orgName: texte(formData, "orgName") || actuel.orgName,
@@ -211,7 +211,7 @@ export async function enregistrerGeneral(
   }
 
   await setSetting("general", cfg);
-  await audit("PARAM_GENERAL", { userId: admin.id });
+  await audit("PARAM_GENERAL", { userId: user.id });
   revalidatePath("/parametres");
   return succes("Paramètres enregistrés.");
 }
