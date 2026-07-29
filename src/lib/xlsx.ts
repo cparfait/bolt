@@ -6,6 +6,7 @@ import {
   indicateurs,
   parActivite,
   parDirection,
+  placesOffertes,
   type Filtre,
 } from "./stats";
 import { SEANCE_STATUT_LABELS } from "./constants";
@@ -47,7 +48,7 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
         ? prisma.activite.findUnique({ where: { id: f.activiteId } })
         : Promise.resolve(null),
       indicateurs(f),
-      parActivite({ saisonId: f.saisonId }),
+      parActivite(f),
       evolutionMensuelle(f),
       parDirection(f),
       prisma.seance.findMany({
@@ -185,7 +186,7 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
       pointes: s.presences.length,
       presents: n("PRESENT"),
       absents: n("ABSENT"),
-      capacite: s.creneau.capacite,
+      capacite: placesOffertes(s),
       commentaire: s.motifAnnulation ?? s.commentaire ?? "",
     });
   }

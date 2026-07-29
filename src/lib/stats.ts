@@ -1,6 +1,14 @@
 import type { EtatPresence, Jour } from "@prisma/client";
 import { prisma } from "./db";
-import { aujourdhui, cleMois, fmtMois, isoDate, jourIndex } from "./dates";
+import {
+  aujourdhui,
+  cleMois,
+  debutMois,
+  fmtMois,
+  fmtMoisCourt,
+  isoDate,
+  jourIndex,
+} from "./dates";
 import { participeALaSeance } from "./inscriptions";
 
 /**
@@ -22,6 +30,24 @@ export type Filtre = {
 
 function estPresent(etat: EtatPresence): boolean {
   return etat === "PRESENT";
+}
+
+/**
+ * Places offertes par une séance.
+ *
+ * Le créneau porte sa capacité, sauf quand l'activité mutualise la sienne :
+ * `Creneau.capacite` n'est alors qu'une valeur résiduelle, et la rapporter aux
+ * présences donnerait un taux de remplissage calculé sur un effectif qui n'est
+ * pas celui du groupe.
+ */
+export function placesOffertes(seance: {
+  creneau: {
+    capacite: number;
+    activite: { capacitePartagee: boolean; capacite: number | null };
+  };
+}): number {
+  const a = seance.creneau.activite;
+  return a.capacitePartagee ? (a.capacite ?? seance.creneau.capacite) : seance.creneau.capacite;
 }
 
 async function chargerSeances(f: Filtre) {
@@ -86,7 +112,7 @@ export async function indicateurs(f: Filtre): Promise<Indicateurs> {
   const passees = seances.filter((s) => s.date <= today && s.statut !== "ANNULEE").length;
 
   for (const s of emargees) {
-    capacite += s.creneau.capacite;
+    capacite += placesOffertes(s);
     for (const p of s.presences) {
       pointees += 1;
       if (estPresent(p.etat)) {
@@ -159,7 +185,7 @@ export async function parActivite(f: Filtre): Promise<LigneActivite[]> {
     const row = acc.get(a.id)!;
     if (s.statut !== "FAITE") continue;
     row.seancesEmargees += 1;
-    row.capacite += s.creneau.capacite;
+    row.capacite += placesOffertes(s);
     for (const p of s.presences) {
       if (estPresent(p.etat)) row.presents += 1;
       else if (p.etat === "ABSENT") row.absents += 1;
@@ -189,11 +215,19 @@ export async function parActivite(f: Filtre): Promise<LigneActivite[]> {
 export type PointMois = {
   cle: string; // « 2026-09 »
   libelle: string; // « septembre 2026 »
+  court: string; // « sept. » — axe du graphique
   presents: number;
   seances: number;
   moyenne: number;
 };
 
+/**
+ * Fréquentation mois par mois.
+ *
+ * Les mois sans aucune séance émargée sont restitués à zéro plutôt qu'omis :
+ * une courbe d'évolution dont l'axe saute d'avril à juillet se lit comme une
+ * série continue, et masque précisément le creux qu'elle devrait montrer.
+ */
 export async function evolutionMensuelle(f: Filtre): Promise<PointMois[]> {
   const seances = await chargerSeances(f);
   const acc = new Map<string, { presents: number; seances: number; date: Date }>();
@@ -201,21 +235,32 @@ export async function evolutionMensuelle(f: Filtre): Promise<PointMois[]> {
   for (const s of seances) {
     if (s.statut !== "FAITE") continue;
     const cle = cleMois(s.date);
-    const row = acc.get(cle) ?? { presents: 0, seances: 0, date: s.date };
+    const row = acc.get(cle) ?? { presents: 0, seances: 0, date: debutMois(s.date) };
     row.seances += 1;
     row.presents += s.presences.filter((p) => estPresent(p.etat)).length;
     acc.set(cle, row);
   }
+  if (acc.size === 0) return [];
 
-  return [...acc.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([cle, r]) => ({
+  const bornes = [...acc.values()].map((r) => r.date.getTime());
+  const points: PointMois[] = [];
+  for (
+    let mois = new Date(Math.min(...bornes));
+    mois <= new Date(Math.max(...bornes));
+    mois = new Date(Date.UTC(mois.getUTCFullYear(), mois.getUTCMonth() + 1, 1))
+  ) {
+    const cle = cleMois(mois);
+    const r = acc.get(cle);
+    points.push({
       cle,
-      libelle: fmtMois(r.date),
-      presents: r.presents,
-      seances: r.seances,
-      moyenne: r.seances > 0 ? Math.round((r.presents / r.seances) * 10) / 10 : 0,
-    }));
+      libelle: fmtMois(mois),
+      court: fmtMoisCourt(mois),
+      presents: r?.presents ?? 0,
+      seances: r?.seances ?? 0,
+      moyenne: r && r.seances > 0 ? Math.round((r.presents / r.seances) * 10) / 10 : 0,
+    });
+  }
+  return points;
 }
 
 export type LigneDirection = {
@@ -477,7 +522,7 @@ export async function grilleJourHeure(f: Filtre): Promise<CaseGrille[]> {
     const row = acc.get(cle)!;
     row.seances += 1;
     row.presents += s.presences.filter((p) => estPresent(p.etat)).length;
-    row.placesCumulees += s.creneau.capacite;
+    row.placesCumulees += placesOffertes(s);
     row.noms.add(s.creneau.activite.nom);
     row.creneauxIds.add(s.creneauId);
   }
@@ -537,25 +582,34 @@ export async function assiduite(f: Filtre): Promise<Assiduite> {
   ]);
 
   const emargees = seances.filter((s) => s.statut === "FAITE");
-  const parCreneau = new Map<string, Date[]>();
+  const parCreneau = new Map<string, { id: string; date: Date }[]>();
   for (const s of emargees) {
-    parCreneau.set(s.creneauId, [...(parCreneau.get(s.creneauId) ?? []), s.date]);
+    parCreneau.set(s.creneauId, [...(parCreneau.get(s.creneauId) ?? []), s]);
   }
 
   // Ne lui sont « proposées » que les séances depuis son inscription : arrivé
   // en janvier, l'agent n'a pas à traîner les séances d'automne dans son taux.
+  //
+  // On retient au passage le couple agent × séance : le numérateur doit se
+  // limiter à ce même périmètre. Sans cela, une venue hors de ses créneaux —
+  // participant ponctuel, séance antérieure à son inscription — se comptait au
+  // numérateur sans jamais figurer au dénominateur, et le taux dépassait 100 %.
   const proposees = new Map<string, number>();
+  const perimetre = new Set<string>();
   for (const i of inscriptions) {
-    const nb = (parCreneau.get(i.creneauId) ?? []).filter((d) =>
-      participeALaSeance(i, d),
-    ).length;
-    proposees.set(i.userId, (proposees.get(i.userId) ?? 0) + nb);
+    const siennes = (parCreneau.get(i.creneauId) ?? []).filter((s) =>
+      participeALaSeance(i, s.date),
+    );
+    proposees.set(i.userId, (proposees.get(i.userId) ?? 0) + siennes.length);
+    for (const s of siennes) perimetre.add(`${i.userId}:${s.id}`);
   }
 
   const venues = new Map<string, number>();
   for (const s of emargees) {
     for (const p of s.presences) {
-      if (estPresent(p.etat)) venues.set(p.userId, (venues.get(p.userId) ?? 0) + 1);
+      if (!estPresent(p.etat)) continue;
+      if (!perimetre.has(`${p.userId}:${s.id}`)) continue;
+      venues.set(p.userId, (venues.get(p.userId) ?? 0) + 1);
     }
   }
 
@@ -566,23 +620,29 @@ export async function assiduite(f: Filtre): Promise<Assiduite> {
   let totalVenues = 0;
   let totalProposees = 0;
 
+  let venus = 0;
   for (const [userId, nb] of proposees) {
     const venu = venues.get(userId) ?? 0;
     totalVenues += venu;
     totalProposees += nb;
+    if (venu > 0) venus += 1;
+    // Aucune séance émargée sur ses créneaux depuis son inscription : on ne
+    // peut rien conclure. On le range avec les occasionnels plutôt que de
+    // l'exclure du total — et surtout pas parmi les « jamais venus », qui
+    // déclenche une relance.
+    if (nb === 0) {
+      occasionnels += 1;
+      continue;
+    }
     if (venu === 0) {
       jamaisVenus += 1;
       continue;
     }
-    // Aucune séance émargée sur ses créneaux : on ne peut rien conclure, on le
-    // range avec les occasionnels plutôt que de l'exclure du total.
-    const part = nb > 0 ? venu / nb : 0;
+    const part = venu / nb;
     if (part >= 0.8) assidus += 1;
     else if (part >= 0.4) reguliers += 1;
     else occasionnels += 1;
   }
-
-  const venus = proposees.size - jamaisVenus;
   return {
     agents: proposees.size,
     jamaisVenus,
@@ -685,7 +745,7 @@ export async function exportCsv(f: Filtre): Promise<string> {
         s.presences.length,
         c("PRESENT"),
         c("ABSENT"),
-        s.creneau.capacite,
+        placesOffertes(s),
       ]
         .map((v) => String(v).replace(/;/g, ","))
         .join(";"),

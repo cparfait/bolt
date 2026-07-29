@@ -22,6 +22,7 @@ import {
   INSCRIPTION_STATUT_COLORS,
   INSCRIPTION_STATUT_LABELS,
   ROLE_LABELS,
+  pluriel,
 } from "@/lib/constants";
 
 /** Fiche d'un agent : ce à quoi il est inscrit, et s'il vient réellement. */
@@ -40,19 +41,34 @@ export default async function FicheAgent({
   const agent = await prisma.user.findUnique({ where: { id } });
   if (!agent) notFound();
 
-  const [inscriptions, presences, absencesAVenir, creneauxSaison, seancesAVenir] =
-    await Promise.all([
+  // Les indicateurs portent sur la saison affichée, comme les inscriptions
+  // juste à côté — et se comptent en base plutôt que sur la liste ci-dessous,
+  // qui s'arrête aux trente derniers pointages : au-delà, « séances suivies »
+  // et « taux de présence » se seraient tus sur le reste de la saison.
+  const perimetre = saison ? { seance: { creneau: { saisonId: saison.id } } } : {};
+
+  const [
+    inscriptions,
+    presences,
+    venues,
+    manquees,
+    absencesAVenir,
+    creneauxSaison,
+    seancesAVenir,
+  ] = await Promise.all([
     prisma.inscription.findMany({
       where: { userId: id, ...(saison ? { creneau: { saisonId: saison.id } } : {}) },
       include: { creneau: { include: { activite: true } } },
       orderBy: { demandeAt: "desc" },
     }),
     prisma.presence.findMany({
-      where: { userId: id },
+      where: { userId: id, ...perimetre },
       include: { seance: { include: { creneau: { include: { activite: true } } } } },
       orderBy: { seance: { date: "desc" } },
       take: 30,
     }),
+    prisma.presence.count({ where: { userId: id, etat: "PRESENT", ...perimetre } }),
+    prisma.presence.count({ where: { userId: id, etat: "ABSENT", ...perimetre } }),
     prisma.absenceAnnoncee.findMany({
       where: { userId: id, seance: { date: { gte: aujourdhui() } } },
       include: { seance: { include: { creneau: { include: { activite: true } } } } },
@@ -107,9 +123,8 @@ export default async function FicheAgent({
     label: `${s.creneau.activite.nom} — ${fmtDateLongue(s.date)} ${s.creneau.heureDebut}`,
   }));
 
-  const venues = presences.filter((p) => p.etat === "PRESENT").length;
-  const manquees = presences.filter((p) => p.etat === "ABSENT").length;
-  const taux = presences.length > 0 ? Math.round((venues / presences.length) * 100) : 0;
+  const pointages = venues + manquees;
+  const taux = pointages > 0 ? Math.round((venues / pointages) * 100) : 0;
 
   // Un participant créé à la main : son identité n'appartient à aucun annuaire,
   // c'est donc ici qu'elle se corrige. Les comptes locaux sont dans le même cas
@@ -158,7 +173,7 @@ export default async function FicheAgent({
           label="Taux de présence"
           value={taux}
           suffixe="%"
-          hint={`${manquees} ${manquees > 1 ? "absences" : "absence"} sur ${presences.length} ${presences.length > 1 ? "séances pointées" : "séance pointée"}`}
+          hint={`${manquees} ${pluriel(manquees, "absence")} sur ${pointages} ${pluriel(pointages, "séance pointée", "séances pointées")}`}
         />
         <Stat
           label="Dernière connexion"
@@ -274,7 +289,16 @@ export default async function FicheAgent({
           )}
         </Card>
 
-        <Card title="Historique de présence">
+        <Card
+          title="Historique de présence"
+          action={
+            pointages > presences.length ? (
+              <span className="text-xs text-slate-400">
+                {presences.length} derniers sur {pointages}
+              </span>
+            ) : null
+          }
+        >
           {presences.length === 0 ? (
             <EmptyState title="Aucune séance émargée pour cet agent" />
           ) : (
