@@ -37,6 +37,9 @@ services:
 
   app:
     image: bolt:local
+    # image construite sur le serveur, absente de tout registre : ne jamais
+    # tenter de pull (sinon « Re-pull image » dans Portainer casse la stack)
+    pull_policy: never
     container_name: bolt_web
     restart: unless-stopped
     depends_on:
