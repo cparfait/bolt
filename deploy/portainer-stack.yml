@@ -1,0 +1,70 @@
+# ============================================================================
+#  Bolt — stack Portainer (Web editor)
+#
+#  L'image est construite sur le serveur depuis le clone git :
+#    cd /home/sysadmin/docker/bolt/bolt_data && git pull
+#    docker build -t bolt:local .
+#  puis coller ce fichier dans Portainer → Stacks → Web editor.
+#
+#  Variables à renseigner dans Portainer (Environment variables) :
+#    POSTGRES_PASSWORD    mot de passe de la base (obligatoire)
+#    SESSION_SECRET       chaîne aléatoire de 32+ caractères (obligatoire)
+#    BOLT_ADMIN_PASSWORD  mot de passe initial du compte local « admin »
+#    BOLT_PUBLIC_URL      URL publique, pour les liens d'émargement
+#
+#  Mise à jour : git pull + docker build (commandes ci-dessus), puis
+#  « Update the stack » avec « Re-pull image and redeploy » dans Portainer.
+# ============================================================================
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: bolt_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bolt
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?definir POSTGRES_PASSWORD}
+      POSTGRES_DB: bolt
+      TZ: Europe/Paris
+    volumes:
+      - /home/sysadmin/docker/bolt/bolt_db:/var/lib/postgresql/data
+    networks:
+      - bolt_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bolt -d bolt"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: bolt:local
+    container_name: bolt_web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://bolt:${POSTGRES_PASSWORD}@db:5432/bolt
+      SESSION_SECRET: ${SESSION_SECRET:?definir SESSION_SECRET}
+      BOLT_ADMIN_PASSWORD: ${BOLT_ADMIN_PASSWORD:?definir BOLT_ADMIN_PASSWORD (8 caracteres minimum)}
+      BOLT_PUBLIC_URL: ${BOLT_PUBLIC_URL:-https://bolt.example.fr}
+      # Seule /emargement/* reste joignable hors de ces plages : le back-office
+      # et la connexion Active Directory ne sont pas exposés à Internet.
+      INTERNAL_CIDRS: ${INTERNAL_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32}
+      # Décommentez pour ouvrir aussi l'espace agent (connexion par lien e-mail)
+      # aux agents sans poste sur le réseau.
+      # PUBLIC_AGENT_ACCESS: "1"
+      # Jeton facultatif pour déclencher les rappels depuis un cron externe.
+      # CRON_TOKEN: ${CRON_TOKEN:-}
+      TZ: Europe/Paris
+      # COOKIE_SECURE: "0"   # décommentez si l'accès se fait en http
+    networks:
+      - bolt_net
+      - containers-lan
+    # Le reverse proxy NPM joint le conteneur via containers-lan
+    # (http://bolt_web:3000) : aucun port publié sur l'hôte.
+
+networks:
+  bolt_net:
+    driver: bridge
+  containers-lan:
+    external: true
