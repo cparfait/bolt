@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarSync, Plus, Power, Trash2, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  CalendarSync,
+  Plus,
+  Power,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
@@ -125,6 +133,13 @@ export default async function ActiviteDetail({
         subtitle={`Saison ${saison.nom} — ${creneaux.length} ${pluriel(creneaux.length, "créneau", "créneaux")}`}
       >
         {!activite.actif && <Badge>Désactivée</Badge>}
+        {/* Vérifier les séances générées — et retirer celles qui n'auront pas
+            lieu — sans quitter la mise en place de l'activité. */}
+        {activite._count.creneaux > 0 && (
+          <Link href={`/seances/calendrier?activite=${id}`} className={btnSecondary}>
+            <CalendarDays className="h-4 w-4" /> Vue calendrier
+          </Link>
+        )}
         <BoutonAction action={basculerActivite.bind(null, id)} className={btnSecondary}>
           <Power className="h-4 w-4" />
           {activite.actif ? "Désactiver" : "Réactiver"}

@@ -84,6 +84,7 @@ export async function annulerSeance(
   const information = formData.get("prevenir") === "on" ? await prevenir([seanceId], motif) : "";
 
   revalidatePath("/seances");
+  revalidatePath("/seances/calendrier");
   revalidatePath(`/seances/${seanceId}`);
   revalidatePath("/mes-activites");
   revalidatePath("/");
@@ -170,6 +171,7 @@ export async function annulerSeances(
 
   revalidatePath("/seances");
   revalidatePath("/seances/annuler");
+  revalidatePath("/seances/calendrier");
   revalidatePath("/mes-activites");
   revalidatePath("/");
   return succes(
@@ -196,6 +198,7 @@ export async function retablirSeance(seanceId: string): Promise<void> {
   });
   await audit("SEANCE_RETABLIE", { userId: acteur.id, cible: seanceId });
   revalidatePath("/seances");
+  revalidatePath("/seances/calendrier");
   revalidatePath(`/seances/${seanceId}`);
 }
 
