@@ -408,6 +408,12 @@ async function main() {
       const nb = alea() < 0.35 ? 2 : 1;
       const choisis = new Set<number>();
       while (choisis.size < nb) choisis.add(Math.floor(alea() * creneaux.length));
+      // L'inscription est datée du début de saison, sauf pour un agent sur six
+      // qui rejoint en cours de route. C'est cette date qui fait foi partout :
+      // la participation démarre à l'inscription, pas au début de l'activité.
+      // Une inscription datée du jour du seed aurait exclu tout l'historique —
+      // feuilles manquantes, décrocheurs et assiduité seraient restés vides.
+      const rejoint = alea() < 0.17 ? ajouterJours(cadre.debut, 8 * 7) : cadre.debut;
       for (const idx of choisis) {
         const creneauId = creneaux[idx];
         const libre = await placeDisponiblePour(creneauId, userId);
@@ -417,7 +423,8 @@ async function main() {
             userId,
             statut: libre ? "VALIDEE" : "LISTE_ATTENTE",
             rang: libre ? null : await prochainRang(creneauId),
-            decisionAt: new Date(),
+            demandeAt: rejoint,
+            decisionAt: rejoint,
             decidePar: "jeu de démonstration",
           },
         });
@@ -442,11 +449,17 @@ async function main() {
   // ── Historique de fréquentation ────────────────────────────────────────
   // On émarge les séances passées : sans historique, toutes les statistiques
   // seraient vides et la démonstration ne montrerait rien.
+  const { participeALaSeance } = await import("../src/lib/inscriptions");
   const passees = await prisma.seance.findMany({
     where: { date: { lt: cadre.today }, statut: "PLANIFIEE" },
     include: {
       creneau: {
-        include: { inscriptions: { where: { statut: "VALIDEE" }, select: { id: true, userId: true } } },
+        include: {
+          inscriptions: {
+            where: { statut: "VALIDEE" },
+            select: { id: true, userId: true, demandeAt: true, decisionAt: true },
+          },
+        },
       },
     },
     orderBy: { date: "asc" },
@@ -477,6 +490,10 @@ async function main() {
     if (alea() < 0.07) continue;
 
     for (const inscription of seance.creneau.inscriptions) {
+      // Un agent arrivé en cours de saison ne figurait pas sur les feuilles
+      // antérieures : lui inventer une présence le créditerait d'une assiduité
+      // sur des séances qui ne le concernaient pas.
+      if (!participeALaSeance(inscription, seance.date)) continue;
       const etat: EtatPresence = alea() < 0.79 ? "PRESENT" : "ABSENT";
       await prisma.presence.upsert({
         where: { seanceId_userId: { seanceId: seance.id, userId: inscription.userId } },
