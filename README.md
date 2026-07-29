@@ -289,7 +289,12 @@ src/lib/rappels.ts             rappels de séance et déclenchement
 src/lib/actions/               actions serveur, par domaine
 src/app/emargement/            feuille publique des animateurs (mobile)
 src/app/(app)/                 back-office et espace agent
+tests/                         règles de calcul, en fonctions pures
 ```
+
+Les tests portent sur les règles dont tout le reste dépend — génération du
+calendrier, date à partir de laquelle un inscrit participe, places offertes par
+une séance — et tournent sans base de données ni serveur.
 
 ## Commandes
 
@@ -298,6 +303,7 @@ npm run dev            # développement
 npm run build          # build de production
 npm run typecheck      # vérification TypeScript
 npm run lint           # ESLint
+npm test               # tests unitaires (runner Node, sans base de données)
 npm run db:migrate     # créer une migration
 npm run db:deploy      # appliquer les migrations
 npm run db:seed        # jeu de démonstration
