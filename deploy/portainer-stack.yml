@@ -60,6 +60,10 @@ services:
       # CRON_TOKEN: ${CRON_TOKEN:-}
       TZ: Europe/Paris
       # COOKIE_SECURE: "0"   # décommentez si l'accès se fait en http
+    volumes:
+      # certificat de l'AC interne pour le LDAPS — dans Bolt, Paramètres →
+      # Annuaire, renseigner le chemin /certs/ca.pem
+      - /home/sysadmin/docker/bolt/certs:/certs:ro
     networks:
       - bolt_net
       - containers-lan
