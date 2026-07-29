@@ -101,11 +101,12 @@ export function AjouterParticipantForm({
         source={gestionnaire ? "annuaire" : "connus"}
         hint="Un agent venu sans être inscrit : il compte dans la fréquentation, distinct des inscrits."
       />
+      {/* Décochée par défaut, comme sur la feuille mobile : constater une venue
+          et engager une place sur la saison sont deux décisions distinctes. */}
       <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-sm">
         <input
           type="checkbox"
           name="inscrire"
-          defaultChecked
           className="mt-0.5 h-4 w-4 rounded border-slate-300"
         />
         <span>

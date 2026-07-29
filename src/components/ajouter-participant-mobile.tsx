@@ -205,11 +205,14 @@ function Selecteur({
         </div>
       )}
 
+      {/* Décochée par défaut : pointer quelqu'un constate sa venue, l'inscrire
+          engage une place sur toute la saison. Ce sont deux décisions, et la
+          seconde n'a pas à se prendre par inadvertance — beaucoup de passages
+          restent des essais sans lendemain. */}
       <label className="flex items-start gap-2.5 text-sm">
         <input
           type="checkbox"
           name="inscrire"
-          defaultChecked
           className="mt-0.5 h-4 w-4 rounded border-slate-300"
         />
         <span>
