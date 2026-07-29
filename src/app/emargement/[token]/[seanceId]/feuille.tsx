@@ -65,11 +65,6 @@ export function Feuille({
 
   function toutPresent() {
     if (verrouillee) return;
-    // On saute ceux qui ont prévenu : les marquer présents en masse
-    // effacerait précisément l'information qu'ils ont pris soin de donner.
-    const restants = lignes.filter(
-      (l) => etats[l.userId] === null && !l.absenceAnnoncee,
-    );
     startTransition(async () => {
       for (const l of restants) setEtats({ userId: l.userId, etat: "PRESENT" });
       try {
@@ -88,6 +83,13 @@ export function Feuille({
   const presents = lignes.filter(
     (l) => etats[l.userId] === "PRESENT",
   ).length;
+  // « Tout le monde est là » saute ceux qui ont prévenu : les marquer présents
+  // en masse effacerait précisément l'information qu'ils ont pris soin de
+  // donner. Le bouton doit donc annoncer ce qu'il va vraiment pointer, sinon il
+  // promet « 3 restants », n'en pointe que deux, et ne disparaît jamais.
+  const restants = lignes.filter(
+    (l) => etats[l.userId] === null && !l.absenceAnnoncee,
+  );
 
   return (
     <div className="pb-32">
@@ -97,14 +99,15 @@ export function Feuille({
         </p>
       )}
 
-      {!verrouillee && pointes < lignes.length && (
+      {!verrouillee && restants.length > 0 && (
         <button
           type="button"
           onClick={toutPresent}
           className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition active:scale-[0.99]"
         >
           <CheckCheck className="h-4 w-4" />
-          Tout le monde est là ({lignes.length - pointes} restants)
+          Tout le monde est là ({restants.length} restant
+          {restants.length > 1 ? "s" : ""})
         </button>
       )}
 

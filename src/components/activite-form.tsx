@@ -85,7 +85,7 @@ export function ActiviteForm({
               Un seul groupe pour tous les créneaux
             </span>
             <span className="block text-xs text-slate-500">
-              Les créneaux sont des séances proposées au même groupe : l&apos;agent
+              Les créneaux sont proposés au même groupe : l&apos;agent
               choisit d&apos;en suivre une, plusieurs ou toutes, sans occuper
               plusieurs places. La liste d&apos;attente est commune.
             </span>

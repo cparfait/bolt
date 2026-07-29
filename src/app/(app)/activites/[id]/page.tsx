@@ -174,10 +174,12 @@ export default async function ActiviteDetail({
         <Card title="Groupe unique" className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="text-sm text-slate-600">
-              Les {creneaux.length} {pluriel(creneaux.length, "créneau", "créneaux")} de
-              cette activité se partagent un seul groupe : un agent peut suivre une
-              séance, plusieurs ou toutes sans occuper plusieurs places. La liste
-              d&apos;attente est commune.
+              {creneaux.length > 1
+                ? `Les ${creneaux.length} créneaux de cette activité se partagent`
+                : "Le créneau de cette activité relève"}{" "}
+              d&apos;un seul groupe : un agent peut suivre une séance, plusieurs
+              ou toutes sans occuper plusieurs places. La liste d&apos;attente est
+              commune.
             </p>
             <div className="w-48 shrink-0">
               <p className="mb-1 flex items-center gap-1.5 text-sm tabular-nums text-slate-600">

@@ -151,6 +151,22 @@ export function fmtMois(d: Date | string): string {
   return FMT_MOIS.format(jourUtc(typeof d === "string" ? new Date(d) : d));
 }
 
+const FMT_MOIS_COURT = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "UTC",
+  month: "short",
+});
+
+/**
+ * « avr. », « mai », « juin », « déc. » — axe des abscisses d'un graphique.
+ *
+ * Les abréviations françaises sont irrégulières : mars, mai, juin et août ne
+ * s'abrègent pas, avril donne « avr. » et non « avri. ». Tronquer à longueur
+ * fixe produisait des libellés fautifs ; `Intl` connaît la règle.
+ */
+export function fmtMoisCourt(d: Date | string): string {
+  return FMT_MOIS_COURT.format(jourUtc(typeof d === "string" ? new Date(d) : d));
+}
+
 const FMT_HORODATAGE = new Intl.DateTimeFormat("fr-FR", {
   timeZone: "Europe/Paris",
   dateStyle: "short",

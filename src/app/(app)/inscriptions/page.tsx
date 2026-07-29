@@ -84,9 +84,18 @@ export default async function InscriptionsPage({
     (n, c) => n + c.inscriptions.filter((i) => i.statut === "LISTE_ATTENTE").length,
     0,
   );
+  // Même repli que `perimetreCapacite` : une activité déclarée à groupe unique
+  // sans effectif retombe sur la capacité de son créneau, plutôt que sur zéro.
+  const capaciteGroupe = (a: { id: string; capacite: number | null }) =>
+    a.capacite ??
+    creneaux.find((c) => c.activiteId === a.id)?.capacite ??
+    0;
   const capaciteTotale =
     creneauxDistincts.reduce((n, c) => n + c.capacite, 0) +
-    groupes.reduce((n, a) => n + (a.capacite ?? 0), 0);
+    groupes.reduce((n, a) => n + capaciteGroupe(a), 0);
+  // Un créneau peut dépasser sa capacité (inscription forcée, ajout à la
+  // volée) : « −3 disponibles » n'a pas de sens, il n'y a plus de place.
+  const disponibles = Math.max(0, capaciteTotale - totalInscrits);
 
   // Le filtre ne porte que sur la liste des créneaux : les demandes à arbitrer
   // restent toutes visibles, c'est la file de travail du service.
@@ -129,7 +138,7 @@ export default async function InscriptionsPage({
         <Stat
           label="Places offertes"
           value={capaciteTotale}
-          hint={`${capaciteTotale - totalInscrits} disponibles`}
+          hint={`${disponibles} ${pluriel(disponibles, "disponible")}`}
           href="/activites"
         />
       </div>
@@ -233,7 +242,7 @@ export default async function InscriptionsPage({
                   <div className="w-40">
                     <p className="mb-1 text-right text-xs tabular-nums text-slate-500">
                       {groupe
-                        ? `${inscrits.length} présents · groupe ${groupe.inscrits}/${groupe.capacite}`
+                        ? `${inscrits.length} sur ce créneau · groupe ${groupe.inscrits}/${groupe.capacite}`
                         : `${inscrits.length} / ${c.capacite}`}
                     </p>
                     <Jauge

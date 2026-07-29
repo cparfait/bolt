@@ -163,7 +163,7 @@ export default async function StatistiquesPage({
       </nav>
 
       {vue === "bilan" && (
-        <VueBilan filtre={filtre} ind={ind} indPrecedent={indPrecedent} saisonId={saison.id} />
+        <VueBilan filtre={filtre} ind={ind} indPrecedent={indPrecedent} />
       )}
       {vue === "pilotage" && <VuePilotage filtre={filtre} />}
       {vue === "agents" && <VueAgents filtre={filtre} seuil={g.absencesAvantRelance} />}
@@ -179,17 +179,18 @@ async function VueBilan({
   filtre,
   ind,
   indPrecedent,
-  saisonId,
 }: {
   filtre: Filtre;
   ind: Indicateurs;
   indPrecedent: Indicateurs | null;
-  saisonId: string;
 }) {
   const [mensuel, directions, activites, assid] = await Promise.all([
     evolutionMensuelle(filtre),
     parDirection(filtre),
-    parActivite({ saisonId }),
+    // Le filtre s'applique ici comme partout ailleurs sur la page : un tableau
+    // qui listait les six activités sous un en-tête « Yoga » se lisait comme
+    // une contradiction, et le classeur exporté portait la même.
+    parActivite(filtre),
     assiduite(filtre),
   ]);
   const maxDirection = Math.max(...directions.map((d) => d.presents), 1);
@@ -282,7 +283,7 @@ async function VuePilotage({ filtre }: { filtre: Filtre }) {
   const [grille, demande, activites, fiab] = await Promise.all([
     grilleJourHeure(filtre),
     demandeNonSatisfaite(filtre),
-    parActivite({ saisonId: filtre.saisonId }),
+    parActivite(filtre),
     fiabilite(filtre),
   ]);
 
@@ -607,7 +608,8 @@ function TableauActivites({
                   {a.nom}
                 </span>
                 <span className="text-xs text-slate-400">
-                  {a.seancesEmargees} séances émargées
+                  {a.seancesEmargees}{" "}
+                  {pluriel(a.seancesEmargees, "séance émargée", "séances émargées")}
                 </span>
               </td>
               <td className="py-2.5 text-right tabular-nums">{a.inscrits}</td>

@@ -19,6 +19,7 @@ import {
   ETAT_COURT,
   INSCRIPTION_STATUT_COLORS,
   INSCRIPTION_STATUT_LABELS,
+  pluriel,
 } from "@/lib/constants";
 
 export default async function MesActivitesPage({
@@ -204,8 +205,9 @@ export default async function MesActivitesPage({
                     )}
                     {groupe && (
                       <p className="mt-1 text-xs text-slate-500">
-                        {liste.length} séances proposées au même groupe : inscrivez-vous
-                        à celles qui vous conviennent, une seule place est retenue.
+                        {liste.length > 1
+                          ? `${liste.length} créneaux proposés au même groupe : inscrivez-vous à ceux qui vous conviennent, une seule place est retenue.`
+                          : "Un seul groupe pour cette activité : votre place vous suit sur tous ses créneaux."}
                       </p>
                     )}
                   </div>
@@ -271,7 +273,7 @@ export default async function MesActivitesPage({
                           <p className="mb-1 flex items-center gap-1 text-xs tabular-nums text-slate-500">
                             <Users className="h-3 w-3" />
                             {groupe
-                              ? `${inscrits} inscrit${inscrits > 1 ? "s" : ""} à cette séance`
+                              ? `${inscrits} ${pluriel(inscrits, "inscrit")} à ce créneau`
                               : `${inscrits} / ${c.capacite} places`}
                           </p>
                           {!groupe && (

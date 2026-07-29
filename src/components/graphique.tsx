@@ -55,7 +55,7 @@ export function HistogrammeMensuel({
             className="flex-1 truncate text-center text-[11px] text-slate-400"
             style={{ minWidth: `${Math.min(largeurBarre, 12)}%` }}
           >
-            {p.libelle.split(" ")[0].slice(0, 4)}.
+            {p.court}
           </div>
         ))}
       </div>
