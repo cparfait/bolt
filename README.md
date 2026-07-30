@@ -281,6 +281,57 @@ L'appartenance aux groupes est évaluée récursivement (matching rule AD
 `1.2.840.113556.1.4.1941`), et en *fail-closed* : une vérification impossible
 refuse l'accès.
 
+#### Connexion et synchronisation : deux choses distinctes
+
+**La connexion n'exige aucune synchronisation.** Bolt interroge le contrôleur de
+domaine en direct, et **crée le compte à la première connexion** — nom, adresse,
+direction et service repris de l'annuaire, rôle déduit de l'appartenance au
+groupe du service des sports. Il n'y a donc aucune démarche préalable à faire
+pour qu'un agent puisse se connecter.
+
+**La synchronisation alimente un miroir** (`AdAccount`), qui sert à trois
+choses : inscrire un agent qui ne s'est *jamais* connecté, ouvrir la connexion
+par lien e-mail, et tenir les statistiques par direction. Elle tourne
+**automatiquement une fois par jour** (au premier passage sur le tableau de bord,
+et par le cron s'il est configuré), et reste déclenchable à la main depuis
+*Paramètres → Annuaire*. Elle exige un compte de service : sans lui, la lecture
+en masse est impossible et le geste reste manuel.
+
+#### Les départs
+
+La synchronisation ferme l'accès des agents dont le compte d'annuaire est
+**désactivé ou supprimé**, et retire leurs inscriptions — les places repartent
+aussitôt à la liste d'attente. Sans cela, un agent parti gardait un compte Bolt
+actif indéfiniment : sa place restait réservée, il figurait sur les feuilles
+d'émargement, et il pouvait encore recevoir un lien de connexion par courriel.
+
+Trois garde-fous, parce que ce traitement est le plus destructeur de
+l'application :
+
+- **Ne sont concernés que les comptes adossés à l'annuaire.** Les comptes locaux
+  (administrateur de secours, animateurs en accès LOCAL) et les participants hors
+  annuaire (`no_ad.…` : élus, stagiaires, invités d'un organisme partenaire) n'y
+  existent légitimement pas et ne sont jamais touchés.
+- **Une absence ne vaut pas un départ tant que la lecture n'est pas crue.** Un
+  Base DN mal recopié ou un groupe filtrant trop étroit rend une liste courte.
+  Bolt compare donc la lecture à une population témoin — les comptes Bolt actifs
+  adossés à l'annuaire, qui s'y sont forcément connectés : s'il n'en retrouve pas
+  au moins 80 %, il refuse d'interpréter les absents, ne nettoie pas le miroir, et
+  le dit en avertissement. Un compte explicitement marqué désactivé, lui, est une
+  affirmation de l'annuaire et non une déduction : il est traité dans tous les cas.
+- **Désinscrire, pas supprimer.** L'inscription passe en `DESISTEE` : la place est
+  rendue et la personne ne figure plus comme inscrite, mais les présences déjà
+  émargées gardent leur rattachement et la fréquentation des saisons passées reste
+  juste.
+
+Ces règles sont testées — `tests/annuaire.test.ts` pour les garde-fous en
+fonctions pures, `tests/integration/departs.db.test.ts` pour l'effet réel sur la
+base.
+
+Le service des sports peut aussi désactiver un compte à la main depuis la fiche
+de l'agent, où le retrait des activités est **proposé** — décochable pour une
+absence longue au terme de laquelle l'agent retrouve son créneau.
+
 ---
 
 ## Points RGPD
@@ -333,6 +384,8 @@ src/lib/inscriptions.ts        capacité, liste d'attente, promotions
 src/lib/stats.ts               indicateurs QVT et export CSV
 src/lib/xlsx.ts                classeur Excel du bilan
 src/lib/rappels.ts             rappels de séance et déclenchement
+src/lib/annuaire.ts            miroir de l'annuaire et prise en compte des départs
+src/lib/departs.ts             désactivation d'un compte et retrait des activités
 src/lib/purge.ts               durées de conservation (journal, IP, jetons)
 src/lib/net.ts                 adresse cliente et plages internes (estInterne)
 src/lib/actions/               actions serveur, par domaine
@@ -349,10 +402,12 @@ Deux niveaux, selon ce qu'ils peuvent prouver.
 **`npm test`** — les règles dont tout le reste dépend, en fonctions pures :
 génération du calendrier et exclusion des périodes de fermeture, date à partir
 de laquelle un inscrit participe, places offertes par une séance, bornes de
-semaine et de mois, robustesse des codes animateur. Ni base ni serveur, une
+semaine et de mois, robustesse des codes animateur, et les garde-fous qui
+autorisent ou interdisent la prise en compte d'un départ. Ni base ni serveur, une
 seconde.
 
-**`npm run test:integration`** — capacité, liste d'attente, promotions, quota.
+**`npm run test:integration`** — capacité, liste d'attente, promotions, quota, et
+les départs (place rendue au suivant, présences émargées conservées).
 Ces règles enchaînent des états et changent de sens selon que l'activité
 mutualise sa capacité : les vérifier contre un faux client Prisma aurait validé
 nos propres approximations de `distinct` et des tris. Elles tournent donc sur
@@ -362,6 +417,10 @@ PostgreSQL, dans une base **dédiée** que la suite efface entre chaque cas :
 npm run test:db:create   # une fois, la base de développement doit tourner
 npm run test:integration
 ```
+
+Les fichiers s'exécutent **un par un** (`--test-concurrency=1`) : chacun vide
+toutes les tables entre deux cas, et deux fichiers en parallèle se retireraient
+mutuellement leurs données sous les pieds.
 
 La cible est `bolt_test`, fixée dans `.env.test`. La suite refuse de démarrer si
 `DATABASE_URL` ne la désigne pas — elle vide toutes les tables, et se tromper de
