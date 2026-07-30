@@ -9,7 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:integration": "node --env-file=.env.test --import tsx --test tests/integration/*.db.test.ts",
+    "test:integration": "node --env-file=.env.test --import tsx --test --test-concurrency=1 tests/integration/*.db.test.ts",
     "test:db:create": "docker exec bolt-dev-db psql -U bolt -d postgres -c \"CREATE DATABASE bolt_test OWNER bolt;\" && node --env-file=.env.test node_modules/prisma/build/index.js migrate deploy",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
