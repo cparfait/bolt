@@ -4,7 +4,7 @@ import { participeALaSeance } from "../src/lib/inscriptions";
 import { placesOffertes } from "../src/lib/stats";
 import { adresseDeContact } from "../src/lib/comptes";
 import { pinFaible } from "../src/lib/coach-access";
-import { pluriel } from "../src/lib/constants";
+import { pluriel, prenomDe } from "../src/lib/constants";
 import { jourUtc } from "../src/lib/dates";
 
 /**
@@ -125,5 +125,44 @@ describe("pluriel", () => {
   it("accepte un pluriel irrégulier", () => {
     assert.equal(pluriel(2, "créneau", "créneaux"), "créneaux");
     assert.equal(pluriel(1, "est", "sont"), "est");
+  });
+});
+
+describe("prenomDe", () => {
+  // L'annuaire de la collectivité présente « NOM Prénom », nom de famille en
+  // capitales. Prendre le premier mot donnait « Bonjour PARFAIT » sur le tableau
+  // de bord et en tête de chaque courriel. La règle s'appuie donc sur la casse,
+  // qui est le vrai signal, et non sur l'ordre des mots.
+  it("saute le nom de famille en capitales", () => {
+    assert.equal(prenomDe("PARFAIT Christophe"), "Christophe");
+    assert.equal(prenomDe("BOULIOL Christine"), "Christine");
+  });
+
+  it("accepte aussi l'ordre inverse", () => {
+    assert.equal(prenomDe("Christine BOULIOL"), "Christine");
+  });
+
+  it("traverse les particules en capitales", () => {
+    assert.equal(prenomDe("DE LA TOUR Pierre"), "Pierre");
+  });
+
+  it("garde le premier mot quand rien ne distingue", () => {
+    assert.equal(prenomDe("Jean Dupont"), "Jean");
+    assert.equal(prenomDe("Administrateur local"), "Administrateur");
+  });
+
+  it("retombe sur le premier mot si tout est en capitales", () => {
+    // Aucun signal : il n'y a rien à deviner, et mieux vaut un nom qu'un vide.
+    assert.equal(prenomDe("JEAN DUPONT"), "JEAN");
+  });
+
+  it("gère un nom d'un seul mot, et les espaces superflus", () => {
+    assert.equal(prenomDe("Cher"), "Cher");
+    assert.equal(prenomDe("  PARFAIT   Christophe  "), "Christophe");
+  });
+
+  it("n'est pas trompé par les accents", () => {
+    assert.equal(prenomDe("MÜLLER Éric"), "Éric");
+    assert.equal(prenomDe("LE GOFF Anaïs"), "Anaïs");
   });
 });

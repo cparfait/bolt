@@ -3,6 +3,7 @@ import { adresseDeContact } from "./comptes";
 import { envoyerMail } from "./mail";
 import { getGeneralSettings } from "./settings";
 import { fmtDate, fmtDateLongue, JOUR_LABELS } from "./dates";
+import { prenomDe } from "./constants";
 import { audit } from "./audit";
 
 /**
@@ -77,7 +78,7 @@ export async function notifierSeanceRetablie(
       adresse,
       `Séance maintenue — ${seance.creneau.activite.nom}`,
       [
-        `Bonjour ${u.displayName.split(" ")[0]},`,
+        `Bonjour ${prenomDe(u.displayName)},`,
         `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du ${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}${seance.creneau.lieu ? ` (${seance.creneau.lieu})` : ""}, aura finalement bien lieu.`,
         `Elle avait été annulée : vous pouvez la réinscrire à votre agenda.`,
         g.contactEmail
@@ -173,7 +174,7 @@ export async function notifierSeancesAnnulees(
       agent.email,
       `${plusieurs ? "Séances annulées" : "Séance annulée"}${seuleActivite ? ` — ${seuleActivite}` : ""}`,
       [
-        `Bonjour ${agent.nom.split(" ")[0]},`,
+        `Bonjour ${prenomDe(agent.nom)},`,
         plusieurs
           ? `Les séances suivantes n'auront pas lieu :`
           : `La séance suivante n'aura pas lieu :`,
@@ -264,7 +265,7 @@ export async function notifierChangementCreneau(
       adresseDeContact(i.user)!,
       `Changement — ${creneau.activite.nom}`,
       [
-        `Bonjour ${i.user.displayName.split(" ")[0]},`,
+        `Bonjour ${prenomDe(i.user.displayName)},`,
         `Votre créneau de ${intitule} a été modifié.`,
         ...blocs,
         `Votre inscription reste valable : rien à faire de votre part. Consultez le détail dans Bolt à tout moment.`,

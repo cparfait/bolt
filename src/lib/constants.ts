@@ -76,6 +76,28 @@ export const COULEURS_ACTIVITE = [
   "#0284c7", // sky
 ] as const;
 
+/**
+ * Prénom extrait d'un nom affiché, pour les salutations.
+ *
+ * L'Active Directory de la collectivité présente « PARFAIT Christophe » : nom de
+ * famille d'abord, en capitales. Prendre le premier mot donnait donc
+ * « Bonjour PARFAIT » sur le tableau de bord et en tête de chaque courriel.
+ *
+ * La règle retenue ne suppose pas l'ordre des mots, mais s'appuie sur la casse,
+ * qui est le vrai signal : **le premier mot qui n'est pas tout en capitales**.
+ * Elle traite « PARFAIT Christophe » comme « Christine BOULIOL », et laisse les
+ * particules à leur place — « DE LA TOUR Pierre » donne bien « Pierre ». Si tout
+ * est en capitales, ou tout en minuscules, on retombe sur le premier mot : sans
+ * signal, il n'y a rien à deviner.
+ */
+export function prenomDe(nomAffiche: string): string {
+  const mots = nomAffiche.trim().split(/\s+/).filter(Boolean);
+  if (mots.length === 0) return nomAffiche.trim();
+  const enCapitales = (m: string) =>
+    m === m.toLocaleUpperCase("fr") && m !== m.toLocaleLowerCase("fr");
+  return mots.find((m) => !enCapitales(m)) ?? mots[0];
+}
+
 export function pluriel(n: number, singulier: string, plurielMot?: string): string {
   return n > 1 ? (plurielMot ?? `${singulier}s`) : singulier;
 }

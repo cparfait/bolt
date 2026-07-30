@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "./db";
 import { adresseDeContact } from "./comptes";
+import { prenomDe } from "./constants";
 import { getGeneralSettings } from "./settings";
 import { envoyerMail } from "./mail";
 import { audit } from "./audit";
@@ -92,7 +93,7 @@ export async function envoyerLienConnexion(emailBrut: string): Promise<void> {
     adresseDeContact(user)!,
     "Votre lien de connexion à Bolt",
     [
-      `Bonjour ${user.displayName.split(" ")[0]},`,
+      `Bonjour ${prenomDe(user.displayName)},`,
       `Voici votre lien de connexion aux activités sportives. Il est valable ${VALIDITE_MINUTES} minutes et ne fonctionne qu'une seule fois.`,
       lien,
       `Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : aucun accès n'a été ouvert.`,

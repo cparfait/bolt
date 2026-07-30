@@ -4,6 +4,7 @@ import { getGeneralSettings } from "./settings";
 import { audit } from "./audit";
 import { isoDate } from "./dates";
 import { adresseDeContact } from "./comptes";
+import { prenomDe } from "./constants";
 import { envoyerMail } from "./mail";
 
 /**
@@ -403,7 +404,7 @@ export async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
       adresse,
       `Une place s'est libérée en ${promu.creneau.activite.nom}`,
       [
-        `Bonjour ${promu.user.displayName.split(" ")[0]},`,
+        `Bonjour ${prenomDe(promu.user.displayName)},`,
         `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}). Votre inscription est confirmée.`,
         g.contactEmail
           ? `Si vous ne souhaitez plus participer, prévenez le service des sports : ${g.contactEmail}.`

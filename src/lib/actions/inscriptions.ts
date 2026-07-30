@@ -12,6 +12,7 @@ import {
   renumeroterFile,
 } from "@/lib/inscriptions";
 import { adresseDeContact } from "@/lib/comptes";
+import { prenomDe } from "@/lib/constants";
 import { envoyerMail } from "@/lib/mail";
 import { getGeneralSettings } from "@/lib/settings";
 import { assurerCompteAgent } from "./agents";
@@ -113,7 +114,7 @@ export async function deciderInscription(
         adresse,
         `Inscription confirmée — ${inscription.creneau.activite.nom}`,
         [
-          `Bonjour ${inscription.user.displayName.split(" ")[0]},`,
+          `Bonjour ${prenomDe(inscription.user.displayName)},`,
           `Votre inscription à ${inscription.creneau.activite.nom} est confirmée : ${inscription.creneau.jour.toLowerCase()} de ${inscription.creneau.heureDebut} à ${inscription.creneau.heureFin}${inscription.creneau.lieu ? ` — ${inscription.creneau.lieu}` : ""}.`,
           `Bonne pratique !`,
         ].join("\n\n"),
@@ -169,7 +170,7 @@ export async function deciderInscription(
         adresse,
         `Votre demande — ${inscription.creneau.activite.nom}`,
         [
-          `Bonjour ${inscription.user.displayName.split(" ")[0]},`,
+          `Bonjour ${prenomDe(inscription.user.displayName)},`,
           `Votre demande d'inscription à ${inscription.creneau.activite.nom} n'a pas pu être retenue${motif ? ` : ${motif}` : "."}`,
           `D'autres créneaux restent ouverts : consultez le catalogue dans Bolt.`,
         ].join("\n\n"),
