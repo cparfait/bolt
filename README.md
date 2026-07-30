@@ -290,11 +290,33 @@ src/lib/actions/               actions serveur, par domaine
 src/app/emargement/            feuille publique des animateurs (mobile)
 src/app/(app)/                 back-office et espace agent
 tests/                         règles de calcul, en fonctions pures
+tests/integration/             moteur d'inscription, sur une vraie base
 ```
 
-Les tests portent sur les règles dont tout le reste dépend — génération du
-calendrier, date à partir de laquelle un inscrit participe, places offertes par
-une séance — et tournent sans base de données ni serveur.
+## Tests
+
+Deux niveaux, selon ce qu'ils peuvent prouver.
+
+**`npm test`** — les règles dont tout le reste dépend, en fonctions pures :
+génération du calendrier et exclusion des périodes de fermeture, date à partir
+de laquelle un inscrit participe, places offertes par une séance, bornes de
+semaine et de mois, robustesse des codes animateur. Ni base ni serveur, une
+seconde.
+
+**`npm run test:integration`** — capacité, liste d'attente, promotions, quota.
+Ces règles enchaînent des états et changent de sens selon que l'activité
+mutualise sa capacité : les vérifier contre un faux client Prisma aurait validé
+nos propres approximations de `distinct` et des tris. Elles tournent donc sur
+PostgreSQL, dans une base **dédiée** que la suite efface entre chaque cas :
+
+```bash
+npm run test:db:create   # une fois, la base de développement doit tourner
+npm run test:integration
+```
+
+La cible est `bolt_test`, fixée dans `.env.test`. La suite refuse de démarrer si
+`DATABASE_URL` ne la désigne pas — elle vide toutes les tables, et se tromper de
+base coûterait le jeu de démonstration.
 
 ## Commandes
 
@@ -303,7 +325,9 @@ npm run dev            # développement
 npm run build          # build de production
 npm run typecheck      # vérification TypeScript
 npm run lint           # ESLint
-npm test               # tests unitaires (runner Node, sans base de données)
+npm test               # tests unitaires (sans base de données)
+npm run test:db:create # crée la base bolt_test et y applique les migrations
+npm run test:integration # tests du moteur d'inscription (sur bolt_test)
 npm run db:migrate     # créer une migration
 npm run db:deploy      # appliquer les migrations
 npm run db:seed        # jeu de démonstration
