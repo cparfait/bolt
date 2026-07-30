@@ -62,8 +62,25 @@ ne l'ouvre jamais — et beaucoup sont enregistrés avec une adresse personnelle
 C'est `emailContact` qui commande tout ce que Bolt envoie : lien de connexion,
 rappels de séance, annonces d'annulation, relances.
 
-Activation : case dans *Paramètres → Général*, plus `PUBLIC_AGENT_ACCESS=1` si
-l'accès doit fonctionner depuis Internet.
+Activation : case dans *Paramètres → Général*.
+
+**Cet accès fonctionne depuis le réseau de la collectivité, pas depuis
+Internet — et c'est voulu.** Un agent qui ouvre son courriel depuis chez lui ou
+en 4G ne pourra pas suivre le lien : il devra le faire depuis un poste de la
+mairie, ce qui lui évite seulement d'avoir à saisir son mot de passe Windows.
+Deux raisons, aucune accidentelle : l'Apache en DMZ ne publie que quatre
+préfixes (`/emargement/`, `/icones/`, `/_next/static/`, `/favicon.ico`), dont
+`/acces` ne fait pas partie ; et l'URL du lien envoyé porte le nom interne du
+back-office, absent du DNS public.
+
+`PUBLIC_AGENT_ACCESS=1` **ne suffit donc pas** à publier cet espace : la variable
+n'ouvre que le filtre applicatif de `src/proxy.ts`, elle ne touche pas au vhost
+Apache. L'activer seule n'a aucun effet visible pour l'agent, et affaiblit le
+second verrou pour rien. Publier réellement cet accès demanderait d'ajouter
+`/acces` et `/mes-activites` aux `ProxyPass`, un nom DNS public, et d'accepter
+deux conséquences : n'importe qui pourrait déclencher depuis Internet l'envoi de
+courriels par l'application, et une adresse professionnelle deviendrait à elle
+seule un moyen d'accès. À peser avant, pas après.
 
 ---
 
@@ -278,12 +295,27 @@ refuse l'accès.
 - **Destinataires** : service des sports, DSI, animateurs pour leurs seuls
   créneaux. Aucun transfert à un tiers, aucun sous-traitant : hébergement
   interne.
-- **Conservation** : à définir avec la DPO. Une durée de deux saisons
-  glissantes couvre le besoin de comparaison annuelle.
+- **Conservation des inscriptions et présences** : à définir avec la DPO. Une
+  durée de deux saisons glissantes couvre le besoin de comparaison annuelle.
+  Cette durée-là n'est pas encore appliquée automatiquement.
 - **Restitution managériale** : les statistiques par direction sont agrégées.
   Ne pas diffuser d'assiduité nominative en dehors du service des sports.
 - **Journal d'audit** : accès, décisions et émargements sont horodatés avec
-  l'adresse IP.
+  l'adresse IP. Deux durées, appliquées automatiquement (`src/lib/purge.ts`,
+  déclenchée une fois par jour depuis le tableau de bord et par le cron s'il
+  existe) :
+  - **adresses IP effacées à 90 jours** — journal d'audit et dernier accès des
+    animateurs. Passé un trimestre, une adresse ne répond plus à aucune question
+    qu'on se pose encore ;
+  - **lignes du journal supprimées à 365 jours** — la trace de l'action, elle,
+    est la mémoire administrative du service : qui a validé cette inscription,
+    qui a annulé cette séance. Elle sert une saison entière.
+
+  Les jetons de connexion par courriel, valables trente minutes, sont supprimés
+  au bout de 30 jours. Les durées sont réunies en tête de `src/lib/purge.ts`,
+  pour être recopiables au registre des traitements et modifiables sans relire
+  l'application. Elles sont également affichées en clair sous le titre de
+  *Paramètres → Journal*.
 
 ---
 
@@ -301,6 +333,8 @@ src/lib/inscriptions.ts        capacité, liste d'attente, promotions
 src/lib/stats.ts               indicateurs QVT et export CSV
 src/lib/xlsx.ts                classeur Excel du bilan
 src/lib/rappels.ts             rappels de séance et déclenchement
+src/lib/purge.ts               durées de conservation (journal, IP, jetons)
+src/lib/net.ts                 adresse cliente et plages internes (estInterne)
 src/lib/actions/               actions serveur, par domaine
 src/app/emargement/            feuille publique des animateurs (mobile)
 src/app/(app)/                 back-office et espace agent
