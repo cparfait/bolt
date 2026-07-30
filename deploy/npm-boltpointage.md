@@ -99,7 +99,44 @@ if ($request_uri = "/favicon.ico")                        { set $bolt_public 1; 
 if ($bolt_public = 0) { return 404; }
 ```
 
-## 4. Vérifier — sans rien deviner
+## 4. DNS interne — qui pointe sur quoi
+
+Le DNS interne (AD) doit connaître les deux noms, avec des cibles différentes :
+
+| Nom | DNS public | DNS interne pointe sur | Sert |
+|---|---|---|---|
+| `boltpointage.chatillon92.fr` | → IP publique de l'Apache | **Apache DMZ** | le pointage, et rien d'autre — comportement identique depuis le LAN et depuis Internet |
+| `bolt.chatillon92.fr` (exemple) | **absent, volontairement** | **NPM** (443, wildcard) | le back-office des gestionnaires, depuis le LAN uniquement |
+
+Ne pas pointer `boltpointage` interne sur NPM : NPM relaie tous les chemins, et
+les IP internes passent le filtre `INTERNAL_CIDRS` — le même nom servirait alors
+le pointage seul dehors et tout le back-office dedans. Un nom = un contenu.
+
+NPM portant aussi le wildcard, c'est lui qui sert le HTTPS du nom interne du
+back-office. Sur le Proxy Host `boltpointage`, en revanche, « Force SSL » doit
+rester désactivé : Apache y arrive en HTTP.
+
+## 4 bis. La règle pare-feu DMZ → LAN, et pourquoi elle est contenue
+
+Les conteneurs ne publient aucun port sur l'hôte : tout entre par NPM, via le
+réseau Docker dédié. Le flux venant d'Internet emprunte donc une règle
+pare-feu Apache (DMZ) → NPM (LAN). Pour que ce trou ne débouche que sur le
+pointage :
+
+- la règle n'ouvre que **80/tcp**, d'une seule IP source vers une seule IP
+  destination — jamais le 443 ;
+- **tous les Proxy Hosts internes de NPM ont « Force SSL » coché** : sur le
+  port 80, ils ne répondent qu'un 301 vers un 443 que le pare-feu bloque.
+  Une requête au Host forgé depuis la DMZ tombe dans une impasse ;
+- `boltpointage` est le **seul** host sans Force SSL : le seul servi sur le
+  port 80, donc le seul joignable depuis la DMZ.
+
+Le port 80 de NPM devient le couloir « venant du WAN » (une seule application),
+le 443 reste le couloir interne. À chaque création d'un nouveau host interne,
+cocher Force SSL fait partie de la recette — c'est ce qui le garde hors de
+portée de la DMZ.
+
+## 5. Vérifier — sans rien deviner
 
 Depuis un téléphone **en 4G** (donc hors du réseau), ouvrir un lien d'émargement
 et saisir le PIN. Puis, côté back-office, *Paramètres → Journal* : la ligne
