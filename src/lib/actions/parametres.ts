@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
-import { ldapFetchAccounts, ldapSearchGroups, ldapTest } from "@/lib/ldap";
+import { ldapSearchGroups, ldapTest } from "@/lib/ldap";
+import { synchroniserAnnuaire as synchroniserAnnuaireDepuisAd } from "@/lib/annuaire";
+import { desactiverCompte } from "@/lib/departs";
 import { envoyerMail } from "@/lib/mail";
 import {
   getGeneralSettings,
@@ -133,31 +135,20 @@ export async function synchroniserAnnuaire(): Promise<ActionState> {
   if (!cfg) return erreur("Configurez d'abord l'annuaire.");
 
   try {
-    const comptes = await ldapFetchAccounts(cfg);
-    for (const c of comptes) {
-      const { samAccountName, ...rest } = c;
-      await prisma.adAccount.upsert({
-        where: { samAccountName },
-        update: { ...rest, syncedAt: new Date() },
-        create: { samAccountName, ...rest, syncedAt: new Date() },
-      });
-    }
-
-    // Rattachement hiérarchique des comptes Bolt déjà connus : les
-    // statistiques par direction restent justes même sans reconnexion.
-    for (const c of comptes) {
-      await prisma.user.updateMany({
-        where: { login: c.samAccountName.toLowerCase() },
-        data: { direction: c.direction, service: c.service },
-      });
-    }
-
-    await audit("ANNUAIRE_SYNCHRONISE", {
-      userId: admin.id,
-      details: `${comptes.length} comptes`,
+    // `exclure` : ne jamais se désactiver soi-même au milieu d'une
+    // synchronisation. Le compte administrateur de secours est local, donc
+    // hors du champ de toute façon (voir adosseALAnnuaire).
+    const res = await synchroniserAnnuaireDepuisAd(cfg, admin.displayName, {
+      exclure: admin.id,
     });
     revalidatePath("/parametres/annuaire");
-    return succes(`${comptes.length} comptes synchronisés depuis l'annuaire.`);
+    revalidatePath("/parametres/utilisateurs");
+    revalidatePath("/agents");
+    revalidatePath("/inscriptions");
+    // Une lecture jugée incomplète n'est pas une erreur technique — les comptes
+    // lus ont bien été mis à jour — mais elle demande une vérification : elle
+    // s'affiche donc en avertissement plutôt qu'en succès.
+    return res.lectureIncomplete ? erreur(res.message) : succes(res.message);
   } catch (e) {
     return erreur(e instanceof Error ? e.message : String(e));
   }
@@ -278,15 +269,29 @@ export async function changerRole(userId: string, role: string): Promise<void> {
   revalidatePath("/parametres/utilisateurs");
 }
 
+/**
+ * Ouverture ou fermeture d'un accès par la DSI.
+ *
+ * Ne touche pas aux inscriptions : c'est un geste technique, et le rôle ADMIN
+ * ferme parfois un accès sans qu'il s'agisse d'un départ. Retirer quelqu'un de
+ * ses activités est une décision du service des sports, qui la prend depuis la
+ * fiche de l'agent — où le choix lui est explicitement proposé.
+ */
 export async function basculerUtilisateur(userId: string): Promise<void> {
   const admin = await requireUser("ADMIN");
   if (userId === admin.id) return;
   const cible = await prisma.user.findUnique({ where: { id: userId } });
   if (!cible) return;
-  await prisma.user.update({ where: { id: userId }, data: { active: !cible.active } });
-  await audit(cible.active ? "COMPTE_DESACTIVE" : "COMPTE_ACTIVE", {
-    userId: admin.id,
-    cible: cible.login,
-  });
+
+  if (cible.active) {
+    await desactiverCompte(userId, {
+      acteur: admin.displayName,
+      desinscrire: false,
+      motif: "accès fermé par la DSI",
+    });
+  } else {
+    await prisma.user.update({ where: { id: userId }, data: { active: true } });
+    await audit("COMPTE_ACTIVE", { userId: admin.id, cible: cible.login });
+  }
   revalidatePath("/parametres/utilisateurs");
 }
