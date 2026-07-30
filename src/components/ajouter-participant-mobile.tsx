@@ -7,7 +7,7 @@ import {
   listerServicesEmargement,
   rechercherParticipantEmargement,
 } from "@/lib/actions/emargement";
-import type { Candidat } from "@/lib/comptes";
+import type { CandidatFeuille } from "@/lib/comptes";
 import type { ActionState } from "@/lib/actions/types";
 import { SubmitButton } from "@/components/submit-button";
 
@@ -85,8 +85,8 @@ function Selecteur({
   onFermer: () => void;
 }) {
   const [terme, setTerme] = useState("");
-  const [resultats, setResultats] = useState<Candidat[]>([]);
-  const [choisi, setChoisi] = useState<Candidat | null>(null);
+  const [resultats, setResultats] = useState<CandidatFeuille[]>([]);
+  const [choisi, setChoisi] = useState<CandidatFeuille | null>(null);
   const [cherche, demarrer] = useTransition();
   // Personne introuvable dans Bolt : l'animateur la crée par son nom, située
   // au besoin par son service — la liste des services n'expose pas l'annuaire.
@@ -116,7 +116,7 @@ function Selecteur({
 
   return (
     <>
-      <input type="hidden" name="login" value={choisi?.login ?? ""} />
+      <input type="hidden" name="userId" value={choisi?.id ?? ""} />
       <input type="hidden" name="nomLibre" value={horsAnnuaire ? terme.trim() : ""} />
 
       <label className="block">
@@ -160,16 +160,18 @@ function Selecteur({
           ) : (
             <ul className="divide-y divide-slate-100">
               {affiches.map((c) => (
-                <li key={c.login}>
+                <li key={c.id}>
                   <button
                     type="button"
                     onClick={() => setChoisi(c)}
                     className="w-full px-4 py-3 text-left active:bg-slate-50"
                   >
                     <span className="block text-sm font-medium">{c.nom}</span>
-                    <span className="block truncate text-xs text-slate-400">
-                      {[c.login, c.service ?? c.direction].filter(Boolean).join(" · ")}
-                    </span>
+                    {c.situation && (
+                      <span className="block truncate text-xs text-slate-400">
+                        {c.situation}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}

@@ -102,6 +102,53 @@ export async function creerParticipantHorsAnnuaire(donnees: {
   });
 }
 
+/**
+ * Candidat tel qu'il peut sortir sur Internet.
+ *
+ * Le nom, et de quoi lever un homonyme — rien d'autre. Ni l'adresse
+ * professionnelle, ni le sAMAccountName : la feuille d'émargement est jointe
+ * depuis Internet, et un identifiant de domaine y serait le premier
+ * renseignement utile à qui s'attaque au webmail ou au VPN par ailleurs. La
+ * référence transmise au serveur est l'identifiant interne, qui n'apprend rien.
+ */
+export type CandidatFeuille = {
+  id: string;
+  nom: string;
+  situation: string | null; // service, à défaut direction
+};
+
+/**
+ * Recherche destinée à la feuille d'émargement publique.
+ *
+ * Porte sur le seul nom affiché : chercher aussi par identifiant ou par adresse
+ * — ce que fait `chercherComptes` pour le back-office — permettrait de
+ * CONFIRMER depuis Internet un identifiant ou une adresse devinés. L'animateur,
+ * lui, connaît le nom de la personne qui est devant lui.
+ */
+export async function chercherComptesFeuille(
+  query: string,
+  exclus: string[] = [],
+): Promise<CandidatFeuille[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const comptes = await prisma.user.findMany({
+    where: {
+      active: true,
+      role: { in: ["AGENT", "GESTIONNAIRE", "COACH"] },
+      ...(exclus.length > 0 ? { id: { notIn: exclus } } : {}),
+      displayName: { contains: q, mode: "insensitive" },
+    },
+    select: { id: true, displayName: true, service: true, direction: true },
+    orderBy: { displayName: "asc" },
+    take: 10,
+  });
+  return comptes.map((u) => ({
+    id: u.id,
+    nom: u.displayName,
+    situation: u.service ?? u.direction,
+  }));
+}
+
 export async function chercherComptes(
   query: string,
   exclus: string[] = [],

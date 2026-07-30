@@ -19,9 +19,9 @@ import { participeALaSeance } from "@/lib/inscriptions";
 import { notifierSeanceRetablie, notifierSeancesAnnulees } from "@/lib/notifications";
 import { clientIp } from "@/lib/net";
 import {
-  chercherComptes,
+  chercherComptesFeuille,
   creerParticipantHorsAnnuaire,
-  type Candidat,
+  type CandidatFeuille,
 } from "@/lib/comptes";
 import { erreur, succes, type ActionState } from "./types";
 
@@ -203,15 +203,23 @@ export async function annulerSeanceEmargement(
  *
  * Restreinte aux agents déjà connus de Bolt, et amputée de ceux qui figurent
  * déjà sur la feuille : la page est jointe depuis Internet, il n'est pas
- * question d'en faire un annuaire de la collectivité.
+ * question d'en faire un annuaire de la collectivité. D'où `chercherComptesFeuille`
+ * plutôt que `chercherComptes` — nom et service, sans adresse ni identifiant de
+ * domaine — et le plafond ci-dessous.
  */
 export async function rechercherParticipantEmargement(
   token: string,
   seanceId: string,
   query: string,
-): Promise<Candidat[]> {
+): Promise<CandidatFeuille[]> {
   const ctx = await seanceDuCoach(token, seanceId);
   if (!ctx) return [];
+
+  // Une feuille se complète avec quelques arrivants, chacun cherché en deux ou
+  // trois frappes. Cent recherches en dix minutes ne remplissent pas une
+  // feuille : elles parcourent l'annuaire. Large pour l'usage réel — la saisie
+  // est déjà anti-rebondie côté navigateur — étroit pour un balayage.
+  if (!rateLimit(`recherche-feuille:${ctx.coach.id}`, 100, 600).ok) return [];
 
   const [presences, inscriptions, attendus] = await Promise.all([
     prisma.presence.findMany({ where: { seanceId }, select: { userId: true } }),
@@ -232,7 +240,7 @@ export async function rechercherParticipantEmargement(
       ].map((x) => x.userId),
     ),
   ];
-  return chercherComptes(query, dejaLa);
+  return chercherComptesFeuille(query, dejaLa);
 }
 
 /**
@@ -284,9 +292,11 @@ export async function ajouterParticipantEmargement(
 ): Promise<ActionState> {
   const token = String(formData.get("token") ?? "");
   const seanceId = String(formData.get("seanceId") ?? "");
-  const login = String(formData.get("login") ?? "").trim();
+  // Identifiant interne, et non le login : la recherche de la feuille ne
+  // divulgue aucun sAMAccountName (voir `chercherComptesFeuille`).
+  const userId = String(formData.get("userId") ?? "").trim();
   const nomLibre = String(formData.get("nomLibre") ?? "").trim().replace(/\s+/g, " ");
-  if (!login && nomLibre.length < 2) return erreur("Sélectionnez un agent.");
+  if (!userId && nomLibre.length < 2) return erreur("Sélectionnez un agent.");
 
   const ctx = await seanceDuCoach(token, seanceId);
   if (!ctx) return erreur("Séance introuvable.");
@@ -304,8 +314,8 @@ export async function ajouterParticipantEmargement(
   }
 
   let agent;
-  if (login) {
-    agent = await prisma.user.findUnique({ where: { login: login.toLowerCase() } });
+  if (userId) {
+    agent = await prisma.user.findUnique({ where: { id: userId } });
     if (!agent || !agent.active) return erreur("Agent introuvable.");
   } else {
     // Création à la volée depuis une page jointe sur Internet : le plafond
