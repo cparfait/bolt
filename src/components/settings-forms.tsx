@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { Plug, RefreshCw, Save, Send } from "lucide-react";
+import { useActionState, useRef, useState } from "react";
+import { ImagePlus, Plug, RefreshCw, Save, Send, X } from "lucide-react";
 import {
   enregistrerGeneral,
   enregistrerLdap,
@@ -241,6 +241,75 @@ export function SmtpForm({ cfg }: { cfg: SmtpSettings | null }) {
   );
 }
 
+/**
+ * Import du logo : l'aperçu se met à jour dès le choix du fichier, avant même
+ * l'enregistrement. « supprimerLogo » n'est envoyé que si l'utilisateur retire
+ * le logo existant sans en choisir un autre — côté serveur, un champ fichier
+ * vide conserve l'existant.
+ */
+function ChampLogo({ actuel }: { actuel: string }) {
+  const [apercu, setApercu] = useState(actuel);
+  const fichierRef = useRef<HTMLInputElement>(null);
+
+  const choisir = (fichier: File | undefined) => {
+    if (!fichier) return;
+    const lecteur = new FileReader();
+    lecteur.onload = () => setApercu(String(lecteur.result));
+    lecteur.readAsDataURL(fichier);
+  };
+
+  const retirer = () => {
+    if (fichierRef.current) fichierRef.current.value = "";
+    setApercu("");
+  };
+
+  return (
+    <div>
+      <span className="mb-1 block text-sm font-medium text-slate-700">Logo</span>
+      <input
+        ref={fichierRef}
+        type="file"
+        name="logo"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(e) => choisir(e.target.files?.[0] ?? undefined)}
+      />
+      {!apercu && actuel && <input type="hidden" name="supprimerLogo" value="1" />}
+      <div className="flex items-stretch gap-3">
+        <button
+          type="button"
+          onClick={() => fichierRef.current?.click()}
+          className="flex min-h-20 flex-1 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 transition hover:border-brand-600 hover:bg-white"
+        >
+          {apercu ? (
+            // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
+            <img
+              src={apercu}
+              alt="Aperçu du logo"
+              className="max-h-14 w-auto max-w-full object-contain"
+            />
+          ) : (
+            <span className="flex items-center gap-2 text-sm text-slate-500">
+              <ImagePlus className="h-4 w-4" />
+              Choisir une image…
+            </span>
+          )}
+        </button>
+        {apercu && (
+          <button type="button" onClick={retirer} className={btnSecondary} title="Retirer le logo">
+            <X className="h-4 w-4" />
+            Retirer
+          </button>
+        )}
+      </div>
+      <span className="mt-1 block text-xs text-slate-500">
+        Affiché sur la page de connexion. PNG, JPEG, WebP ou SVG, 300 Ko maximum.
+        {apercu !== actuel && " N'oubliez pas d'enregistrer."}
+      </span>
+    </div>
+  );
+}
+
 export function GeneralForm({ cfg }: { cfg: GeneralSettings }) {
   const [state, action] = useActionState<ActionState, FormData>(enregistrerGeneral, null);
   return (
@@ -272,28 +341,7 @@ export function GeneralForm({ cfg }: { cfg: GeneralSettings }) {
         />
       </Field>
 
-      <Field
-        label="Logo"
-        hint="Affiché sur la page de connexion. PNG, JPEG, WebP ou SVG, 300 Ko maximum."
-      >
-        <div className="flex items-center gap-3">
-          {cfg.logo && (
-            // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
-            <img
-              src={cfg.logo}
-              alt="Logo actuel"
-              className="h-12 w-12 rounded-xl border border-slate-200 object-contain"
-            />
-          )}
-          <Input name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
-        </div>
-        {cfg.logo && (
-          <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" name="supprimerLogo" value="1" className="h-4 w-4 rounded border-slate-300" />
-            Retirer le logo actuel
-          </label>
-        )}
-      </Field>
+      <ChampLogo actuel={cfg.logo} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
