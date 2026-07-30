@@ -51,3 +51,36 @@ export function clientIp(headers: Headers): string {
   if (fwd) return normalizeIp(fwd.split(",")[0]);
   return normalizeIp(headers.get("x-real-ip") ?? "");
 }
+
+/** Plages déclarées comme internes. Vide = aucun cloisonnement demandé. */
+export function cidrsInternes(): string[] {
+  return (process.env.INTERNAL_CIDRS ?? "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+}
+
+/**
+ * L'appelant est-il sur le réseau de la collectivité ?
+ *
+ * Même règle que le filtrage de chemins de `src/proxy.ts`, mais utilisable
+ * depuis une action serveur. C'est nécessaire parce que le middleware filtre
+ * des CHEMINS, alors qu'une action serveur n'est pas liée au chemin qui
+ * l'affiche : elle est adressée par un identifiant global, et Next la fait
+ * exécuter par le bundle qui la contient même si la requête est arrivée sur une
+ * autre page (`selectWorkerForForwarding`). Un POST d'action sur
+ * `/emargement/<jeton>` — le seul chemin publié sur Internet — désigne donc
+ * n'importe quelle action de l'application, `loginAction` comprise.
+ *
+ * Le renvoi interne repasse aujourd'hui par le middleware et se fait refuser,
+ * mais cette garantie tient à un détail d'implémentation non documenté. Les
+ * actions qui n'ont rien à faire depuis Internet vérifient donc elles-mêmes.
+ */
+export function estInterne(ip: string): boolean {
+  const cidrs = cidrsInternes();
+  if (cidrs.length === 0) return true; // pas de plage déclarée → pas de filtrage
+  // Aucun en-tête de proxy : accès direct au conteneur. Toléré en
+  // développement, refusé en production — même arbitrage que le middleware.
+  if (ip === "") return process.env.NODE_ENV !== "production";
+  return cidrs.some((c) => inCidr(ip, c));
+}

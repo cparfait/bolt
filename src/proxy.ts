@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { clientIp, inCidr } from "@/lib/net";
+import { cidrsInternes, clientIp, inCidr } from "@/lib/net";
 
 /**
  * Cloisonnement réseau — ceinture et bretelles du reverse proxy.
@@ -15,6 +15,13 @@ import { clientIp, inCidr } from "@/lib/net";
  *
  * L'adresse cliente est lue dans X-Forwarded-For : le reverse proxy DOIT la
  * renseigner et écraser toute valeur fournie par le client.
+ *
+ * PORTÉE : ce filtrage porte sur les CHEMINS. Il ne cloisonne donc pas les
+ * actions serveur, qui ne sont pas liées au chemin qui les affiche — un POST sur
+ * `/emargement/<jeton>` peut désigner n'importe quelle action de l'application.
+ * Les actions sensibles vérifient elles-mêmes l'origine réseau, via
+ * `estInterne` (src/lib/net.ts) ; voir le commentaire qui y détaille le
+ * mécanisme.
  *
  * Convention Next 16 : ce fichier s'appelle `proxy.ts` et exporte `proxy`
  * (l'ancien nom `middleware` est déprécié).
@@ -55,10 +62,7 @@ function refus(message: string): NextResponse {
 }
 
 export function proxy(request: NextRequest) {
-  const cidrs = (process.env.INTERNAL_CIDRS ?? "")
-    .split(",")
-    .map((c) => c.trim())
-    .filter(Boolean);
+  const cidrs = cidrsInternes();
 
   // Pas de plage déclarée → pas de cloisonnement (déploiement interne simple).
   if (cidrs.length === 0) return NextResponse.next();
