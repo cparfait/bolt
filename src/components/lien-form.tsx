@@ -18,10 +18,13 @@ export function LienForm({
   coachId,
   avecEmail,
   aDejaUnLien,
+  finSaison,
 }: {
   coachId: string;
   avecEmail: boolean;
   aDejaUnLien: boolean;
+  /** Fin de la saison courante, proposée comme échéance par défaut. */
+  finSaison?: string;
 }) {
   const [state, action] = useActionState<LienState, FormData>(
     genererLienAnimateur,
@@ -75,9 +78,22 @@ export function LienForm({
         </div>
       )}
 
+      {/* Échéance proposée : la fin de la saison courante.
+          Un lien d'émargement est un accès permanent à une page publiée sur
+          Internet, dans une URL qui traîne ensuite dans un historique de
+          navigateur, un SMS transféré, une capture d'écran. Le laisser vivre
+          au-delà de la saison qui l'a justifié n'apporte rien : à la rentrée,
+          le service des sports revoit de toute façon ses animateurs. */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Expiration" hint="Facultatif — par exemple la fin de saison.">
-          <Input name="expiration" type="date" />
+        <Field
+          label="Expiration"
+          hint={
+            finSaison
+              ? "Fin de la saison en cours. Modifiable ; vider le champ crée un accès sans échéance."
+              : "Aucune saison en cours : renseignez une date, ou laissez vide pour un accès sans échéance."
+          }
+        >
+          <Input name="expiration" type="date" defaultValue={finSaison ?? ""} />
         </Field>
       </div>
 

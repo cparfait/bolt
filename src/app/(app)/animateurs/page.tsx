@@ -12,11 +12,18 @@ import { BoutonAction } from "@/components/bouton-action";
 import { AnimateurForm } from "@/components/animateur-form";
 import { LienForm } from "@/components/lien-form";
 import { COACH_ACCES_LABELS } from "@/lib/constants";
-import { fmtDate, fmtHorodatage } from "@/lib/dates";
+import { fmtDate, fmtHorodatage, isoDate } from "@/lib/dates";
 import { JOUR_LABELS } from "@/lib/dates";
+import { saisonCourante } from "@/lib/saison";
 
 export default async function AnimateursPage() {
   await requireUser("GESTIONNAIRE");
+
+  // Échéance proposée pour les liens d'émargement. Une saison déjà terminée ne
+  // sert à rien comme date par défaut : l'action refuserait une date passée.
+  const saison = await saisonCourante();
+  const finSaison =
+    saison && saison.fin > new Date() ? isoDate(saison.fin) : undefined;
 
   const animateurs = await prisma.coach.findMany({
     orderBy: [{ actif: "desc" }, { nom: "asc" }],
@@ -179,6 +186,7 @@ export default async function AnimateursPage() {
                       coachId={c.id}
                       avecEmail={Boolean(c.email)}
                       aDejaUnLien={lienActif}
+                      finSaison={finSaison}
                     />
                   </div>
                 )}
