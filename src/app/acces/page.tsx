@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
+import { Signature } from "@/components/ui";
 import { DemandeLienForm } from "./demande-form";
 
 /**
@@ -97,6 +98,7 @@ export default async function AccesPage({
             Connexion habituelle
           </Link>
         </p>
+        <Signature logo={g.logo} orgName={g.orgName} />
       </div>
     </main>
   );

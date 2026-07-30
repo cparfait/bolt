@@ -8,6 +8,27 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 
+/**
+ * Signature de bas de page des écrans de connexion.
+ *
+ * Le nom de l'application doit figurer quelque part — un agent qui cherche
+ * « l'appli du sport » dans son navigateur ou qui appelle la DSI a besoin de
+ * pouvoir la nommer. Mais pas en titre : sous un logo, il ferait doublon avec
+ * l'identité de la collectivité, et c'est le logo qui doit tenir le haut.
+ *
+ * D'où cette ligne discrète, détachée du formulaire : elle nomme l'outil et la
+ * collectivité sans rien disputer au reste. Elle n'apparaît que lorsqu'un logo
+ * est configuré — sans logo, « Bolt » est déjà le titre de la page.
+ */
+export function Signature({ logo, orgName }: { logo: string; orgName: string }) {
+  if (!logo) return null;
+  return (
+    <p className="mt-10 text-center text-[11px] tracking-wide text-slate-300">
+      Bolt{orgName ? ` · ${orgName}` : ""}
+    </p>
+  );
+}
+
 export function Badge({
   children,
   color = "bg-slate-100 text-slate-600 ring-slate-500/20",

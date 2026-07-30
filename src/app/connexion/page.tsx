@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
+import { Signature } from "@/components/ui";
 import { LoginForm } from "./login-form";
 
 export default async function ConnexionPage() {
@@ -62,6 +63,7 @@ export default async function ConnexionPage() {
             </Link>
           </p>
         )}
+        <Signature logo={g.logo} orgName={g.orgName} />
       </div>
     </main>
   );
