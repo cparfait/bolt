@@ -9,23 +9,34 @@ import type {
 } from "react";
 
 /**
- * Signature de bas de page des écrans de connexion.
+ * Titre des écrans de connexion, sous le logo.
  *
- * Le nom de l'application doit figurer quelque part — un agent qui cherche
- * « l'appli du sport » dans son navigateur ou qui appelle la DSI a besoin de
- * pouvoir la nommer. Mais pas en titre : sous un logo, il ferait doublon avec
- * l'identité de la collectivité, et c'est le logo qui doit tenir le haut.
+ * Le nom de l'application doit se lire tout de suite : un agent qui cherche
+ * « l'appli du sport » dans son navigateur, ou qui appelle la DSI, a besoin de
+ * pouvoir la nommer. Il tient donc la place la plus visible après le logo — un
+ * pied de page discret ne remplissait pas cet office.
  *
- * D'où cette ligne discrète, détachée du formulaire : elle nomme l'outil et la
- * collectivité sans rien disputer au reste. Elle n'apparaît que lorsqu'un logo
- * est configuré — sans logo, « Bolt » est déjà le titre de la page.
+ * Sous un logo, la ligne se fait plus sobre : c'est le logo qui porte
+ * l'identité de la collectivité, et le titre n'a plus qu'à dire de quel outil
+ * il s'agit. Sans logo, il reprend son plein format et rappelle la
+ * collectivité, que rien d'autre ne nomme alors à l'écran.
  */
-export function Signature({ logo, orgName }: { logo: string; orgName: string }) {
-  if (!logo) return null;
+export function TitreConnexion({ logo, orgName }: { logo: string; orgName: string }) {
+  if (logo) {
+    return (
+      <h1 className="text-center text-sm text-slate-500">
+        <span className="font-semibold text-slate-700">Bolt</span> — Gestion des
+        activités sportives
+      </h1>
+    );
+  }
   return (
-    <p className="mt-10 text-center text-[11px] tracking-wide text-slate-300">
-      Bolt{orgName ? ` · ${orgName}` : ""}
-    </p>
+    <div className="text-center">
+      <h1 className="text-2xl font-semibold tracking-tight">Bolt</h1>
+      <p className="mt-1 text-sm text-slate-500">
+        Gestion des activités sportives{orgName ? ` — ${orgName}` : ""}
+      </p>
+    </div>
   );
 }
 

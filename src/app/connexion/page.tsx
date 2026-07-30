@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
-import { Signature } from "@/components/ui";
+import { TitreConnexion } from "@/components/ui";
 import { LoginForm } from "./login-form";
 
 export default async function ConnexionPage() {
@@ -29,23 +29,7 @@ export default async function ConnexionPage() {
               <Dumbbell className="h-6 w-6" />
             </span>
           )}
-          {/* Avec un logo, le nom « Bolt » ferait doublon : le logo porte déjà
-              l'identité de la collectivité, et son nom est dans le texte de
-              remplacement. La ligne de sous-titre devient alors le titre de la
-              page — pour ne pas la laisser sans en-tête — et se contente de dire
-              de quoi il s'agit. */}
-          <div className="text-center">
-            {g.logo ? (
-              <h1 className="text-sm text-slate-500">Activités sportives</h1>
-            ) : (
-              <>
-                <h1 className="text-2xl font-semibold tracking-tight">Bolt</h1>
-                <p className="mt-1 text-sm text-slate-500">
-                  Activités sportives — {g.orgName}
-                </p>
-              </>
-            )}
-          </div>
+          <TitreConnexion logo={g.logo} orgName={g.orgName} />
         </div>
         <LoginForm />
         <p className="mt-6 text-center text-xs text-slate-400">
@@ -63,7 +47,6 @@ export default async function ConnexionPage() {
             </Link>
           </p>
         )}
-        <Signature logo={g.logo} orgName={g.orgName} />
       </div>
     </main>
   );

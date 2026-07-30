@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
-import { Signature } from "@/components/ui";
+import { TitreConnexion } from "@/components/ui";
 import { DemandeLienForm } from "./demande-form";
 
 /**
@@ -28,8 +28,7 @@ export default async function AccesPage({
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-sm">
         {/* Même en-tête que /connexion : c'est la même porte d'entrée, vue par
-            un agent qui n'a pas de poste sur le réseau. Sous un logo, le nom
-            « Bolt » ferait doublon — le logo porte l'identité. */}
+            un agent qui n'a pas de poste sur le réseau. */}
         <div className="mb-8 flex flex-col items-center gap-3">
           {g.logo ? (
             // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
@@ -43,18 +42,7 @@ export default async function AccesPage({
               <Dumbbell className="h-6 w-6" />
             </span>
           )}
-          <div className="text-center">
-            {g.logo ? (
-              <h1 className="text-sm text-slate-500">Activités sportives</h1>
-            ) : (
-              <>
-                <h1 className="text-2xl font-semibold tracking-tight">Bolt</h1>
-                <p className="mt-1 text-sm text-slate-500">
-                  Activités sportives — {g.orgName}
-                </p>
-              </>
-            )}
-          </div>
+          <TitreConnexion logo={g.logo} orgName={g.orgName} />
         </div>
 
         {erreur === "lien" && (
@@ -98,7 +86,6 @@ export default async function AccesPage({
             Connexion habituelle
           </Link>
         </p>
-        <Signature logo={g.logo} orgName={g.orgName} />
       </div>
     </main>
   );
