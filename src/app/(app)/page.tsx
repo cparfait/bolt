@@ -15,6 +15,7 @@ import { getGeneralSettings } from "@/lib/settings";
 import { decrocheurs, indicateurs, parActivite } from "@/lib/stats";
 import { declencherRappelsSiBesoin } from "@/lib/rappels";
 import { declencherPurgeSiBesoin } from "@/lib/purge";
+import { declencherSyncSiBesoin } from "@/lib/annuaire";
 import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
 import { prochainesSeancesDe } from "@/lib/actions/absences";
 import { MesSeances } from "@/components/mes-seances";
@@ -66,10 +67,12 @@ export default async function TableauDeBord({
 }) {
   const user = await requireUser();
 
-  // Durées de conservation appliquées ici, au plus une fois par jour. Placé
-  // avant la distinction des rôles, contrairement aux rappels : l'effacement
-  // des adresses IP ne doit pas dépendre de la connexion d'un gestionnaire.
+  // Durées de conservation et prise en compte des départs, ici, au plus une fois
+  // par jour chacune. Placé avant la distinction des rôles, contrairement aux
+  // rappels : ni l'effacement des adresses IP ni la fermeture de l'accès d'un
+  // agent parti ne doivent dépendre de la connexion d'un gestionnaire.
   await declencherPurgeSiBesoin();
+  await declencherSyncSiBesoin();
 
   const { vue: vueBrute } = await searchParams;
   const vue: Vue = vueBrute && vueBrute in VUES ? (vueBrute as Vue) : "jour";

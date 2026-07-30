@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { envoyerRappels } from "@/lib/rappels";
 import { purger } from "@/lib/purge";
+import { declencherSyncSiBesoin } from "@/lib/annuaire";
 
 export const dynamic = "force-dynamic";
 
@@ -35,5 +36,15 @@ export async function GET(request: NextRequest) {
   }
   const res = await envoyerRappels();
   const purge = await purger();
-  return NextResponse.json({ ...res, purge });
+
+  // Passe par le déclencheur, qui porte le verrou quotidien : un cron réglé à
+  // l'heure ne martèlera donc pas le contrôleur de domaine, et un annuaire
+  // injoignable ne fera pas échouer les rappels déjà partis.
+  const sync = await declencherSyncSiBesoin("cron");
+
+  return NextResponse.json({
+    ...res,
+    purge,
+    annuaire: sync ? sync.message : "déjà synchronisé aujourd'hui, ou annuaire non configuré",
+  });
 }
