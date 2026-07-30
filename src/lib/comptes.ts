@@ -25,9 +25,43 @@ export type Candidat = {
  */
 export const PREFIXE_HORS_ANNUAIRE = "no_ad.";
 
-/** Vrai pour un participant créé à la main, absent de l'Active Directory. */
+/**
+ * Préfixe utilisé avant le passage à « no_ad. ».
+ *
+ * Le changement n'avait porté que sur le code : les participants créés avant
+ * gardaient leur identifiant « ext.… » et étaient donc classés parmi les comptes
+ * d'annuaire. Conséquence concrète : la synchronisation les voyait absents de
+ * l'AD et se serait apprêtée à les désactiver. La migration
+ * `20260730170000_prefixe_hors_annuaire` renomme ces lignes ; ce préfixe reste
+ * reconnu au cas où l'une d'elles n'aurait pas pu l'être.
+ */
+export const PREFIXE_HORS_ANNUAIRE_ANCIEN = "ext.";
+
+/**
+ * Vrai pour un participant créé à la main, absent de l'Active Directory.
+ *
+ * Volontairement STRICT : sert de liste blanche là où la réponse ouvre un droit
+ * — notamment la saisie de l'adresse de contact, qui commande l'envoi du lien de
+ * connexion (voir `modifierEmailAgent`). Un compte d'annuaire réellement nommé
+ * « ext.qqch » ne doit pas y entrer par accident.
+ */
 export function estHorsAnnuaire(login: string): boolean {
   return login.toLowerCase().startsWith(PREFIXE_HORS_ANNUAIRE);
+}
+
+/**
+ * Vrai pour un participant créé à la main, ancien préfixe compris.
+ *
+ * Volontairement PERMISSIF, à l'inverse de `estHorsAnnuaire` : sert à classer et
+ * à protéger, jamais à accorder un droit. Se tromper dans ce sens fait qu'un
+ * compte n'est pas désactivé automatiquement — un ménage manqué. Se tromper dans
+ * l'autre effacerait les activités de quelqu'un qui n'est pas parti.
+ */
+export function estCreeALaMain(login: string): boolean {
+  const l = login.toLowerCase();
+  return (
+    l.startsWith(PREFIXE_HORS_ANNUAIRE) || l.startsWith(PREFIXE_HORS_ANNUAIRE_ANCIEN)
+  );
 }
 
 /**

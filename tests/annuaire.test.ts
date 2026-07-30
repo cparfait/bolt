@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { estUnDepart, lectureJugeeIncomplete } from "../src/lib/annuaire";
 import { adosseALAnnuaire } from "../src/lib/departs";
+import { estHorsAnnuaire } from "../src/lib/comptes";
 
 /**
  * Garde-fous de la prise en compte des départs.
@@ -84,5 +85,36 @@ describe("adosseALAnnuaire", () => {
     // exclusion, la première synchronisation les désactiverait tous.
     assert.equal(adosseALAnnuaire({ isLocal: false, login: "no_ad.jean.martin" }), false);
     assert.equal(adosseALAnnuaire({ isLocal: false, login: "NO_AD.Jean.Martin" }), false);
+  });
+});
+
+describe("estHorsAnnuaire — qui peut recevoir une adresse de contact", () => {
+  // Cette même règle garde `modifierEmailAgent`. L'adresse de contact prime sur
+  // celle de l'annuaire pour l'envoi du lien de connexion : la poser sur un
+  // compte qui a un autre chemin d'authentification permettrait de se faire
+  // adresser son lien, donc d'ouvrir sa session. La permission se lit en liste
+  // blanche, et cette liste est celle des comptes sans aucun autre accès.
+  it("autorise un participant créé hors annuaire", () => {
+    assert.equal(estHorsAnnuaire("no_ad.jean.martin"), true);
+  });
+
+  it("refuse un compte de l'annuaire", () => {
+    assert.equal(estHorsAnnuaire("c.bouliol"), false);
+  });
+
+  it("refuse l'administrateur de secours", () => {
+    // Compte local, avec mot de passe : la cible d'élévation la plus
+    // intéressante. Un filtrage sur la seule origine annuaire l'aurait laissé
+    // passer.
+    assert.equal(estHorsAnnuaire("admin"), false);
+  });
+
+  it("ne se laisse pas contourner par la casse", () => {
+    assert.equal(estHorsAnnuaire("NO_AD.Jean"), true);
+  });
+
+  it("ne confond pas un préfixe approchant", () => {
+    assert.equal(estHorsAnnuaire("noad.jean"), false);
+    assert.equal(estHorsAnnuaire("no_admin"), false);
   });
 });

@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import type { Role } from "@prisma/client";
 import { basculerUtilisateur, changerRole } from "@/lib/actions/parametres";
+import { estCreeALaMain } from "@/lib/comptes";
 import { ROLE_LABELS } from "@/lib/constants";
 import { fmtHorodatage } from "@/lib/dates";
 
@@ -19,6 +20,12 @@ export type LigneUtilisateur = {
 };
 
 const ROLES: Role[] = ["ADMIN", "GESTIONNAIRE", "COACH", "AGENT"];
+
+function origine(u: LigneUtilisateur): string {
+  if (u.isLocal) return "Compte local";
+  if (estCreeALaMain(u.login)) return "Hors annuaire";
+  return "Active Directory";
+}
 
 export function UsersTable({
   utilisateurs,
@@ -52,9 +59,13 @@ export function UsersTable({
                   {u.service ? ` · ${u.service}` : ""}
                 </p>
               </td>
-              <td className="py-2.5 pr-3 text-slate-500">
-                {u.isLocal ? "Compte local" : "Active Directory"}
-              </td>
+              {/* Trois origines, et non deux. « Tout ce qui n'est pas local vient
+                  de l'annuaire » était faux : les participants créés à la main —
+                  élus, stagiaires, invités — n'ont pas de mot de passe local et
+                  n'existent pas davantage dans l'AD. Les afficher comme comptes
+                  Active Directory laissait croire que leur adresse @gmail venait
+                  de l'annuaire. */}
+              <td className="py-2.5 pr-3 text-slate-500">{origine(u)}</td>
               <td className="py-2.5 pr-3 text-slate-500">
                 {u.lastLoginAt ? fmtHorodatage(u.lastLoginAt) : "jamais"}
               </td>

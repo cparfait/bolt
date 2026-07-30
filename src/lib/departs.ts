@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import { promouvoirEtPrevenir, renumeroterFile } from "./inscriptions";
-import { PREFIXE_HORS_ANNUAIRE } from "./comptes";
+import { estCreeALaMain } from "./comptes";
 import { aujourdhui } from "./dates";
 import { audit } from "./audit";
 
@@ -133,7 +133,11 @@ export async function desactiverCompte(
  * partenaire) n'ont légitimement aucune existence dans l'AD — les désactiver
  * parce qu'ils en sont absents effacerait la moitié des participants à la
  * première synchro.
+ *
+ * S'appuie sur `estCreeALaMain`, qui reconnaît aussi l'ancien préfixe « ext. » :
+ * ici l'erreur ne se pardonne que dans un sens, et mieux vaut oublier de fermer
+ * un accès que retirer ses activités à quelqu'un qui n'est pas parti.
  */
 export function adosseALAnnuaire(user: { isLocal: boolean; login: string }): boolean {
-  return !user.isLocal && !user.login.toLowerCase().startsWith(PREFIXE_HORS_ANNUAIRE);
+  return !user.isLocal && !estCreeALaMain(user.login);
 }
