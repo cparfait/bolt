@@ -3,6 +3,8 @@ import { prisma } from "./db";
 import { getGeneralSettings } from "./settings";
 import { audit } from "./audit";
 import { isoDate } from "./dates";
+import { adresseDeContact } from "./comptes";
+import { envoyerMail } from "./mail";
 
 /**
  * Règles d'inscription.
@@ -375,6 +377,41 @@ export async function promouvoirListeAttente(creneauId: string) {
     cible: suivant.creneau.activite.nom,
   });
   return suivant;
+}
+
+/**
+ * Promeut le premier de la file après une décision qui a pu libérer une place,
+ * et le prévient. Renvoie le fragment de message à ajouter au compte rendu.
+ *
+ * `promouvoirListeAttente` est seul juge de l'existence d'une place : appeler
+ * cette fonction sur une décision qui n'en libère aucune ne fait rien.
+ *
+ * Ici plutôt que dans les actions serveur, parce que les départs de comptes
+ * (src/lib/departs.ts) libèrent des places exactement comme un désistement, et
+ * doivent prévenir le suivant avec les mêmes mots. Un export depuis un module
+ * « use server » en aurait fait un point d'entrée appelable depuis le
+ * navigateur — ce qui n'a aucun sens pour une fonction interne.
+ */
+export async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
+  const promu = await promouvoirListeAttente(creneauId);
+  if (!promu) return "";
+
+  const adresse = adresseDeContact(promu.user);
+  if (adresse) {
+    const g = await getGeneralSettings();
+    await envoyerMail(
+      adresse,
+      `Une place s'est libérée en ${promu.creneau.activite.nom}`,
+      [
+        `Bonjour ${promu.user.displayName.split(" ")[0]},`,
+        `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}). Votre inscription est confirmée.`,
+        g.contactEmail
+          ? `Si vous ne souhaitez plus participer, prévenez le service des sports : ${g.contactEmail}.`
+          : `Si vous ne souhaitez plus participer, prévenez le service des sports.`,
+      ].join("\n\n"),
+    );
+  }
+  return ` ${promu.user.displayName} a été inscrit depuis la liste d'attente.`;
 }
 
 /** Renumérote la file après un départ, pour que les positions restent lisibles. */

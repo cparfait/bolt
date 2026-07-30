@@ -8,7 +8,7 @@ import {
   demanderInscription,
   placeDisponiblePour,
   prochainRang,
-  promouvoirListeAttente,
+  promouvoirEtPrevenir,
   renumeroterFile,
 } from "@/lib/inscriptions";
 import { adresseDeContact } from "@/lib/comptes";
@@ -180,35 +180,6 @@ export async function deciderInscription(
   }
 
   return erreur("Décision inconnue.");
-}
-
-/**
- * Promeut le premier de la file après une décision qui a pu libérer une place,
- * et le prévient. Renvoie le fragment de message à ajouter au compte rendu.
- *
- * `promouvoirListeAttente` est seul juge de l'existence d'une place : appeler
- * cette fonction sur une décision qui n'en libère aucune ne fait rien.
- */
-async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
-  const promu = await promouvoirListeAttente(creneauId);
-  if (!promu) return "";
-
-  const adresse = adresseDeContact(promu.user);
-  if (adresse) {
-    const g = await getGeneralSettings();
-    await envoyerMail(
-      adresse,
-      `Une place s'est libérée en ${promu.creneau.activite.nom}`,
-      [
-        `Bonjour ${promu.user.displayName.split(" ")[0]},`,
-        `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}). Votre inscription est confirmée.`,
-        g.contactEmail
-          ? `Si vous ne souhaitez plus participer, prévenez le service des sports : ${g.contactEmail}.`
-          : `Si vous ne souhaitez plus participer, prévenez le service des sports.`,
-      ].join("\n\n"),
-    );
-  }
-  return ` ${promu.user.displayName} a été inscrit depuis la liste d'attente.`;
 }
 
 /** Inscription directe par le service des sports (agent sans accès, dossier papier). */
