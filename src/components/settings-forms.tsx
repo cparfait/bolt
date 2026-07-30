@@ -310,7 +310,29 @@ function ChampLogo({ actuel }: { actuel: string }) {
   );
 }
 
-export function GeneralForm({ cfg }: { cfg: GeneralSettings }) {
+/** Valeur affichée sans champ de saisie : réglage réservé à la DSI. */
+function ValeurReservee({ valeur }: { valeur: string }) {
+  return (
+    <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+      {valeur || "Non renseignée"}
+      <span className="ml-2 text-xs text-slate-400">— réservé à la DSI</span>
+    </p>
+  );
+}
+
+/**
+ * Paramètres généraux. Les deux URL publiques ne sont modifiables que par la
+ * DSI : elles décident où pointent les liens de connexion envoyés par courriel.
+ * Le service des sports les voit — c'est utile pour comprendre ce qu'un agent
+ * reçoit — mais en lecture seule, et le serveur le revérifie.
+ */
+export function GeneralForm({
+  cfg,
+  estAdmin,
+}: {
+  cfg: GeneralSettings;
+  estAdmin: boolean;
+}) {
   const [state, action] = useActionState<ActionState, FormData>(enregistrerGeneral, null);
   return (
     <form action={action} className="space-y-4">
@@ -327,18 +349,30 @@ export function GeneralForm({ cfg }: { cfg: GeneralSettings }) {
         label="URL publique de l'application"
         hint="Adresse de l'application pour les liens envoyés (connexion des agents, rappels)."
       >
-        <Input name="appUrl" defaultValue={cfg.appUrl} placeholder="https://bolt.collectivite.fr" />
+        {estAdmin ? (
+          <Input
+            name="appUrl"
+            defaultValue={cfg.appUrl}
+            placeholder="https://bolt.collectivite.fr"
+          />
+        ) : (
+          <ValeurReservee valeur={cfg.appUrl} />
+        )}
       </Field>
 
       <Field
         label="URL de pointage"
         hint="Adresse des liens d'émargement, si le pointage est publié sur Internet sous un autre nom. Laissez vide pour utiliser l'URL publique."
       >
-        <Input
-          name="pointageUrl"
-          defaultValue={cfg.pointageUrl}
-          placeholder="https://pointage.collectivite.fr"
-        />
+        {estAdmin ? (
+          <Input
+            name="pointageUrl"
+            defaultValue={cfg.pointageUrl}
+            placeholder="https://pointage.collectivite.fr"
+          />
+        ) : (
+          <ValeurReservee valeur={cfg.pointageUrl} />
+        )}
       </Field>
 
       <ChampLogo actuel={cfg.logo} />

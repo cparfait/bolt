@@ -215,10 +215,18 @@ export async function enregistrerGeneral(
   const { logo, erreur: erreurLogo } = await lireLogo(formData, actuel.logo);
   if (erreurLogo) return erreur(erreurLogo);
 
+  // Les deux URL publiques servent de base aux liens envoyés par courriel
+  // (src/lib/magic.ts, src/lib/coach-access.ts). Les réécrire suffirait à faire
+  // partir les liens de connexion vers un hôte extérieur, et à en récolter les
+  // jetons : le service des sports règle le métier, la DSI règle les adresses.
+  const estAdmin = user.role === "ADMIN";
+  const url = (cle: string, courant: string) =>
+    estAdmin ? texte(formData, cle).replace(/\/+$/, "") : courant;
+
   const cfg = {
     orgName: texte(formData, "orgName") || actuel.orgName,
-    appUrl: texte(formData, "appUrl").replace(/\/+$/, ""),
-    pointageUrl: texte(formData, "pointageUrl").replace(/\/+$/, ""),
+    appUrl: url("appUrl", actuel.appUrl),
+    pointageUrl: url("pointageUrl", actuel.pointageUrl),
     logo,
     contactEmail: texte(formData, "contactEmail"),
     maxInscriptionsParAgent: Math.max(0, Number(texte(formData, "maxInscriptionsParAgent")) || 0),
