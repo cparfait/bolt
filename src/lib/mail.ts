@@ -27,18 +27,60 @@ export async function envoyerMail(
     tls: { rejectUnauthorized: smtp.tlsRejectUnauthorized !== false },
   });
 
+  // Le logo voyage en pièce jointe inline (référencée par `cid:`) : la plupart
+  // des messageries ignorent les images en data URI dans le HTML — Gmail les
+  // retire purement et simplement.
+  const logo = logoPourMail((await getGeneralSettings()).logo);
+
   try {
     await transport.sendMail({
       from: smtp.from,
       to,
       subject,
       text: corps,
-      html: gabarit(subject, corps),
+      html: gabarit(subject, corps, Boolean(logo)),
+      attachments: logo
+        ? [
+            {
+              filename: `logo.${logo.extension}`,
+              content: logo.contenu,
+              contentType: logo.mime,
+              cid: CID_LOGO,
+              contentDisposition: "inline",
+            },
+          ]
+        : undefined,
     });
     return { ok: true, message: `Message envoyé à ${to}.` };
   } catch (e) {
     return { ok: false, message: expliquer(e, smtp) };
   }
+}
+
+const CID_LOGO = "logo-bolt";
+
+const EXTENSIONS: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+};
+
+/**
+ * Prépare le logo configuré pour l'envoi en pièce jointe inline.
+ * Formats matriciels uniquement : le SVG n'est pas affiché par Gmail ni
+ * Outlook, même en pièce jointe — un logo SVG laisse le mail sans image
+ * plutôt que d'y glisser une icône cassée.
+ */
+function logoPourMail(
+  dataUri: string,
+): { contenu: Buffer; mime: string; extension: string } | null {
+  const m = dataUri.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
+  if (!m) return null;
+  return {
+    contenu: Buffer.from(m[2], "base64"),
+    mime: m[1],
+    extension: EXTENSIONS[m[1]],
+  };
 }
 
 /**
@@ -100,14 +142,17 @@ function echapper(s: string): string {
 }
 
 /** Gabarit HTML sobre, aux couleurs de l'application. */
-function gabarit(titre: string, corps: string): string {
+function gabarit(titre: string, corps: string, avecLogo = false): string {
   const paragraphes = corps
     .split(/\n{2,}/)
     .map((p) => `<p style="margin:0 0 14px;line-height:1.6">${echapper(p).replace(/\n/g, "<br>")}</p>`)
     .join("");
+  const logo = avecLogo
+    ? `<img src="cid:${CID_LOGO}" alt="" style="display:block;max-height:44px;margin:0 0 14px">\n    `
+    : "";
   return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;padding:24px">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 4px 20px rgba(0,0,0,.06)">
-    <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#006e46;letter-spacing:.04em;text-transform:uppercase">Bolt · activités sportives</p>
+    ${logo}<p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#006e46;letter-spacing:.04em;text-transform:uppercase">Bolt · activités sportives</p>
     <h1 style="margin:0 0 18px;font-size:19px;color:#0f172a">${echapper(titre)}</h1>
     <div style="font-size:15px;color:#334155">${paragraphes}</div>
   </div>
