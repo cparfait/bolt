@@ -9,27 +9,48 @@ import { ChampAgent } from "@/components/champ-agent";
 import { SubmitButton } from "@/components/submit-button";
 
 /**
- * Adresse à laquelle joindre l'agent, saisie par le service des sports.
+ * Adresse à laquelle joindre un participant hors annuaire, saisie par le service
+ * des sports. Le cas visé : le participant créé à la volée depuis une feuille
+ * d'émargement, dont l'adresse a été oubliée — élu, stagiaire, invité d'un
+ * organisme partenaire. Sans ce champ, Bolt ne peut rien lui envoyer.
  *
- * Elle s'ajoute à celle de l'annuaire sans l'écraser, et l'emporte sur elle.
- * Deux besoins qu'un seul champ ne couvrait pas : le participant hors annuaire
- * dont l'adresse a été oubliée à la création, et l'agent de terrain qui a bien
- * une boîte professionnelle mais ne l'ouvre jamais — or c'est celui-là que la
- * connexion par lien est censée servir.
+ * Interdit sur un compte de l'annuaire, et le serveur le revérifie : cette
+ * adresse prime sur celle de l'AD pour l'envoi du lien de connexion. La poser sur
+ * le compte d'un administrateur revenait à se faire adresser son lien et à ouvrir
+ * sa session — un gestionnaire pouvait s'élever au rang d'administrateur sans
+ * connaître aucun mot de passe.
  */
 export function EmailAgentForm({
   userId,
   emailContact,
   emailAnnuaire,
+  modifiable,
 }: {
   userId: string;
   emailContact: string | null;
   emailAnnuaire: string | null;
+  /** Faux pour un compte de l'annuaire : l'adresse vient de l'AD. */
+  modifiable: boolean;
 }) {
   const [state, action] = useActionState<ActionState, FormData>(
     modifierEmailAgent,
     null,
   );
+
+  if (!modifiable) {
+    return (
+      <div className="space-y-2">
+        <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          {emailAnnuaire ?? "Aucune adresse dans l'annuaire"}
+        </p>
+        <p className="text-xs text-slate-400">
+          Elle vient de l&apos;Active Directory et s&apos;y corrige : Bolt la relit
+          à chaque connexion de l&apos;agent et à chaque synchronisation. La saisir
+          ici permettrait de détourner son lien de connexion.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form action={action} className="space-y-3">

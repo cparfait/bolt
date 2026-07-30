@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { aujourdhui, fmtDate, fmtDateLongue, fmtHorodatage, JOUR_LABELS } from "@/lib/dates";
 import { effectifsParActivite } from "@/lib/inscriptions";
-import { adresseDeContact, estHorsAnnuaire } from "@/lib/comptes";
+import { adresseDeContact, estCreeALaMain, estHorsAnnuaire } from "@/lib/comptes";
 import { Badge, Card, EmptyState, PageHeader, Stat } from "@/components/ui";
 import { EmailAgentForm, RattacherAdForm } from "@/components/agent-identite-forms";
 import { RetirerForm } from "@/components/inscription-actions";
@@ -137,7 +137,11 @@ export default async function FicheAgent({
   // Un participant créé à la main : son identité n'appartient à aucun annuaire,
   // c'est donc ici qu'elle se corrige. Les comptes locaux sont dans le même cas
   // pour l'adresse, mais ils n'ont pas vocation à rejoindre l'Active Directory.
-  const horsAnnuaire = estHorsAnnuaire(agent.login);
+  // Classement : l'ancien préfixe « ext. » compte aussi.
+  const horsAnnuaire = estCreeALaMain(agent.login);
+  // Droit d'écrire l'adresse de contact : liste blanche stricte, parce qu'elle
+  // commande l'envoi du lien de connexion — voir modifierEmailAgent.
+  const adresseModifiable = estHorsAnnuaire(agent.login);
   const contact = adresseDeContact(agent);
 
   return (
@@ -197,21 +201,25 @@ export default async function FicheAgent({
         </div>
       )}
 
-      {/* Ouvert pour tout agent, y compris ceux de l'annuaire : c'est le seul
-          moyen de joindre celui qui ne consulte pas sa boîte professionnelle. */}
+      {/* Modifiable pour les seuls participants hors annuaire. L'adresse d'un
+          compte AD vient de l'annuaire : la saisir ici permettrait de détourner
+          son lien de connexion — voir modifierEmailAgent. */}
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <Panneau
           titre="Adresse de contact"
           sousTitre={
-            agent.email
-              ? "Prime sur celle de l'annuaire, sans l'écraser"
-              : "Aucune adresse connue : sans elle, Bolt ne peut rien lui envoyer"
+            !horsAnnuaire
+              ? "Celle de l'annuaire, en lecture seule"
+              : agent.emailContact || agent.email
+                ? "Elle commande tout ce que Bolt lui envoie"
+                : "Aucune adresse connue : sans elle, Bolt ne peut rien lui envoyer"
           }
         >
           <EmailAgentForm
             userId={agent.id}
             emailContact={agent.emailContact}
             emailAnnuaire={agent.email}
+            modifiable={adresseModifiable}
           />
         </Panneau>
         {horsAnnuaire && (

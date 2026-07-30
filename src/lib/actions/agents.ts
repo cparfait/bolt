@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import {
   chercherComptes,
   creerParticipantHorsAnnuaire,
+  estCreeALaMain,
   estHorsAnnuaire,
   type Candidat,
 } from "@/lib/comptes";
@@ -284,6 +285,33 @@ export async function modifierEmailAgent(
 
   const agent = await prisma.user.findUnique({ where: { id: userId } });
   if (!agent) return erreur("Agent introuvable.");
+
+  // Réservé aux participants hors annuaire, et c'est une question de privilèges.
+  //
+  // L'adresse de contact prime sur celle de l'annuaire pour l'envoi du lien de
+  // connexion (adresseDeContact, src/lib/comptes.ts). La poser sur le compte d'un
+  // administrateur revenait à se faire adresser son lien et à ouvrir sa session :
+  // un gestionnaire pouvait s'élever au rang d'administrateur sans connaître
+  // aucun mot de passe.
+  //
+  // La permission se lit donc en liste blanche — les comptes « no_ad.… » — et non
+  // en liste noire. Un compte d'annuaire tient son adresse de l'AD ; un compte
+  // local, lui, a un mot de passe, et l'administrateur de secours en est un : le
+  // filtrer sur la seule origine annuaire aurait laissé passer précisément la
+  // cible la plus intéressante.
+  if (!estHorsAnnuaire(agent.login)) {
+    return erreur(
+      "L'adresse d'un compte de l'annuaire vient de l'Active Directory : elle se corrige là-bas, pas ici.",
+    );
+  }
+  // Ceinture et bretelles : un participant hors annuaire promu gestionnaire ou
+  // administrateur ne doit pas rouvrir le même chemin.
+  if (agent.role === "ADMIN" || agent.role === "GESTIONNAIRE") {
+    return erreur(
+      "Ce compte dispose de droits étendus : son adresse ne se modifie pas depuis cet écran.",
+    );
+  }
+
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return erreur("Adresse e-mail invalide.");
   }
@@ -398,11 +426,13 @@ export async function rattacherCompteAd(
     include: { coach: { select: { id: true } } },
   });
   if (!source) return erreur("Participant introuvable.");
-  if (!estHorsAnnuaire(source.login)) {
+  // Classement, pas permission : un participant créé sous l'ancien préfixe
+  // « ext. » doit rester rattachable à son compte d'annuaire.
+  if (!estCreeALaMain(source.login)) {
     return erreur("Ce compte vient déjà de l'annuaire : il n'y a rien à rattacher.");
   }
   if (!cible) return erreur("Sélectionnez le compte Active Directory correspondant.");
-  if (estHorsAnnuaire(cible)) {
+  if (estCreeALaMain(cible)) {
     return erreur(
       "Choisissez un compte de l'annuaire, pas un autre participant hors annuaire.",
     );
@@ -432,6 +462,10 @@ export async function rattacherCompteAd(
         email: ad.email ?? source.email,
         service: ad.service ?? source.service,
         direction: ad.direction ?? source.direction,
+        // Le compte devient un compte d'annuaire : son adresse est désormais
+        // celle de l'AD. Conserver l'adresse de contact laisserait une valeur
+        // qui prime sur l'annuaire et que plus aucun écran ne peut corriger.
+        emailContact: null,
       },
     });
     await audit("AGENT_RATTACHE_AD", {
@@ -572,7 +606,7 @@ export async function rattacherCompteAd(
  */
 export async function rechercherComptesAd(query: string): Promise<Candidat[]> {
   await requireUser("GESTIONNAIRE");
-  return (await rechercherAgents(query)).filter((c) => !estHorsAnnuaire(c.login));
+  return (await rechercherAgents(query)).filter((c) => !estCreeALaMain(c.login));
 }
 
 /**
