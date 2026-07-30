@@ -60,7 +60,7 @@ export const COACH_ACCES_LABELS: Record<CoachAcces, string> = {
 export const COACH_ACCES_AIDE: Record<CoachAcces, string> = {
   AD: "L'animateur est agent de la collectivité : il se connecte avec son identifiant Windows habituel.",
   LOCAL:
-    "Un identifiant et un mot de passe gérés dans Bolt. À réserver aux animateurs qui accèdent depuis le réseau.",
+    "Un identifiant et un mot de passe gérés dans l'application. À réserver aux animateurs qui accèdent depuis le réseau.",
   LIEN: "Aucun compte : un lien personnel + un code à 6 chiffres, utilisable depuis n'importe où. Recommandé pour les prestataires extérieurs.",
 };
 

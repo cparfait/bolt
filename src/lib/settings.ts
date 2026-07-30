@@ -27,6 +27,18 @@ export type SmtpSettings = {
 };
 
 export type GeneralSettings = {
+  /**
+   * Nom de l'application, tel qu'il s'affiche partout : écrans de connexion,
+   * navigation, onglet du navigateur, signature et objet des courriels,
+   * application installée sur le téléphone des animateurs, classeur Excel.
+   *
+   * « Bolt » est un nom de code, et une collectivité qui déploie l'outil
+   * préfère souvent le sien. Un champ plutôt qu'une constante : le renommage ne
+   * doit pas demander une reconstruction de l'image.
+   */
+  appName: string;
+  /** Ce que fait l'application, affiché à côté de son nom. */
+  appDescription: string;
   orgName: string;
   appUrl: string; // https://bolt.chatillon92.fr — utilisé dans les liens envoyés
   // URL des liens d'émargement, quand le pointage est publié sur Internet sous
@@ -51,6 +63,8 @@ export type GeneralSettings = {
 };
 
 export const DEFAULT_GENERAL: GeneralSettings = {
+  appName: "Bolt",
+  appDescription: "Gestion des activités sportives",
   orgName: "Collectivité",
   appUrl: process.env.BOLT_PUBLIC_URL ?? "",
   pointageUrl: process.env.BOLT_POINTAGE_URL ?? "",
@@ -89,4 +103,21 @@ export const getSmtpSettings = () => getSetting<SmtpSettings>("smtp");
 export async function getGeneralSettings(): Promise<GeneralSettings> {
   const stored = await getSetting<Partial<GeneralSettings>>("general");
   return { ...DEFAULT_GENERAL, ...(stored ?? {}) };
+}
+
+/**
+ * Nom et description de l'application, pour les métadonnées de page.
+ *
+ * Tolérant à la panne, contrairement à `getGeneralSettings` : les métadonnées
+ * sont calculées à chaque requête, y compris sur la feuille d'émargement
+ * publiée sur Internet. Une base momentanément injoignable doit y coûter un
+ * titre d'onglet par défaut, pas une page d'erreur.
+ */
+export async function getIdentiteApp(): Promise<{ nom: string; description: string }> {
+  try {
+    const g = await getGeneralSettings();
+    return { nom: g.appName, description: g.appDescription };
+  } catch {
+    return { nom: DEFAULT_GENERAL.appName, description: DEFAULT_GENERAL.appDescription };
+  }
 }

@@ -21,20 +21,30 @@ import type {
  * il s'agit. Sans logo, il reprend son plein format et rappelle la
  * collectivité, que rien d'autre ne nomme alors à l'écran.
  */
-export function TitreConnexion({ logo, orgName }: { logo: string; orgName: string }) {
+export function TitreConnexion({
+  logo,
+  orgName,
+  appName,
+  appDescription,
+}: {
+  logo: string;
+  orgName: string;
+  appName: string;
+  appDescription: string;
+}) {
   if (logo) {
     return (
       <h1 className="text-center text-sm text-slate-500">
-        <span className="font-semibold text-slate-700">Bolt</span> — Gestion des
-        activités sportives
+        <span className="font-semibold text-slate-700">{appName}</span>
+        {appDescription ? ` — ${appDescription}` : ""}
       </h1>
     );
   }
   return (
     <div className="text-center">
-      <h1 className="text-2xl font-semibold tracking-tight">Bolt</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{appName}</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Gestion des activités sportives{orgName ? ` — ${orgName}` : ""}
+        {[appDescription, orgName].filter(Boolean).join(" — ")}
       </p>
     </div>
   );

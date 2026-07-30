@@ -268,7 +268,7 @@ export async function notifierChangementCreneau(
         `Bonjour ${prenomDe(i.user.displayName)},`,
         `Votre créneau de ${intitule} a été modifié.`,
         ...blocs,
-        `Votre inscription reste valable : rien à faire de votre part. Consultez le détail dans Bolt à tout moment.`,
+        `Votre inscription reste valable : rien à faire de votre part. Consultez le détail dans l'application à tout moment.`,
         g.contactEmail
           ? `Le service des sports — ${g.contactEmail}`
           : `Le service des sports`,

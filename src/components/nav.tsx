@@ -154,14 +154,22 @@ function Liens({
   );
 }
 
-export function Sidebar({ role, compteurs }: { role: Role; compteurs?: Compteurs }) {
+export function Sidebar({
+  role,
+  compteurs,
+  appName,
+}: {
+  role: Role;
+  compteurs?: Compteurs;
+  appName: string;
+}) {
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
       <div className="flex h-14 items-center gap-2.5 border-b border-slate-100 px-5">
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
           <Dumbbell className="h-4 w-4" />
         </span>
-        <span className="text-lg font-semibold tracking-tight">Bolt</span>
+        <span className="text-lg font-semibold tracking-tight">{appName}</span>
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
         <Liens role={role} compteurs={compteurs} />
@@ -174,7 +182,15 @@ export function Sidebar({ role, compteurs }: { role: Role; compteurs?: Compteurs
 }
 
 /** Barre de navigation repliable, pour les écrans étroits. */
-export function NavMobile({ role, compteurs }: { role: Role; compteurs?: Compteurs }) {
+export function NavMobile({
+  role,
+  compteurs,
+  appName,
+}: {
+  role: Role;
+  compteurs?: Compteurs;
+  appName: string;
+}) {
   const enAttente = Object.values(compteurs ?? {}).reduce((n, v) => n + v, 0);
   return (
     <details className="group border-b border-slate-200 bg-white md:hidden">
@@ -182,7 +198,7 @@ export function NavMobile({ role, compteurs }: { role: Role; compteurs?: Compteu
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
           <Dumbbell className="h-4 w-4" />
         </span>
-        <span className="text-lg font-semibold tracking-tight">Bolt</span>
+        <span className="text-lg font-semibold tracking-tight">{appName}</span>
         {/* Menu replié : le total en attente reste visible, sinon l'alerte
             disparaîtrait complètement sur téléphone. */}
         {enAttente > 0 && (

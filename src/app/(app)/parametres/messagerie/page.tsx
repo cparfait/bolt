@@ -12,7 +12,7 @@ export default async function ParametresMessagerie() {
         <SmtpForm cfg={cfg} />
       </Card>
       <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
-        <p className="mb-2 font-medium text-slate-700">Messages envoyés par Bolt</p>
+        <p className="mb-2 font-medium text-slate-700">Messages envoyés par l&apos;application</p>
         <ul className="list-inside list-disc space-y-1">
           <li>lien d&apos;émargement et code à un animateur ;</li>
           <li>confirmation ou refus d&apos;une inscription ;</li>

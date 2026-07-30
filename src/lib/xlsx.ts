@@ -10,6 +10,7 @@ import {
   type Filtre,
 } from "./stats";
 import { SEANCE_STATUT_LABELS } from "./constants";
+import { getGeneralSettings } from "./settings";
 
 /**
  * Classeur Excel du bilan de fréquentation.
@@ -67,7 +68,7 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
     ]);
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Bolt";
+  wb.creator = (await getGeneralSettings()).appName;
   wb.created = new Date();
 
   // ── Synthèse ─────────────────────────────────────────────────────────────

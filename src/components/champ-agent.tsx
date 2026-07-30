@@ -24,7 +24,7 @@ import { Field, Input } from "@/components/ui";
  */
 export function ChampAgent({
   label = "Agent",
-  hint = "Nom, prénom, identifiant ou adresse e-mail. La recherche couvre les comptes Bolt et l'annuaire Active Directory.",
+  hint = "Nom, prénom, identifiant ou adresse e-mail. La recherche couvre les comptes de l'application et l'annuaire Active Directory.",
   // « connus » restreint aux agents déjà présents dans Bolt : c'est ce que voit
   // un animateur, à qui l'on n'ouvre pas le répertoire de la collectivité.
   // « ad » écarte les participants hors annuaire, qui ne sont pas des cibles
@@ -106,7 +106,7 @@ export function ChampAgent({
             ) : affiches.length === 0 ? (
               <p className="px-4 py-3 text-sm text-slate-400">
                 {source === "connus"
-                  ? "Aucun agent trouvé parmi ceux déjà connus de Bolt. Le service des sports peut le chercher dans l'annuaire."
+                  ? "Aucun agent trouvé parmi ceux déjà connus de l'application. Le service des sports peut le chercher dans l'annuaire."
                   : source === "ad"
                     ? "Aucun compte Active Directory à ce nom. Son compte n'est peut-être pas encore créé, ou l'annuaire demande une synchronisation."
                     : "Aucun agent trouvé. Vérifiez l'orthographe, ou synchronisez l'annuaire depuis les paramètres."}

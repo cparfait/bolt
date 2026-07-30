@@ -27,10 +27,14 @@ export async function envoyerMail(
     tls: { rejectUnauthorized: smtp.tlsRejectUnauthorized !== false },
   });
 
+  const g = await getGeneralSettings();
   // Le logo voyage en pièce jointe inline (référencée par `cid:`) : la plupart
   // des messageries ignorent les images en data URI dans le HTML — Gmail les
   // retire purement et simplement.
-  const logo = logoPourMail((await getGeneralSettings()).logo);
+  const logo = logoPourMail(g.logo);
+  // Même ligne que sous le logo des écrans de connexion : le destinataire doit
+  // pouvoir nommer l'outil qui lui écrit, logo ou pas.
+  const signature = [g.appName, g.appDescription].filter(Boolean).join(" · ");
 
   try {
     await transport.sendMail({
@@ -38,7 +42,7 @@ export async function envoyerMail(
       to,
       subject,
       text: corps,
-      html: gabarit(subject, corps, Boolean(logo)),
+      html: gabarit(subject, corps, Boolean(logo), signature),
       attachments: logo
         ? [
             {
@@ -142,7 +146,12 @@ function echapper(s: string): string {
 }
 
 /** Gabarit HTML sobre, aux couleurs de l'application. */
-function gabarit(titre: string, corps: string, avecLogo = false): string {
+function gabarit(
+  titre: string,
+  corps: string,
+  avecLogo: boolean,
+  signature: string,
+): string {
   const paragraphes = corps
     .split(/\n{2,}/)
     .map((p) => `<p style="margin:0 0 14px;line-height:1.6">${echapper(p).replace(/\n/g, "<br>")}</p>`)
@@ -150,9 +159,6 @@ function gabarit(titre: string, corps: string, avecLogo = false): string {
   const logo = avecLogo
     ? `<img src="cid:${CID_LOGO}" alt="" style="display:block;max-height:44px;margin:0 0 14px">\n    `
     : "";
-  // Même ligne que sous le logo des écrans de connexion : le destinataire doit
-  // pouvoir nommer l'outil qui lui écrit, logo ou pas.
-  const signature = "Bolt · Gestion des activités sportives";
   return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;padding:24px">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 4px 20px rgba(0,0,0,.06)">
     ${logo}<p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#006e46;letter-spacing:.04em;text-transform:uppercase">${signature}</p>

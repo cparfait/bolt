@@ -29,7 +29,12 @@ export default async function ConnexionPage() {
               <Dumbbell className="h-6 w-6" />
             </span>
           )}
-          <TitreConnexion logo={g.logo} orgName={g.orgName} />
+          <TitreConnexion
+            logo={g.logo}
+            orgName={g.orgName}
+            appName={g.appName}
+            appDescription={g.appDescription}
+          />
         </div>
         <LoginForm />
         <p className="mt-6 text-center text-xs text-slate-400">

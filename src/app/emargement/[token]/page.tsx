@@ -8,6 +8,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { resoudreLien } from "@/lib/coach-access";
+import { getIdentiteApp } from "@/lib/settings";
 import { quitterAction } from "@/lib/actions/emargement";
 import {
   feuillesAttendues,
@@ -30,7 +31,7 @@ import { PinForm } from "./pin-form";
 
 export const dynamic = "force-dynamic";
 
-function Coquille({ children }: { children: React.ReactNode }) {
+function Coquille({ children, appName }: { children: React.ReactNode; appName: string }) {
   return (
     <main className="emargement min-h-screen bg-slate-50 p-4 pb-10">
       <div className="mx-auto w-full max-w-md">
@@ -38,7 +39,7 @@ function Coquille({ children }: { children: React.ReactNode }) {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
             <Dumbbell className="h-4.5 w-4.5" />
           </span>
-          <span className="text-xl font-semibold tracking-tight">Bolt</span>
+          <span className="text-xl font-semibold tracking-tight">{appName}</span>
         </div>
         {children}
       </div>
@@ -61,11 +62,12 @@ export default async function EmargementAccueil({
 }) {
   const { token } = await params;
   const { transmise, annulee } = await searchParams;
+  const { nom: appName } = await getIdentiteApp();
   const lien = await resoudreLien(token);
 
   if (lien.etat === "INCONNU") {
     return (
-      <Coquille>
+      <Coquille appName={appName}>
         <Carte>
           <div className="text-center">
             <XCircle className="mx-auto h-10 w-10 text-slate-300" />
@@ -81,7 +83,7 @@ export default async function EmargementAccueil({
 
   if (lien.etat === "EXPIRE" || lien.etat === "DESACTIVE") {
     return (
-      <Coquille>
+      <Coquille appName={appName}>
         <Carte>
           <div className="text-center">
             <Lock className="mx-auto h-10 w-10 text-amber-400" />
@@ -99,7 +101,7 @@ export default async function EmargementAccueil({
 
   if (lien.etat === "PIN_REQUIS") {
     return (
-      <Coquille>
+      <Coquille appName={appName}>
         <Carte>
           {lien.verrouJusqua ? (
             <div className="text-center">
@@ -139,7 +141,7 @@ export default async function EmargementAccueil({
   const aVenir = seances.filter((s) => isoDate(s.date) > today).slice(0, 5);
 
   return (
-    <Coquille>
+    <Coquille appName={appName}>
       {transmise && (
         <div className="mb-4 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />

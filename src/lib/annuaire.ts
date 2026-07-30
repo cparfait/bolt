@@ -25,7 +25,7 @@ import { audit } from "./audit";
  * filtrant trop restrictif ou une lecture interrompue rendent une liste courte,
  * et l'on effacerait alors la moitié du service par déduction. On ne se fie donc
  * pas au nombre de comptes lus dans l'absolu, mais à une population témoin : les
- * comptes Bolt adossés à l'annuaire et encore actifs. Ces gens se sont connectés
+ * comptes de l'application adossés à l'annuaire et encore actifs. Ces gens se sont connectés
  * par CET annuaire, ils y existent donc — si la lecture n'en retrouve pas au
  * moins 80 %, elle est incomplète, et l'on refuse d'interpréter les absents.
  *
@@ -237,7 +237,7 @@ function redigerMessage(r: {
 
   if (r.lectureIncomplete) {
     phrases.push(
-      `Attention : seuls ${r.retrouves} des ${r.temoins} comptes Bolt adossés à l'annuaire ont été retrouvés dans cette lecture. ` +
+      `Attention : seuls ${r.retrouves} des ${r.temoins} comptes de l'application adossés à l'annuaire ont été retrouvés dans cette lecture. ` +
         `Elle est probablement incomplète — Base DN ou groupe filtrant à vérifier. ` +
         `Aucun compte n'a été désactivé pour cause d'absence, et le miroir n'a pas été nettoyé.`,
     );
@@ -248,7 +248,7 @@ function redigerMessage(r: {
   if (r.absents.length > 0) {
     const noms = r.absents.slice(0, 10).join(", ");
     const reste = r.absents.length > 10 ? ` et ${r.absents.length - 10} autre(s)` : "";
-    phrases.push(`Comptes Bolt introuvables dans l'annuaire : ${noms}${reste}.`);
+    phrases.push(`Comptes de l'application introuvables dans l'annuaire : ${noms}${reste}.`);
   }
 
   if (r.desactives.length > 0) {

@@ -163,7 +163,7 @@ export function LdapOutils() {
         </form>
       </div>
       <p className="text-xs text-slate-400">
-        La synchronisation est en lecture seule : Bolt n&apos;écrit jamais dans
+        La synchronisation est en lecture seule : l&apos;application n&apos;écrit jamais dans
         l&apos;Active Directory.
       </p>
     </div>
@@ -337,6 +337,23 @@ export function GeneralForm({
   return (
     <form action={action} className="space-y-4">
       <Alert state={state} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Nom de l'application"
+          required
+          hint="Affiché sur les écrans de connexion, dans la navigation, l'onglet du navigateur, les courriels et l'application installée par les animateurs."
+        >
+          <Input name="appName" defaultValue={cfg.appName} required maxLength={40} />
+        </Field>
+        <Field label="Ce qu'elle fait" hint="Accompagne le nom, en plus discret.">
+          <Input
+            name="appDescription"
+            defaultValue={cfg.appDescription}
+            maxLength={60}
+            placeholder="Gestion des activités sportives"
+          />
+        </Field>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Nom de la collectivité" required>
           <Input name="orgName" defaultValue={cfg.orgName} required />

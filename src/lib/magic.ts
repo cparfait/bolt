@@ -91,7 +91,7 @@ export async function envoyerLienConnexion(emailBrut: string): Promise<void> {
 
   await envoyerMail(
     adresseDeContact(user)!,
-    "Votre lien de connexion à Bolt",
+    `Votre lien de connexion à ${g.appName}`,
     [
       `Bonjour ${prenomDe(user.displayName)},`,
       `Voici votre lien de connexion aux activités sportives. Il est valable ${VALIDITE_MINUTES} minutes et ne fonctionne qu'une seule fois.`,

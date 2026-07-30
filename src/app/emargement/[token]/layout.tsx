@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { getIdentiteApp } from "@/lib/settings";
 
 // `themeColor` appartient à l'export `viewport` depuis Next 15 : laissé dans
 // les métadonnées, il est ignoré avec un avertissement à la construction.
@@ -17,8 +18,9 @@ export async function generateMetadata({
   params: Promise<{ token: string }>;
 }): Promise<Metadata> {
   const { token } = await params;
+  const { nom } = await getIdentiteApp();
   return {
-    title: "Émargement — Bolt",
+    title: `Émargement — ${nom}`,
     manifest: `/emargement/${token}/manifest.webmanifest`,
     appleWebApp: { capable: true, title: "Émargement", statusBarStyle: "default" },
   };

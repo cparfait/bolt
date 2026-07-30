@@ -42,7 +42,12 @@ export default async function AccesPage({
               <Dumbbell className="h-6 w-6" />
             </span>
           )}
-          <TitreConnexion logo={g.logo} orgName={g.orgName} />
+          <TitreConnexion
+            logo={g.logo}
+            orgName={g.orgName}
+            appName={g.appName}
+            appDescription={g.appDescription}
+          />
         </div>
 
         {erreur === "lien" && (

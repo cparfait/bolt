@@ -172,7 +172,7 @@ export async function deciderInscription(
         [
           `Bonjour ${prenomDe(inscription.user.displayName)},`,
           `Votre demande d'inscription à ${inscription.creneau.activite.nom} n'a pas pu être retenue${motif ? ` : ${motif}` : "."}`,
-          `D'autres créneaux restent ouverts : consultez le catalogue dans Bolt.`,
+          `D'autres créneaux restent ouverts : consultez le catalogue de l'application.`,
         ].join("\n\n"),
       );
     }
@@ -260,7 +260,7 @@ export async function relancerDecrocheurs(
       message ||
         [
           `Bonjour,`,
-          `Nous avons remarqué que vous n'avez pas participé à vos dernières séances. Si vos disponibilités ont changé, vous pouvez vous désinscrire depuis Bolt : cela libérera votre place pour un collègue en liste d'attente.`,
+          `Nous avons remarqué que vous n'avez pas participé à vos dernières séances. Si vos disponibilités ont changé, vous pouvez vous désinscrire depuis l'application : cela libérera votre place pour un collègue en liste d'attente.`,
           `Et si c'est un simple contretemps, nous serons ravis de vous revoir à la prochaine séance !`,
           g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
         ].join("\n\n"),

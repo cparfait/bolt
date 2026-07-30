@@ -146,7 +146,7 @@ function Selecteur({
           ) : affiches.length === 0 ? (
             <div className="space-y-2 px-4 py-3">
               <p className="text-sm text-slate-400">
-                Personne ne porte ce nom dans Bolt — élu, stagiaire ou invité
+                Personne ne porte ce nom dans l&apos;application — élu, stagiaire ou invité
                 d&apos;un autre organisme, peut-être.
               </p>
               <button

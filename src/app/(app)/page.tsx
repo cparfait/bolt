@@ -91,11 +91,12 @@ export default async function TableauDeBord({
   const { vue: vueBrute } = await searchParams;
   const vue: Vue = vueBrute && vueBrute in VUES ? (vueBrute as Vue) : "jour";
   const saison = await saisonCourante();
+  const g = await getGeneralSettings();
 
   if (!saison) {
     return (
       <>
-        <PageHeader title="Bienvenue dans Bolt" subtitle="Suivi des activités sportives" />
+        <PageHeader title={`Bienvenue dans ${g.appName}`} subtitle={g.appDescription} />
         <EmptyState
           title="Aucune saison n'est encore créée"
           hint="Commencez par créer la saison, puis les activités et leurs créneaux."
@@ -266,7 +267,6 @@ export default async function TableauDeBord({
     await declencherRappelsSiBesoin();
   });
 
-  const g = await getGeneralSettings();
   const filtre = { saisonId: saison.id };
   const periode = bornes(vue);
   const compteur = (v: Vue) => {

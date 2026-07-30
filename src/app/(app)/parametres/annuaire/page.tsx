@@ -43,7 +43,7 @@ export default async function ParametresAnnuaire() {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
         <p className="mb-2 font-medium text-slate-700">Rappel d&apos;architecture</p>
         <p>
-          Le contrôleur de domaine n&apos;est jamais exposé : Bolt l&apos;interroge
+          Le contrôleur de domaine n&apos;est jamais exposé : l&apos;application l&apos;interroge
           depuis le réseau interne. Les animateurs extérieurs n&apos;utilisent pas
           l&apos;annuaire — leur accès repose sur un lien à jeton et un code à
           6 chiffres, sans identité de domaine.

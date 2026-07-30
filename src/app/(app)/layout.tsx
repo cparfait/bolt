@@ -4,11 +4,13 @@ import { estGestionnaire, requireUser } from "@/lib/session";
 import { logoutAction } from "@/lib/actions/auth";
 import { NavMobile, Sidebar, type Compteurs } from "@/components/nav";
 import { ROLE_LABELS } from "@/lib/constants";
+import { getGeneralSettings } from "@/lib/settings";
 
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const user = await requireUser();
+  const g = await getGeneralSettings();
 
   // Demandes d'inscription en attente d'arbitrage : le service des sports doit
   // les voir depuis n'importe quel écran, pas seulement en ouvrant la page.
@@ -22,9 +24,9 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar role={user.role} compteurs={compteurs} />
+      <Sidebar role={user.role} compteurs={compteurs} appName={g.appName} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <NavMobile role={user.role} compteurs={compteurs} />
+        <NavMobile role={user.role} compteurs={compteurs} appName={g.appName} />
         <header className="sticky top-0 z-10 flex h-14 items-center justify-end gap-4 border-b border-slate-200 bg-white/80 px-4 backdrop-blur lg:px-6">
           <div className="text-right">
             <p className="text-sm font-medium leading-tight">{user.displayName}</p>

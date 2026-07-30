@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getIdentiteApp } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,10 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
+  const { nom } = await getIdentiteApp();
   const base = `/emargement/${token}`;
   const manifeste = {
-    name: "Bolt — émargement",
+    name: `${nom} — émargement`,
     short_name: "Émargement",
     description: `Feuilles de présence de ${coach.prenom} ${coach.nom}.`,
     lang: "fr",

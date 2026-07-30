@@ -44,7 +44,7 @@ export function EmailAgentForm({
           {emailAnnuaire ?? "Aucune adresse dans l'annuaire"}
         </p>
         <p className="text-xs text-slate-400">
-          Elle vient de l&apos;Active Directory et s&apos;y corrige : Bolt la relit
+          Elle vient de l&apos;Active Directory et s&apos;y corrige : l&apos;application la relit
           à chaque connexion de l&apos;agent et à chaque synchronisation. La saisir
           ici permettrait de détourner son lien de connexion.
         </p>
@@ -104,7 +104,7 @@ export function RattacherAdForm({ userId }: { userId: string }) {
         <Link2 className="h-4 w-4" /> Rattacher au compte
       </SubmitButton>
       <p className="text-xs text-slate-400">
-        Si l&apos;agent a déjà un compte Bolt, les deux fiches sont fusionnées et
+        Si l&apos;agent a déjà un compte dans l&apos;application, les deux fiches sont fusionnées et
         vous arrivez sur celle qui subsiste. L&apos;opération ne se défait pas.
       </p>
     </form>

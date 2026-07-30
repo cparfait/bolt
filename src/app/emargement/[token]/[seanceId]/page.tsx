@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Dumbbell, Lock } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { resoudreLien } from "@/lib/coach-access";
+import { getIdentiteApp } from "@/lib/settings";
 import { feuilleDeSeance, saisieOuverte } from "@/lib/emargement";
 import { aujourdhui, fmtDateLongue, fmtHeure, fmtHorodatage, isoDate } from "@/lib/dates";
 import { AjouterParticipantMobile } from "@/components/ajouter-participant-mobile";
@@ -19,6 +20,7 @@ export default async function FeuillePage({
   params: Promise<{ token: string; seanceId: string }>;
 }) {
   const { token, seanceId } = await params;
+  const { nom: appName } = await getIdentiteApp();
   const lien = await resoudreLien(token);
   // Toute session non ouverte repasse par l'accueil (jeton invalide, PIN à
   // ressaisir, accès révoqué) : la feuille n'est jamais servie sans PIN.
@@ -100,7 +102,7 @@ export default async function FeuillePage({
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <span className="flex items-center gap-2 text-sm font-semibold text-slate-400">
-            <Dumbbell className="h-4 w-4" /> Bolt
+            <Dumbbell className="h-4 w-4" /> {appName}
           </span>
         </div>
 

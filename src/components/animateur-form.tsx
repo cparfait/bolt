@@ -92,7 +92,7 @@ export function AnimateurForm({ initial }: { initial?: AnimateurInitial }) {
             hint={
               acces === "AD"
                 ? "sAMAccountName de l'animateur dans l'annuaire."
-                : "Identifiant créé dans Bolt, indépendant de l'annuaire."
+                : "Identifiant créé dans l'application, indépendant de l'annuaire."
             }
           >
             <Input name="login" defaultValue={initial?.login ?? ""} autoComplete="off" />

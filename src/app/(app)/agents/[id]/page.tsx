@@ -211,8 +211,8 @@ export default async function FicheAgent({
             !horsAnnuaire
               ? "Celle de l'annuaire, en lecture seule"
               : agent.emailContact || agent.email
-                ? "Elle commande tout ce que Bolt lui envoie"
-                : "Aucune adresse connue : sans elle, Bolt ne peut rien lui envoyer"
+                ? "Elle commande tout ce que l'application lui envoie"
+                : "Aucune adresse connue : sans elle, l'application ne peut rien lui envoyer"
           }
         >
           <EmailAgentForm

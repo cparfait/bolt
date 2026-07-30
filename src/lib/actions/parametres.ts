@@ -188,8 +188,8 @@ export async function enregistrerSmtp(
     }
     const res = await envoyerMail(
       destinataire,
-      "Test d'envoi depuis Bolt",
-      "Ce message confirme que la messagerie de Bolt est correctement configurée.",
+      `Test d'envoi depuis ${(await getGeneralSettings()).appName}`,
+      "Ce message confirme que la messagerie est correctement configurée.",
     );
     return res.ok ? succes(res.message) : erreur(res.message);
   }
@@ -215,6 +215,9 @@ export async function enregistrerGeneral(
     estAdmin ? texte(formData, cle).replace(/\/+$/, "") : courant;
 
   const cfg = {
+    // Un nom vide viderait tous les écrans à la fois : on conserve l'ancien.
+    appName: texte(formData, "appName") || actuel.appName,
+    appDescription: texte(formData, "appDescription") || actuel.appDescription,
     orgName: texte(formData, "orgName") || actuel.orgName,
     appUrl: url("appUrl", actuel.appUrl),
     pointageUrl: url("pointageUrl", actuel.pointageUrl),
@@ -245,7 +248,10 @@ export async function enregistrerGeneral(
 
   await setSetting("general", cfg);
   await audit("PARAM_GENERAL", { userId: user.id });
-  revalidatePath("/parametres");
+  // Le nom de l'application figure sur presque tous les écrans — navigation,
+  // titres d'onglet, écrans de connexion. Un renommage doit donc vider le cache
+  // de l'arbre entier, et pas seulement de la page des paramètres.
+  revalidatePath("/", "layout");
   return succes("Paramètres enregistrés.");
 }
 

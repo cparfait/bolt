@@ -89,7 +89,7 @@ export function proxy(request: NextRequest) {
   if (cidrs.some((c) => inCidr(ip, c))) return NextResponse.next();
 
   return refus(
-    "Cette partie de Bolt n'est accessible que depuis le réseau de la collectivité ou via le VPN.",
+    "Cette partie de l'application n'est accessible que depuis le réseau de la collectivité ou via le VPN.",
   );
 }
 

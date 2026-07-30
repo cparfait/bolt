@@ -84,6 +84,21 @@ seule un moyen d'accès. À peser avant, pas après.
 
 ---
 
+## Nommer l'application
+
+« Bolt » est un nom de code. *Paramètres → Général* permet de le remplacer, ainsi
+que la ligne qui l'accompagne (« Gestion des activités sportives »), **sans
+reconstruire l'image** : le nouveau nom prend effet immédiatement partout —
+écrans de connexion, navigation, titre de l'onglet, objet et signature des
+courriels, application installée sur le téléphone des animateurs, propriétés du
+classeur Excel exporté.
+
+Le reste des textes ne cite jamais l'application par son nom : ils disent
+« l'application ». C'est ce qui permet au renommage d'être complet plutôt que
+d'un demi-écran.
+
+---
+
 ## Ce que fait l'outil
 
 **Pour l'animateur** — sur son téléphone, sans installer d'application : ses
