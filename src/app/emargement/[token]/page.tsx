@@ -15,7 +15,7 @@ import {
   saisieOuverte,
   seancesDuCoach,
 } from "@/lib/emargement";
-import { aujourdhui, fmtDateLongue, isoDate } from "@/lib/dates";
+import { aujourdhui, fmtDateLongue, fmtHeure, isoDate } from "@/lib/dates";
 import { ChangerPinCoach } from "@/components/changer-pin-coach";
 import { InstallerApp } from "@/components/installer-app";
 import { PinForm } from "./pin-form";
@@ -239,18 +239,19 @@ function SectionSeances({
             const contenu = (
               <>
                 <span
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-semibold"
+                  className="flex h-11 min-w-[2.75rem] shrink-0 items-center justify-center rounded-xl px-1.5 text-[13px] font-semibold"
                   style={{
                     backgroundColor: `${s.creneau.activite.couleur}14`,
                     color: s.creneau.activite.couleur,
                   }}
                 >
-                  {s.creneau.heureDebut.slice(0, 2)}h
+                  {fmtHeure(s.creneau.heureDebut)}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{s.creneau.activite.nom}</p>
-                  <p className="truncate text-xs text-slate-400">
-                    {fmtDateLongue(s.date)} · {s.creneau.heureDebut}–{s.creneau.heureFin}
+                  <p className="truncate text-[13px] text-slate-500">
+                    {fmtDateLongue(s.date)} · {fmtHeure(s.creneau.heureDebut)}–
+                    {fmtHeure(s.creneau.heureFin)}
                     {s.creneau.lieu ? ` · ${s.creneau.lieu}` : ""}
                   </p>
                 </div>

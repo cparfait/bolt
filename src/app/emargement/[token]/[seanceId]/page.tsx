@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle2, Dumbbell, Lock } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { resoudreLien } from "@/lib/coach-access";
 import { feuilleDeSeance, saisieOuverte } from "@/lib/emargement";
-import { aujourdhui, fmtDateLongue, fmtHorodatage, isoDate } from "@/lib/dates";
+import { aujourdhui, fmtDateLongue, fmtHeure, fmtHorodatage, isoDate } from "@/lib/dates";
 import { AjouterParticipantMobile } from "@/components/ajouter-participant-mobile";
 import { AnnulerSeanceCoach } from "@/components/annuler-seance-coach";
 import { RetablirSeanceCoach } from "@/components/retablir-seance-coach";
@@ -109,9 +109,9 @@ export default async function FeuillePage({
           style={{ backgroundColor: activite.couleur }}
         >
           <h1 className="text-xl font-semibold">{activite.nom}</h1>
-          <p className="mt-0.5 text-sm opacity-90">
-            {fmtDateLongue(seance.date)} · {seance.creneau.heureDebut}–
-            {seance.creneau.heureFin}
+          <p className="mt-0.5 text-[15px] font-medium opacity-95">
+            {fmtDateLongue(seance.date)} · {fmtHeure(seance.creneau.heureDebut)}–
+            {fmtHeure(seance.creneau.heureFin)}
           </p>
           {seance.creneau.lieu && (
             <p className="text-sm opacity-80">{seance.creneau.lieu}</p>

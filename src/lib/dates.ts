@@ -183,6 +183,12 @@ export function cleMois(d: Date): string {
   return isoDate(d).slice(0, 7);
 }
 
+/** « 9h », « 12h15 » — heure à la française, à partir du « HH:MM » stocké. */
+export function fmtHeure(h: string): string {
+  const [hh, mm] = h.split(":");
+  return mm === "00" ? `${Number(hh)}h` : `${Number(hh)}h${mm}`;
+}
+
 /** Valide une heure « HH:MM » et la normalise. Renvoie null si invalide. */
 export function normaliserHeure(v: string): string | null {
   const m = v.trim().match(/^(\d{1,2})[:hH.](\d{2})$/);
