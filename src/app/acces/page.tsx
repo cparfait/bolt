@@ -26,13 +26,33 @@ export default async function AccesPage({
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-sm">
+        {/* Même en-tête que /connexion : c'est la même porte d'entrée, vue par
+            un agent qui n'a pas de poste sur le réseau. Sous un logo, le nom
+            « Bolt » ferait doublon — le logo porte l'identité. */}
         <div className="mb-8 flex flex-col items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/20">
-            <Dumbbell className="h-6 w-6" />
-          </span>
+          {g.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
+            <img
+              src={g.logo}
+              alt={g.orgName}
+              className="max-h-20 w-auto max-w-[280px] object-contain"
+            />
+          ) : (
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/20">
+              <Dumbbell className="h-6 w-6" />
+            </span>
+          )}
           <div className="text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Bolt</h1>
-            <p className="mt-1 text-sm text-slate-500">Activités sportives — {g.orgName}</p>
+            {g.logo ? (
+              <h1 className="text-sm text-slate-500">Activités sportives</h1>
+            ) : (
+              <>
+                <h1 className="text-2xl font-semibold tracking-tight">Bolt</h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Activités sportives — {g.orgName}
+                </p>
+              </>
+            )}
           </div>
         </div>
 

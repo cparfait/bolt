@@ -150,9 +150,12 @@ function gabarit(titre: string, corps: string, avecLogo = false): string {
   const logo = avecLogo
     ? `<img src="cid:${CID_LOGO}" alt="" style="display:block;max-height:44px;margin:0 0 14px">\n    `
     : "";
+  // Sous un logo, « Bolt » ferait doublon : le logo porte l'identité, la ligne
+  // ne garde que l'objet. Sans logo, elle reste la seule signature du message.
+  const signature = avecLogo ? "Activités sportives" : "Bolt · activités sportives";
   return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;padding:24px">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 4px 20px rgba(0,0,0,.06)">
-    ${logo}<p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#006e46;letter-spacing:.04em;text-transform:uppercase">Bolt · activités sportives</p>
+    ${logo}<p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#006e46;letter-spacing:.04em;text-transform:uppercase">${signature}</p>
     <h1 style="margin:0 0 18px;font-size:19px;color:#0f172a">${echapper(titre)}</h1>
     <div style="font-size:15px;color:#334155">${paragraphes}</div>
   </div>

@@ -28,11 +28,22 @@ export default async function ConnexionPage() {
               <Dumbbell className="h-6 w-6" />
             </span>
           )}
+          {/* Avec un logo, le nom « Bolt » ferait doublon : le logo porte déjà
+              l'identité de la collectivité, et son nom est dans le texte de
+              remplacement. La ligne de sous-titre devient alors le titre de la
+              page — pour ne pas la laisser sans en-tête — et se contente de dire
+              de quoi il s'agit. */}
           <div className="text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Bolt</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Activités sportives — {g.orgName}
-            </p>
+            {g.logo ? (
+              <h1 className="text-sm text-slate-500">Activités sportives</h1>
+            ) : (
+              <>
+                <h1 className="text-2xl font-semibold tracking-tight">Bolt</h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Activités sportives — {g.orgName}
+                </p>
+              </>
+            )}
           </div>
         </div>
         <LoginForm />
