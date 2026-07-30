@@ -20,6 +20,34 @@ function texte(formData: FormData, cle: string): string {
   return String(formData.get(cle) ?? "").trim();
 }
 
+const LOGO_TYPES_ACCEPTES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+const LOGO_TAILLE_MAX = 300 * 1024; // 300 Ko : large pour un logo, contenu dans Setting.value
+
+/**
+ * Lit le logo envoyé, le convertit en data URI pour stockage dans Setting.
+ * Aucun fichier choisi (input vide) → conserve le logo actuel. Case « Retirer
+ * le logo » cochée → efface. Rejette les types et tailles hors gabarit.
+ */
+async function lireLogo(
+  formData: FormData,
+  actuel: string,
+): Promise<{ logo: string; erreur?: string }> {
+  if (formData.get("supprimerLogo") === "1") return { logo: "" };
+
+  const fichier = formData.get("logo");
+  if (!(fichier instanceof File) || fichier.size === 0) return { logo: actuel };
+
+  if (!LOGO_TYPES_ACCEPTES.includes(fichier.type)) {
+    return { logo: actuel, erreur: "Le logo doit être une image PNG, JPEG, WebP ou SVG." };
+  }
+  if (fichier.size > LOGO_TAILLE_MAX) {
+    return { logo: actuel, erreur: "Le logo doit faire moins de 300 Ko." };
+  }
+
+  const octets = Buffer.from(await fichier.arrayBuffer());
+  return { logo: `data:${fichier.type};base64,${octets.toString("base64")}` };
+}
+
 /**
  * Enregistre la configuration de l'annuaire.
  * Le mot de passe du compte de service n'est jamais réaffiché : un champ laissé
@@ -183,10 +211,15 @@ export async function enregistrerGeneral(
 ): Promise<ActionState> {
   const user = await requireUser("GESTIONNAIRE");
   const actuel = await getGeneralSettings();
+
+  const { logo, erreur: erreurLogo } = await lireLogo(formData, actuel.logo);
+  if (erreurLogo) return erreur(erreurLogo);
+
   const cfg = {
     orgName: texte(formData, "orgName") || actuel.orgName,
     appUrl: texte(formData, "appUrl").replace(/\/+$/, ""),
     pointageUrl: texte(formData, "pointageUrl").replace(/\/+$/, ""),
+    logo,
     contactEmail: texte(formData, "contactEmail"),
     maxInscriptionsParAgent: Math.max(0, Number(texte(formData, "maxInscriptionsParAgent")) || 0),
     validationRequise: formData.get("validationRequise") === "on",

@@ -272,6 +272,29 @@ export function GeneralForm({ cfg }: { cfg: GeneralSettings }) {
         />
       </Field>
 
+      <Field
+        label="Logo"
+        hint="Affiché sur la page de connexion. PNG, JPEG, WebP ou SVG, 300 Ko maximum."
+      >
+        <div className="flex items-center gap-3">
+          {cfg.logo && (
+            // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
+            <img
+              src={cfg.logo}
+              alt="Logo actuel"
+              className="h-12 w-12 rounded-xl border border-slate-200 object-contain"
+            />
+          )}
+          <Input name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
+        </div>
+        {cfg.logo && (
+          <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" name="supprimerLogo" value="1" className="h-4 w-4 rounded border-slate-300" />
+            Retirer le logo actuel
+          </label>
+        )}
+      </Field>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
           label="Activités maximum par agent"

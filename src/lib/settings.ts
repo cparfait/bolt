@@ -33,6 +33,9 @@ export type GeneralSettings = {
   // un autre nom que le back-office (ex. https://boltpointage.chatillon92.fr).
   // Vide : les liens d'émargement utilisent appUrl.
   pointageUrl: string;
+  // Logo affiché sur la page de connexion, en data URI (data:image/png;base64,…).
+  // Vide : l'icône par défaut est utilisée.
+  logo: string;
   contactEmail: string; // adresse du service des sports, affichée aux agents
   maxInscriptionsParAgent: number; // 0 = illimité
   validationRequise: boolean; // true : le service arbitre chaque demande
@@ -51,6 +54,7 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   orgName: "Collectivité",
   appUrl: process.env.BOLT_PUBLIC_URL ?? "",
   pointageUrl: process.env.BOLT_POINTAGE_URL ?? "",
+  logo: "",
   contactEmail: "",
   maxInscriptionsParAgent: 2,
   validationRequise: true,
