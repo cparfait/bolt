@@ -39,7 +39,7 @@ function Coquille({ children, appName }: { children: React.ReactNode; appName: s
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
             <Dumbbell className="h-4.5 w-4.5" />
           </span>
-          <span className="text-xl font-semibold tracking-tight">{appName}</span>
+          <span className="text-xl font-semibold tracking-tight text-brand-600">{appName}</span>
         </div>
         {children}
       </div>

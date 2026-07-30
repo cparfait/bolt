@@ -169,7 +169,7 @@ export function Sidebar({
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
           <Dumbbell className="h-4 w-4" />
         </span>
-        <span className="text-lg font-semibold tracking-tight">{appName}</span>
+        <span className="text-lg font-semibold tracking-tight text-brand-600">{appName}</span>
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
         <Liens role={role} compteurs={compteurs} />
@@ -198,7 +198,7 @@ export function NavMobile({
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
           <Dumbbell className="h-4 w-4" />
         </span>
-        <span className="text-lg font-semibold tracking-tight">{appName}</span>
+        <span className="text-lg font-semibold tracking-tight text-brand-600">{appName}</span>
         {/* Menu replié : le total en attente reste visible, sinon l'alerte
             disparaîtrait complètement sur téléphone. */}
         {enAttente > 0 && (

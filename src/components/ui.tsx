@@ -32,17 +32,20 @@ export function TitreConnexion({
   appName: string;
   appDescription: string;
 }) {
+  // Le nom porte la couleur de la collectivité (brand-600, #006e46) : c'est ce
+  // qui le rattache visuellement au reste — bouton de connexion, pastilles,
+  // en-têtes — au lieu de le laisser en gris parmi les gris.
   if (logo) {
     return (
       <h1 className="text-center text-sm text-slate-500">
-        <span className="font-semibold text-slate-700">{appName}</span>
+        <span className="font-semibold text-brand-600">{appName}</span>
         {appDescription ? ` — ${appDescription}` : ""}
       </h1>
     );
   }
   return (
     <div className="text-center">
-      <h1 className="text-2xl font-semibold tracking-tight">{appName}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-brand-600">{appName}</h1>
       <p className="mt-1 text-sm text-slate-500">
         {[appDescription, orgName].filter(Boolean).join(" — ")}
       </p>
