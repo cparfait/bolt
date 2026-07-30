@@ -214,10 +214,16 @@ Le proxy doit renseigner `X-Forwarded-For` **en écrasant** toute valeur fournie
 par le client : c'est cette adresse que `src/proxy.ts` compare à
 `INTERNAL_CIDRS`.
 
+Pour Apache, une configuration complète et commentée est fournie :
+[`deploy/apache-emargement.conf`](deploy/apache-emargement.conf). Elle refuse tout
+par défaut, puis rouvre les quatre seuls préfixes nécessaires.
+
 Exemple nginx, exposition minimale (émargement seul sur Internet) :
 
 ```nginx
-location /emargement/ {
+# Les trois préfixes publics : la feuille, ses icônes d'installation, ses
+# fichiers JS/CSS. Sans les deux derniers, la page s'affiche sans mise en forme.
+location ~ ^/(emargement|icones|_next/static)/ {
     proxy_pass http://127.0.0.1:3100;
     proxy_set_header Host              $host;
     proxy_set_header X-Forwarded-For   $remote_addr;   # écrase, ne concatène pas
