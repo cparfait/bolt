@@ -9,10 +9,19 @@ import { DemandeLienForm } from "./demande-form";
  * Entrée publique pour les agents sans poste sur le réseau : on ne leur demande
  * que leur adresse professionnelle, jamais leur mot de passe de domaine.
  */
-export default async function AccesPage() {
+export default async function AccesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ erreur?: string }>;
+}) {
   const user = await currentUser();
   if (user) redirect("/mes-activites");
   const g = await getGeneralSettings();
+  // `/acces/lien` renvoie ici quand le jeton est inconnu, déjà consommé ou
+  // périmé. Sans ce message, l'agent retombait sur le formulaire sans un mot
+  // d'explication : il concluait que « le lien ne marche pas », et redemandait
+  // un lien qui échouerait pour la même raison.
+  const { erreur } = await searchParams;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
@@ -26,6 +35,19 @@ export default async function AccesPage() {
             <p className="mt-1 text-sm text-slate-500">Activités sportives — {g.orgName}</p>
           </div>
         </div>
+
+        {erreur === "lien" && (
+          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5">
+            <p className="text-sm font-semibold text-amber-800">
+              Ce lien n&apos;est plus valable
+            </p>
+            <p className="mt-1 text-sm text-amber-700">
+              Un lien ne fonctionne qu&apos;une fois, et pendant 30 minutes.
+              Demandez-en un nouveau ci-dessous : le précédent a peut-être déjà
+              servi, ou été ouvert par votre messagerie avant vous.
+            </p>
+          </div>
+        )}
 
         {g.lienMagiqueActif ? (
           <>
