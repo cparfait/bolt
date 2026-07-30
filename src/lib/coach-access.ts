@@ -71,7 +71,12 @@ export function genererPin(): string {
 }
 
 export function lienEmargement(token: string, appUrl?: string): string {
-  const base = (appUrl || process.env.BOLT_PUBLIC_URL || "").replace(/\/+$/, "");
+  const base = (
+    appUrl ||
+    process.env.BOLT_POINTAGE_URL ||
+    process.env.BOLT_PUBLIC_URL ||
+    ""
+  ).replace(/\/+$/, "");
   return `${base}/emargement/${token}`;
 }
 

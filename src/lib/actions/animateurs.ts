@@ -195,7 +195,9 @@ export async function genererLienAnimateur(
 
   const { token, pin } = await attribuerLien(id, expiration);
   const g = await getGeneralSettings();
-  const url = lienEmargement(token, g.appUrl);
+  // Le pointage peut être publié sous son propre nom (URL de pointage) ; à
+  // défaut, les liens portent l'URL publique générale.
+  const url = lienEmargement(token, g.pointageUrl || g.appUrl);
 
   await audit("ANIMATEUR_LIEN_GENERE", {
     userId: admin.id,

@@ -50,6 +50,9 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?definir SESSION_SECRET}
       BOLT_ADMIN_PASSWORD: ${BOLT_ADMIN_PASSWORD:?definir BOLT_ADMIN_PASSWORD (8 caracteres minimum)}
       BOLT_PUBLIC_URL: ${BOLT_PUBLIC_URL:-https://bolt.example.fr}
+      # URL des liens d'émargement si le pointage est publié sous son propre
+      # nom ; vide = les liens utilisent BOLT_PUBLIC_URL.
+      BOLT_POINTAGE_URL: ${BOLT_POINTAGE_URL:-}
       # Seule /emargement/* reste joignable hors de ces plages : le back-office
       # et la connexion Active Directory ne sont pas exposés à Internet.
       INTERNAL_CIDRS: ${INTERNAL_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32}

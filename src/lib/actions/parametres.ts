@@ -186,6 +186,7 @@ export async function enregistrerGeneral(
   const cfg = {
     orgName: texte(formData, "orgName") || actuel.orgName,
     appUrl: texte(formData, "appUrl").replace(/\/+$/, ""),
+    pointageUrl: texte(formData, "pointageUrl").replace(/\/+$/, ""),
     contactEmail: texte(formData, "contactEmail"),
     maxInscriptionsParAgent: Math.max(0, Number(texte(formData, "maxInscriptionsParAgent")) || 0),
     validationRequise: formData.get("validationRequise") === "on",

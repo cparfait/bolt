@@ -29,6 +29,10 @@ export type SmtpSettings = {
 export type GeneralSettings = {
   orgName: string;
   appUrl: string; // https://bolt.chatillon92.fr — utilisé dans les liens envoyés
+  // URL des liens d'émargement, quand le pointage est publié sur Internet sous
+  // un autre nom que le back-office (ex. https://boltpointage.chatillon92.fr).
+  // Vide : les liens d'émargement utilisent appUrl.
+  pointageUrl: string;
   contactEmail: string; // adresse du service des sports, affichée aux agents
   maxInscriptionsParAgent: number; // 0 = illimité
   validationRequise: boolean; // true : le service arbitre chaque demande
@@ -46,6 +50,7 @@ export type GeneralSettings = {
 export const DEFAULT_GENERAL: GeneralSettings = {
   orgName: "Collectivité",
   appUrl: process.env.BOLT_PUBLIC_URL ?? "",
+  pointageUrl: process.env.BOLT_POINTAGE_URL ?? "",
   contactEmail: "",
   maxInscriptionsParAgent: 2,
   validationRequise: true,

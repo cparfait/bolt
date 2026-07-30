@@ -180,6 +180,7 @@ async function main() {
       value: JSON.stringify({
         orgName: "Ville de démonstration",
         appUrl: process.env.BOLT_PUBLIC_URL ?? "http://localhost:3000",
+        pointageUrl: process.env.BOLT_POINTAGE_URL ?? "",
         contactEmail: "sports@collectivite.fr",
         maxInscriptionsParAgent: 2,
         validationRequise: true,

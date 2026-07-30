@@ -256,9 +256,20 @@ export function GeneralForm({ cfg }: { cfg: GeneralSettings }) {
       </div>
       <Field
         label="URL publique de l'application"
-        hint="Sert à construire les liens d'émargement envoyés aux animateurs."
+        hint="Adresse de l'application pour les liens envoyés (connexion des agents, rappels)."
       >
         <Input name="appUrl" defaultValue={cfg.appUrl} placeholder="https://bolt.collectivite.fr" />
+      </Field>
+
+      <Field
+        label="URL de pointage"
+        hint="Adresse des liens d'émargement, si le pointage est publié sur Internet sous un autre nom. Laissez vide pour utiliser l'URL publique."
+      >
+        <Input
+          name="pointageUrl"
+          defaultValue={cfg.pointageUrl}
+          placeholder="https://pointage.collectivite.fr"
+        />
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
