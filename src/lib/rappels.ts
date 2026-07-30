@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { adresseDeContact } from "./comptes";
 import { envoyerMail } from "./mail";
 import { getGeneralSettings, getSetting, setSetting } from "./settings";
 import { aujourdhui, fmtDateLongue } from "./dates";
@@ -75,12 +76,13 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
     const prevenus = new Set(s.absences.map((a) => a.userId));
     for (const i of s.creneau.inscriptions) {
       if (prevenus.has(i.userId)) continue;
-      if (!i.user.email) {
+      const adresse = adresseDeContact(i.user);
+      if (!adresse) {
         ignores += 1;
         continue;
       }
       const res = await envoyerMail(
-        i.user.email,
+        adresse,
         `Rappel — ${s.creneau.activite.nom} ${fmtDateLongue(s.date)}`,
         [
           `Bonjour ${i.user.displayName.split(" ")[0]},`,

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "./db";
+import { adresseDeContact } from "./comptes";
 import { getGeneralSettings } from "./settings";
 import { envoyerMail } from "./mail";
 import { audit } from "./audit";
@@ -29,8 +30,16 @@ export async function envoyerLienConnexion(emailBrut: string): Promise<void> {
   const g = await getGeneralSettings();
   if (!g.lienMagiqueActif) return;
 
+  // L'agent saisit l'adresse qu'il connaît : celle de l'annuaire, ou celle que
+  // le service des sports a enregistrée pour lui. Les deux ouvrent l'accès.
   let user = await prisma.user.findFirst({
-    where: { email: { equals: email, mode: "insensitive" }, active: true },
+    where: {
+      active: true,
+      OR: [
+        { email: { equals: email, mode: "insensitive" } },
+        { emailContact: { equals: email, mode: "insensitive" } },
+      ],
+    },
   });
 
   // Adresse absente de Bolt : on la cherche dans le miroir de l'annuaire et on
@@ -80,7 +89,7 @@ export async function envoyerLienConnexion(emailBrut: string): Promise<void> {
   const lien = `${base}/acces/lien?token=${token}`;
 
   await envoyerMail(
-    user.email!,
+    adresseDeContact(user)!,
     "Votre lien de connexion à Bolt",
     [
       `Bonjour ${user.displayName.split(" ")[0]},`,

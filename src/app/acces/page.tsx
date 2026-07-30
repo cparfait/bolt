@@ -54,8 +54,9 @@ export default async function AccesPage({
             <DemandeLienForm />
             <p className="mt-6 flex items-start gap-2 text-xs text-slate-400">
               <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Nous envoyons un lien de connexion à votre adresse professionnelle.
-              Aucun mot de passe n&apos;est demandé.
+              Nous envoyons un lien de connexion à l&apos;adresse enregistrée pour
+              vous par le service des sports. Aucun mot de passe n&apos;est
+              demandé.
             </p>
           </>
         ) : (

@@ -31,6 +31,22 @@ export function estHorsAnnuaire(login: string): boolean {
 }
 
 /**
+ * Adresse à laquelle écrire à un agent.
+ *
+ * L'adresse de contact, saisie par le service des sports, l'emporte sur celle
+ * de l'annuaire : c'est tout l'intérêt de la saisir. Un agent de terrain a bien
+ * une boîte professionnelle sur le papier, mais ne la consulte jamais — lui
+ * envoyer un lien de connexion valable trente minutes revient à ne rien
+ * envoyer.
+ */
+export function adresseDeContact(user: {
+  email: string | null;
+  emailContact: string | null;
+}): string | null {
+  return user.emailContact?.trim() || user.email?.trim() || null;
+}
+
+/**
  * Identifiant unique pour un participant hors annuaire, dérivé de son nom.
  * Le suffixe numérique traite les homonymes, fréquents à l'échelle d'une
  * collectivité.

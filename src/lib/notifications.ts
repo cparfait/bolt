@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { adresseDeContact } from "./comptes";
 import { envoyerMail } from "./mail";
 import { getGeneralSettings } from "./settings";
 import { fmtDate, fmtDateLongue, JOUR_LABELS } from "./dates";
@@ -45,14 +46,14 @@ export async function notifierSeanceRetablie(
           activite: { select: { nom: true } },
           inscriptions: {
             where: { statut: "VALIDEE" },
-            include: { user: { select: { id: true, displayName: true, email: true } } },
+            include: { user: { select: { id: true, displayName: true, email: true, emailContact: true } } },
           },
         },
       },
       // Symétrique de l'annulation : celui qui était attendu sur cette seule
       // séance a rayé la date, il faut la lui rendre.
       participations: {
-        include: { user: { select: { id: true, displayName: true, email: true } } },
+        include: { user: { select: { id: true, displayName: true, email: true, emailContact: true } } },
       },
     },
   });
@@ -70,9 +71,10 @@ export async function notifierSeanceRetablie(
   const g = await getGeneralSettings();
   let envoyes = 0;
   for (const u of inscrits) {
-    if (!u.email) continue;
+    const adresse = adresseDeContact(u);
+    if (!adresse) continue;
     const res = await envoyerMail(
-      u.email,
+      adresse,
       `Séance maintenue — ${seance.creneau.activite.nom}`,
       [
         `Bonjour ${u.displayName.split(" ")[0]},`,
@@ -117,7 +119,7 @@ export async function notifierSeancesAnnulees(
           activite: { select: { nom: true } },
           inscriptions: {
             where: { statut: "VALIDEE" },
-            include: { user: { select: { id: true, displayName: true, email: true } } },
+            include: { user: { select: { id: true, displayName: true, email: true, emailContact: true } } },
           },
         },
       },
@@ -125,7 +127,7 @@ export async function notifierSeancesAnnulees(
       // inscrit, et n'ont même pas le créneau des semaines suivantes pour se
       // rattraper. Les oublier, c'est les envoyer devant une porte close.
       participations: {
-        include: { user: { select: { id: true, displayName: true, email: true } } },
+        include: { user: { select: { id: true, displayName: true, email: true, emailContact: true } } },
       },
     },
     orderBy: { date: "asc" },
@@ -148,10 +150,11 @@ export async function notifierSeancesAnnulees(
     ];
     for (const u of destinataires) {
       concernes.add(u.id);
-      if (!u.email) continue;
+      const adresse = adresseDeContact(u);
+      if (!adresse) continue;
       const agent = parAgent.get(u.id) ?? {
         nom: u.displayName,
-        email: u.email,
+        email: adresse,
         activites: new Set<string>(),
         lignes: [],
       };
@@ -208,13 +211,13 @@ export async function notifierChangementCreneau(
       activite: true,
       inscriptions: {
         where: { statut: "VALIDEE" },
-        include: { user: { select: { displayName: true, email: true } } },
+        include: { user: { select: { displayName: true, email: true, emailContact: true } } },
       },
     },
   });
   if (!creneau) return { destinataires: 0, envoyes: 0 };
 
-  const inscrits = creneau.inscriptions.filter((i) => i.user.email);
+  const inscrits = creneau.inscriptions.filter((i) => adresseDeContact(i.user));
   if (inscrits.length === 0) {
     return { destinataires: creneau.inscriptions.length, envoyes: 0 };
   }
@@ -258,7 +261,7 @@ export async function notifierChangementCreneau(
   let envoyes = 0;
   for (const i of inscrits) {
     const res = await envoyerMail(
-      i.user.email!,
+      adresseDeContact(i.user)!,
       `Changement — ${creneau.activite.nom}`,
       [
         `Bonjour ${i.user.displayName.split(" ")[0]},`,

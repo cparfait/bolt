@@ -262,14 +262,16 @@ export async function creerAgentHorsAnnuaire(
 }
 
 /**
- * Change l'adresse d'un participant qui ne vient pas de l'annuaire.
+ * Enregistre l'adresse à laquelle joindre un agent — n'importe quel agent.
  *
- * Réservé aux comptes hors annuaire et aux comptes locaux : pour un agent de
- * l'Active Directory, l'adresse appartient à l'annuaire et la prochaine
- * synchronisation écraserait toute saisie. C'est pourtant l'adresse qui décide
- * de tout le reste — connexion par lien, rappels de séance, annonces
- * d'annulation. Un participant créé sans adresse en est privé jusqu'à ce qu'on
- * la lui renseigne, et jusqu'ici il fallait le recréer pour cela.
+ * Écrite dans `emailContact` et non dans `email` : cette dernière appartient à
+ * l'annuaire, qui la réécrit à chaque connexion LDAPS. Sans champ distinct, il
+ * n'y avait aucun moyen de joindre un agent AD qui ne consulte pas sa boîte
+ * professionnelle — terrain, crèches, gardiennage —, soit exactement la
+ * population pour laquelle la connexion par lien existe.
+ *
+ * C'est cette adresse qui décide de tout ce que Bolt envoie : lien de connexion,
+ * rappels de séance, annonces d'annulation.
  */
 export async function modifierEmailAgent(
   _prev: ActionState,
@@ -281,17 +283,21 @@ export async function modifierEmailAgent(
 
   const agent = await prisma.user.findUnique({ where: { id: userId } });
   if (!agent) return erreur("Agent introuvable.");
-  if (!estHorsAnnuaire(agent.login) && !agent.isLocal) {
-    return erreur(
-      "Cet agent vient de l'Active Directory : son adresse y est gérée, et la prochaine synchronisation écraserait la saisie.",
-    );
-  }
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return erreur("Adresse e-mail invalide.");
   }
   if (email) {
+    // Le lien de connexion se résout par l'adresse : deux agents qui la
+    // partagent rendraient l'accès ambigu, et l'un ouvrirait la session de
+    // l'autre. On cherche donc le doublon sur les deux champs.
     const doublon = await prisma.user.findFirst({
-      where: { email: { equals: email, mode: "insensitive" }, id: { not: agent.id } },
+      where: {
+        id: { not: agent.id },
+        OR: [
+          { email: { equals: email, mode: "insensitive" } },
+          { emailContact: { equals: email, mode: "insensitive" } },
+        ],
+      },
       select: { displayName: true },
     });
     if (doublon) {
@@ -301,7 +307,7 @@ export async function modifierEmailAgent(
 
   await prisma.user.update({
     where: { id: agent.id },
-    data: { email: email || null },
+    data: { emailContact: email || null },
   });
   await audit("AGENT_EMAIL_MODIFIE", {
     userId: admin.id,

@@ -9,19 +9,22 @@ import { ChampAgent } from "@/components/champ-agent";
 import { SubmitButton } from "@/components/submit-button";
 
 /**
- * Correction de l'adresse d'un participant hors annuaire.
+ * Adresse à laquelle joindre l'agent, saisie par le service des sports.
  *
- * Sans elle, une adresse oubliée ou erronée à la création condamnait la
- * personne au silence — ni lien de connexion, ni rappel, ni annonce
- * d'annulation — et la seule issue était de la recréer, en perdant son
- * historique au passage.
+ * Elle s'ajoute à celle de l'annuaire sans l'écraser, et l'emporte sur elle.
+ * Deux besoins qu'un seul champ ne couvrait pas : le participant hors annuaire
+ * dont l'adresse a été oubliée à la création, et l'agent de terrain qui a bien
+ * une boîte professionnelle mais ne l'ouvre jamais — or c'est celui-là que la
+ * connexion par lien est censée servir.
  */
 export function EmailAgentForm({
   userId,
-  email,
+  emailContact,
+  emailAnnuaire,
 }: {
   userId: string;
-  email: string | null;
+  emailContact: string | null;
+  emailAnnuaire: string | null;
 }) {
   const [state, action] = useActionState<ActionState, FormData>(
     modifierEmailAgent,
@@ -33,14 +36,18 @@ export function EmailAgentForm({
       <Alert state={state} />
       <input type="hidden" name="userId" value={userId} />
       <Field
-        label="Adresse e-mail"
-        hint="Elle commande la connexion par lien, les rappels de séance et les annonces d'annulation. Laissez le champ vide pour la retirer."
+        label="Adresse de contact"
+        hint={
+          emailAnnuaire
+            ? `Elle commande la connexion par lien, les rappels et les annonces d'annulation, et prime sur l'adresse de l'annuaire (${emailAnnuaire}). Champ vide : c'est celle de l'annuaire qui sert.`
+            : "Elle commande la connexion par lien, les rappels de séance et les annonces d'annulation. Une adresse personnelle convient si l'agent n'a pas de boîte professionnelle."
+        }
       >
         <Input
           name="email"
           type="email"
-          defaultValue={email ?? ""}
-          placeholder="c.dupont@ccas-exemple.fr"
+          defaultValue={emailContact ?? ""}
+          placeholder="c.dupont@exemple.fr"
         />
       </Field>
       <SubmitButton className={btnSecondary} pendingLabel="Enregistrement…">

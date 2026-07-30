@@ -48,10 +48,19 @@ Configurable **par animateur**, selon sa situation :
 ### Agents sans poste sur le réseau (option)
 
 Terrain, crèches, gardiennage : ces agents peuvent se connecter par **lien envoyé
-sur leur adresse professionnelle** (option désactivée par défaut). Seules les
-adresses **déjà présentes dans l'annuaire** reçoivent un lien : impossible de
-créer une identité en saisissant un nom, et le rattachement direction / service
-reste celui de l'AD — donc pas de doublon ni de statistique faussée.
+par courriel** (option désactivée par défaut). Seules les adresses **déjà
+connues de Bolt** reçoivent un lien : impossible de créer une identité en
+saisissant un nom, et le rattachement direction / service reste celui de l'AD —
+donc pas de doublon ni de statistique faussée.
+
+Deux adresses par agent, et c'est nécessaire. `email` vient de l'annuaire et y
+est réécrite à chaque connexion LDAPS. `emailContact` est saisie par le service
+des sports sur la fiche de l'agent, prime sur la première, et n'est jamais
+touchée par la synchronisation. Sans elle, la population visée restait sans
+accès : un agent de terrain a bien une boîte professionnelle sur le papier, mais
+ne l'ouvre jamais — et beaucoup sont enregistrés avec une adresse personnelle.
+C'est `emailContact` qui commande tout ce que Bolt envoie : lien de connexion,
+rappels de séance, annonces d'annulation, relances.
 
 Activation : case dans *Paramètres → Général*, plus `PUBLIC_AGENT_ACCESS=1` si
 l'accès doit fonctionner depuis Internet.

@@ -11,6 +11,7 @@ import {
   promouvoirListeAttente,
   renumeroterFile,
 } from "@/lib/inscriptions";
+import { adresseDeContact } from "@/lib/comptes";
 import { envoyerMail } from "@/lib/mail";
 import { getGeneralSettings } from "@/lib/settings";
 import { assurerCompteAgent } from "./agents";
@@ -106,9 +107,10 @@ export async function deciderInscription(
       userId: admin.id,
       cible: `${inscription.user.displayName} → ${inscription.creneau.activite.nom}`,
     });
-    if (inscription.user.email) {
+    const adresse = adresseDeContact(inscription.user);
+    if (adresse) {
       await envoyerMail(
-        inscription.user.email,
+        adresse,
         `Inscription confirmée — ${inscription.creneau.activite.nom}`,
         [
           `Bonjour ${inscription.user.displayName.split(" ")[0]},`,
@@ -161,9 +163,10 @@ export async function deciderInscription(
     });
     // Refuser une inscription déjà validée rend sa place au groupe.
     const promu = await promouvoirEtPrevenir(inscription.creneauId);
-    if (inscription.user.email) {
+    const adresse = adresseDeContact(inscription.user);
+    if (adresse) {
       await envoyerMail(
-        inscription.user.email,
+        adresse,
         `Votre demande — ${inscription.creneau.activite.nom}`,
         [
           `Bonjour ${inscription.user.displayName.split(" ")[0]},`,
@@ -190,10 +193,11 @@ async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
   const promu = await promouvoirListeAttente(creneauId);
   if (!promu) return "";
 
-  if (promu.user.email) {
+  const adresse = adresseDeContact(promu.user);
+  if (adresse) {
     const g = await getGeneralSettings();
     await envoyerMail(
-      promu.user.email,
+      adresse,
       `Une place s'est libérée en ${promu.creneau.activite.nom}`,
       [
         `Bonjour ${promu.user.displayName.split(" ")[0]},`,

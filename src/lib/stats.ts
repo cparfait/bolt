@@ -9,6 +9,7 @@ import {
   isoDate,
   jourIndex,
 } from "./dates";
+import { adresseDeContact } from "./comptes";
 import { participeALaSeance } from "./inscriptions";
 
 /**
@@ -361,7 +362,7 @@ export async function decrocheurs(f: Filtre, seuil: number): Promise<Decrocheur[
     resultat.push({
       userId: i.userId,
       nom: i.user.displayName,
-      email: i.user.email,
+      email: adresseDeContact(i.user),
       activite: i.creneau.activite.nom,
       creneauId: i.creneauId,
       absencesConsecutives: absences,

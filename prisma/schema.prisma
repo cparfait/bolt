@@ -25,7 +25,17 @@ model User {
   id           String   @id @default(cuid())
   login        String   @unique // sAMAccountName ou identifiant local
   displayName  String
+  // Adresse reprise de l'annuaire. Réécrite à chaque connexion LDAPS : ce n'est
+  // pas un champ de saisie.
   email        String?
+  // Adresse où joindre l'agent, enregistrée par le service des sports.
+  //
+  // Les agents visés par la connexion par lien — terrain, crèches, gardiennage —
+  // n'ont souvent pas de boîte professionnelle qu'ils consultent. Sans un champ
+  // distinct d'`email`, il n'y avait aucun moyen de leur ouvrir l'accès : y
+  // écrire une adresse personnelle aurait été effacé à la connexion suivante.
+  // Prioritaire sur `email` pour tout ce que Bolt envoie.
+  emailContact String?
   role         Role     @default(AGENT)
   isLocal      Boolean  @default(false) // compte local (mot de passe) vs compte AD
   passwordHash String?
@@ -47,6 +57,7 @@ model User {
 
   @@index([role])
   @@index([email])
+  @@index([emailContact])
 }
 
 // Connexion sans mot de passe pour les agents qui ne sont pas devant un poste

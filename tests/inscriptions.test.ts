@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { participeALaSeance } from "../src/lib/inscriptions";
 import { placesOffertes } from "../src/lib/stats";
+import { adresseDeContact } from "../src/lib/comptes";
 import { pinFaible } from "../src/lib/coach-access";
 import { pluriel } from "../src/lib/constants";
 import { jourUtc } from "../src/lib/dates";
@@ -59,6 +60,36 @@ describe("placesOffertes", () => {
 
   it("retombe sur le créneau si le groupe n'a pas d'effectif déclaré", () => {
     assert.equal(placesOffertes(creneau(20, true, null)), 20);
+  });
+});
+
+describe("adresseDeContact", () => {
+  it("préfère l'adresse saisie par le service à celle de l'annuaire", () => {
+    assert.equal(
+      adresseDeContact({ email: "a.dupont@collectivite.fr", emailContact: "dupont@gmail.com" }),
+      "dupont@gmail.com",
+    );
+  });
+
+  it("retombe sur l'annuaire quand rien n'est saisi", () => {
+    assert.equal(
+      adresseDeContact({ email: "a.dupont@collectivite.fr", emailContact: null }),
+      "a.dupont@collectivite.fr",
+    );
+  });
+
+  it("ignore un champ rempli d'espaces", () => {
+    // Un champ vidé côté formulaire arrive parfois en chaîne blanche : le
+    // laisser passer produirait un envoi à une adresse vide.
+    assert.equal(
+      adresseDeContact({ email: "a.dupont@collectivite.fr", emailContact: "   " }),
+      "a.dupont@collectivite.fr",
+    );
+  });
+
+  it("renvoie null quand l'agent est injoignable", () => {
+    assert.equal(adresseDeContact({ email: null, emailContact: null }), null);
+    assert.equal(adresseDeContact({ email: "", emailContact: "" }), null);
   });
 });
 

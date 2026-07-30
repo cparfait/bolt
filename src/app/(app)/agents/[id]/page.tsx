@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { aujourdhui, fmtDate, fmtDateLongue, fmtHorodatage, JOUR_LABELS } from "@/lib/dates";
 import { effectifsParActivite } from "@/lib/inscriptions";
-import { estHorsAnnuaire } from "@/lib/comptes";
+import { adresseDeContact, estHorsAnnuaire } from "@/lib/comptes";
 import { Badge, Card, EmptyState, PageHeader, Stat } from "@/components/ui";
 import { EmailAgentForm, RattacherAdForm } from "@/components/agent-identite-forms";
 import { RetirerForm } from "@/components/inscription-actions";
@@ -130,7 +130,7 @@ export default async function FicheAgent({
   // c'est donc ici qu'elle se corrige. Les comptes locaux sont dans le même cas
   // pour l'adresse, mais ils n'ont pas vocation à rejoindre l'Active Directory.
   const horsAnnuaire = estHorsAnnuaire(agent.login);
-  const emailModifiable = horsAnnuaire || agent.isLocal;
+  const contact = adresseDeContact(agent);
 
   return (
     <>
@@ -152,12 +152,12 @@ export default async function FicheAgent({
           </Badge>
         )}
         {!agent.active && <Badge>Compte désactivé</Badge>}
-        {agent.email && (
+        {contact && (
           <a
-            href={`mailto:${agent.email}`}
+            href={`mailto:${contact}`}
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600"
           >
-            <Mail className="h-4 w-4" /> {agent.email}
+            <Mail className="h-4 w-4" /> {contact}
           </a>
         )}
       </PageHeader>
@@ -189,28 +189,32 @@ export default async function FicheAgent({
         </div>
       )}
 
-      {emailModifiable && (
-        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+      {/* Ouvert pour tout agent, y compris ceux de l'annuaire : c'est le seul
+          moyen de joindre celui qui ne consulte pas sa boîte professionnelle. */}
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <Panneau
+          titre="Adresse de contact"
+          sousTitre={
+            agent.email
+              ? "Prime sur celle de l'annuaire, sans l'écraser"
+              : "Aucune adresse connue : sans elle, Bolt ne peut rien lui envoyer"
+          }
+        >
+          <EmailAgentForm
+            userId={agent.id}
+            emailContact={agent.emailContact}
+            emailAnnuaire={agent.email}
+          />
+        </Panneau>
+        {horsAnnuaire && (
           <Panneau
-            titre="Adresse e-mail"
-            sousTitre={
-              horsAnnuaire
-                ? "Participant hors annuaire : son adresse se saisit ici"
-                : "Compte local : son adresse se saisit ici"
-            }
+            titre="Rattacher à un compte Active Directory"
+            sousTitre="Son compte a fini par être créé"
           >
-            <EmailAgentForm userId={agent.id} email={agent.email} />
+            <RattacherAdForm userId={agent.id} />
           </Panneau>
-          {horsAnnuaire && (
-            <Panneau
-              titre="Rattacher à un compte Active Directory"
-              sousTitre="Son compte a fini par être créé"
-            >
-              <RattacherAdForm userId={agent.id} />
-            </Panneau>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <Panneau

@@ -17,13 +17,22 @@ export function DemandeLienForm() {
       className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <Alert state={state} />
-      <Field label="Adresse professionnelle" required>
+      {/* Ni « professionnelle » ni « personnelle » : c'est l'adresse que le
+          service des sports connaît. Beaucoup des agents visés — terrain,
+          crèches, gardiennage — sont enregistrés avec une adresse personnelle,
+          faute de boîte professionnelle qu'ils consultent. Promettre l'adresse
+          professionnelle les envoyait saisir celle qui n'ouvre rien. */}
+      <Field
+        label="Votre adresse e-mail"
+        hint="Celle que connaît le service des sports."
+        required
+      >
         <Input
           name="email"
           type="email"
           inputMode="email"
           autoComplete="email"
-          placeholder="prenom.nom@collectivite.fr"
+          placeholder="prenom.nom@exemple.fr"
           autoFocus
           required
         />
