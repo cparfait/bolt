@@ -14,6 +14,7 @@ import { saisonCourante } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import { decrocheurs, indicateurs, parActivite } from "@/lib/stats";
 import { declencherRappelsSiBesoin } from "@/lib/rappels";
+import { declencherPurgeSiBesoin } from "@/lib/purge";
 import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
 import { prochainesSeancesDe } from "@/lib/actions/absences";
 import { MesSeances } from "@/components/mes-seances";
@@ -64,6 +65,12 @@ export default async function TableauDeBord({
   searchParams: Promise<{ vue?: string }>;
 }) {
   const user = await requireUser();
+
+  // Durées de conservation appliquées ici, au plus une fois par jour. Placé
+  // avant la distinction des rôles, contrairement aux rappels : l'effacement
+  // des adresses IP ne doit pas dépendre de la connexion d'un gestionnaire.
+  await declencherPurgeSiBesoin();
+
   const { vue: vueBrute } = await searchParams;
   const vue: Vue = vueBrute && vueBrute in VUES ? (vueBrute as Vue) : "jour";
   const saison = await saisonCourante();

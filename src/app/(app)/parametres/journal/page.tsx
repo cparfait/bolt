@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { fmtHorodatage } from "@/lib/dates";
+import {
+  JOURS_CONSERVATION_IP,
+  JOURS_CONSERVATION_JOURNAL,
+} from "@/lib/purge";
 import { Card, EmptyState, PageHeader, Select, btnSecondary } from "@/components/ui";
 import { FiltreForm } from "@/components/filtre-form";
 
@@ -31,9 +35,13 @@ export default async function JournalPage({
 
   return (
     <>
+      {/* La durée de conservation est affichée, et pas seulement appliquée : le
+          journal contient des adresses IP, et qui le consulte doit savoir ce
+          qu'il advient de ces données — c'est aussi ce qu'un délégué à la
+          protection des données vient vérifier en premier. */}
       <PageHeader
         title="Journal"
-        subtitle={`${total} événements — connexions, émargements, décisions`}
+        subtitle={`${total} événements — connexions, émargements, décisions. Les adresses IP sont effacées après ${JOURS_CONSERVATION_IP} jours, les lignes après ${JOURS_CONSERVATION_JOURNAL} jours.`}
       >
         <FiltreForm>
           <Select name="action" defaultValue={action ?? ""} className="w-auto">

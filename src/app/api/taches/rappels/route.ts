@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { envoyerRappels } from "@/lib/rappels";
+import { purger } from "@/lib/purge";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,11 @@ export const dynamic = "force-dynamic";
  * Déclenchement des rappels par un ordonnanceur externe (cron, tâche planifiée
  * Windows, Portainer). Facultatif : sans cron, le passage d'un utilisateur sur
  * l'application déclenche la même vérification.
+ *
+ * Applique au passage les durées de conservation (src/lib/purge.ts). Le nom de
+ * la route ne le dit pas — il est déjà repris dans des tâches planifiées, le
+ * renommer casserait des installations — mais c'est le bon endroit : un
+ * ordonnanceur qui appelle Bolt chaque nuit doit aussi faire le ménage.
  *
  *   curl -H "Authorization: Bearer $CRON_TOKEN" https://bolt…/api/taches/rappels
  *
@@ -28,5 +34,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ erreur: "Jeton invalide ou CRON_TOKEN non défini." }, { status: 401 });
   }
   const res = await envoyerRappels();
-  return NextResponse.json(res);
+  const purge = await purger();
+  return NextResponse.json({ ...res, purge });
 }
