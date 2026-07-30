@@ -80,6 +80,8 @@ export type ResultatSync = {
   miroirNettoye: number;
   /** Noms des agents désactivés par ce passage. */
   desactives: string[];
+  /** Comptes Bolt adossés à l'annuaire que la lecture n'a pas retrouvés. */
+  absents: string[];
   inscriptionsRetirees: number;
   promotions: string[];
   /** Vrai si le garde-fou a empêché d'interpréter les absences. */
@@ -108,11 +110,30 @@ export async function synchroniserAnnuaire(
 
   // Rattachement hiérarchique des comptes Bolt déjà connus : les statistiques
   // par direction restent justes même sans reconnexion.
+  //
+  // On ne réécrit que ce qui a bougé. La boucle précédente faisait déjà un
+  // aller-retour par compte d'annuaire ; en ajouter un second systématique
+  // doublait la durée d'une synchronisation qui, d'une nuit à l'autre, ne change
+  // presque rien. Une valeur absente de l'AD (`undefined`) laisse le champ en
+  // place plutôt que de l'effacer — un annuaire incomplet ne doit pas vider un
+  // rattachement saisi ailleurs.
+  const connus = new Map(
+    (
+      await prisma.user.findMany({
+        select: { id: true, login: true, direction: true, service: true },
+      })
+    ).map((u) => [u.login.toLowerCase(), u]),
+  );
   for (const c of comptes) {
-    await prisma.user.updateMany({
-      where: { login: c.samAccountName.toLowerCase() },
-      data: { direction: c.direction, service: c.service },
-    });
+    const u = connus.get(c.samAccountName.toLowerCase());
+    if (!u) continue;
+    const direction = c.direction ?? undefined;
+    const service = c.service ?? undefined;
+    const inchange =
+      (direction === undefined || direction === u.direction) &&
+      (service === undefined || service === u.service);
+    if (inchange) continue;
+    await prisma.user.update({ where: { id: u.id }, data: { direction, service } });
   }
 
   // ── Population témoin et garde-fou ────────────────────────────────────────
@@ -125,6 +146,15 @@ export async function synchroniserAnnuaire(
 
   const retrouves = actifs.filter((u) => parLogin.has(u.login.toLowerCase()));
   const lectureIncomplete = lectureJugeeIncomplete(actifs.length, retrouves.length);
+
+  // Qui manque à l'appel, nommément. Sans cette liste, un avertissement de
+  // lecture incomplète n'apprend rien : il faut deviner s'il s'agit de départs
+  // réels, d'un filtre trop étroit, ou de comptes qui n'ont jamais eu leur place
+  // dans cette population. Avec elle, la cause saute aux yeux.
+  const absents = actifs
+    .filter((u) => !parLogin.has(u.login.toLowerCase()))
+    .map((u) => `${u.displayName} (${u.login})`)
+    .sort((a, b) => a.localeCompare(b, "fr"));
 
   // ── Départs ───────────────────────────────────────────────────────────────
   const desactives: string[] = [];
@@ -164,6 +194,7 @@ export async function synchroniserAnnuaire(
       inscriptionsRetirees > 0 ? `${inscriptionsRetirees} inscription(s) retirée(s)` : null,
       miroirNettoye > 0 ? `${miroirNettoye} ligne(s) de miroir supprimée(s)` : null,
       lectureIncomplete ? "LECTURE JUGÉE INCOMPLÈTE : absences non interprétées" : null,
+      absents.length > 0 ? `absents de l'annuaire : ${absents.join(", ")}` : null,
     ]
       .filter(Boolean)
       .join(", "),
@@ -173,6 +204,7 @@ export async function synchroniserAnnuaire(
     comptesLus: comptes.length,
     miroirNettoye,
     desactives,
+    absents,
     inscriptionsRetirees,
     promotions,
     lectureIncomplete,
@@ -180,6 +212,7 @@ export async function synchroniserAnnuaire(
       comptesLus: comptes.length,
       miroirNettoye,
       desactives,
+      absents,
       inscriptionsRetirees,
       promotions,
       lectureIncomplete,
@@ -193,6 +226,7 @@ function redigerMessage(r: {
   comptesLus: number;
   miroirNettoye: number;
   desactives: string[];
+  absents: string[];
   inscriptionsRetirees: number;
   promotions: string[];
   lectureIncomplete: boolean;
@@ -207,6 +241,14 @@ function redigerMessage(r: {
         `Elle est probablement incomplète — Base DN ou groupe filtrant à vérifier. ` +
         `Aucun compte n'a été désactivé pour cause d'absence, et le miroir n'a pas été nettoyé.`,
     );
+  }
+
+  // La liste des absents, dans les deux cas : quand la lecture est refusée elle
+  // désigne la cause, quand elle est acceptée elle dit qui va être désactivé.
+  if (r.absents.length > 0) {
+    const noms = r.absents.slice(0, 10).join(", ");
+    const reste = r.absents.length > 10 ? ` et ${r.absents.length - 10} autre(s)` : "";
+    phrases.push(`Comptes Bolt introuvables dans l'annuaire : ${noms}${reste}.`);
   }
 
   if (r.desactives.length > 0) {
