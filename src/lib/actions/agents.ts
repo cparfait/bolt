@@ -12,6 +12,7 @@ import {
   type Candidat,
 } from "@/lib/comptes";
 import { inscrireDirectement } from "@/lib/inscriptions";
+import { desactiverCompte } from "@/lib/departs";
 import { requireUser } from "@/lib/session";
 import { erreur, succes, type ActionState } from "./types";
 import { getLdapSettings } from "@/lib/settings";
@@ -627,4 +628,62 @@ export async function assurerCompteAgent(login: string): Promise<string | null> 
     data: { login: cle, displayName: nom, email, service, direction, role: "AGENT" },
   });
   return user.id;
+}
+
+/**
+ * Départ d'un agent, depuis sa fiche : le service des sports ferme son accès et
+ * choisit s'il le retire de ses activités.
+ *
+ * Le choix est proposé plutôt qu'imposé. Une absence longue — congé maternité,
+ * disponibilité, arrêt prolongé — se gère parfois par une désactivation
+ * temporaire, et faire perdre sa place à quelqu'un qui revient en septembre
+ * serait une mauvaise surprise. Un vrai départ, à l'inverse, doit rendre la
+ * place : elle profite immédiatement au premier de la liste d'attente.
+ */
+export async function desactiverAgent(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const userId = String(formData.get("userId") ?? "");
+  if (userId === admin.id) {
+    return erreur("Vous ne pouvez pas désactiver votre propre compte.");
+  }
+
+  const desinscrire = formData.get("desinscrire") === "on";
+  const motif = String(formData.get("motif") ?? "").trim() || "départ de la collectivité";
+
+  const res = await desactiverCompte(userId, {
+    acteur: admin.displayName,
+    desinscrire,
+    motif,
+  });
+  if (!res.applique) return erreur("Agent introuvable.");
+
+  revalidatePath(`/agents/${userId}`);
+  revalidatePath("/agents");
+  revalidatePath("/inscriptions");
+  revalidatePath("/parametres/utilisateurs");
+
+  const details = [
+    `${res.nom} : accès fermé.`,
+    res.inscriptionsRetirees > 0
+      ? `${res.inscriptionsRetirees} inscription(s) retirée(s), places rendues.`
+      : desinscrire
+        ? "Aucune inscription à retirer."
+        : "Ses inscriptions sont conservées.",
+    ...res.promotions,
+  ];
+  return succes(details.join(" "));
+}
+
+/** Réouverture d'un accès. Les inscriptions retirées ne reviennent pas seules. */
+export async function reactiverAgent(userId: string): Promise<void> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const cible = await prisma.user.findUnique({ where: { id: userId } });
+  if (!cible || cible.active) return;
+  await prisma.user.update({ where: { id: userId }, data: { active: true } });
+  await audit("COMPTE_ACTIVE", { userId: admin.id, cible: cible.login });
+  revalidatePath(`/agents/${userId}`);
+  revalidatePath("/agents");
 }

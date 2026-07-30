@@ -13,9 +13,12 @@ import { RetirerForm } from "@/components/inscription-actions";
 import { Panneau } from "@/components/panneau";
 import {
   AbsencePourAgent,
+  DesactiverAgent,
   InscrireDepuisFiche,
+  ReactiverAgent,
   RetirerAbsence,
 } from "@/components/fiche-agent-actions";
+import { compterInscriptionsVivantes } from "@/lib/departs";
 import {
   ETAT_COLORS,
   ETAT_COURT,
@@ -40,6 +43,11 @@ export default async function FicheAgent({
 
   const agent = await prisma.user.findUnique({ where: { id } });
   if (!agent) notFound();
+
+  // Compté toutes saisons confondues, contrairement aux inscriptions affichées
+  // plus bas : un départ retire aussi les positions prises sur la saison
+  // suivante, et la case à cocher doit annoncer ce qu'elle fait réellement.
+  const inscriptionsVivantes = await compterInscriptionsVivantes(id);
 
   // Les indicateurs portent sur la saison affichée, comme les inscriptions
   // juste à côté — et se comptent en base plutôt que sur la liste ci-dessous,
@@ -228,6 +236,29 @@ export default async function FicheAgent({
           sousTitre="L'agent a prévenu par téléphone ou au bureau"
         >
           <AbsencePourAgent userId={agent.id} seances={seancesProposables} />
+        </Panneau>
+      </div>
+
+      {/* Départ. En bas de fiche, après tout ce qui sert au quotidien : c'est un
+          geste rare, et sa place ne doit pas être sous le pouce. */}
+      <div className="mb-6">
+        <Panneau
+          titre={agent.active ? "Départ de l'agent" : "Compte désactivé"}
+          sousTitre={
+            agent.active
+              ? "Fermer son accès, et rendre ses places"
+              : "Il ne peut plus se connecter"
+          }
+        >
+          {agent.active ? (
+            <DesactiverAgent
+              userId={agent.id}
+              nom={agent.displayName}
+              inscriptions={inscriptionsVivantes}
+            />
+          ) : (
+            <ReactiverAgent userId={agent.id} />
+          )}
         </Panneau>
       </div>
 
