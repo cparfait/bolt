@@ -22,7 +22,23 @@ export type AnimateurInitial = {
 
 const MODES: CoachAcces[] = ["LIEN", "AD", "LOCAL"];
 
-export function AnimateurForm({ initial }: { initial?: AnimateurInitial }) {
+/**
+ * Fiche animateur.
+ *
+ * Le mode d'accès n'apparaît que pour la DSI : rattacher un animateur à un
+ * compte Active Directory ou lui ouvrir un identifiant local relève de la
+ * gestion des accès au système d'information, pas du service des sports. Pour
+ * tous les autres, un animateur créé ici reçoit un lien sécurisé, et le mode
+ * d'une fiche existante reste ce qu'il est. Le masquage n'est que du confort :
+ * c'est `enregistrerAnimateur` qui refuse le changement.
+ */
+export function AnimateurForm({
+  initial,
+  estAdmin = false,
+}: {
+  initial?: AnimateurInitial;
+  estAdmin?: boolean;
+}) {
   const [state, action] = useActionState<ActionState, FormData>(
     enregistrerAnimateur,
     null,
@@ -56,35 +72,41 @@ export function AnimateurForm({ initial }: { initial?: AnimateurInitial }) {
         <Input name="organisme" defaultValue={initial?.organisme ?? ""} />
       </Field>
 
-      <Field label="Mode d'accès" required>
-        <div className="space-y-2">
-          {MODES.map((m) => (
-            <label
-              key={m}
-              className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
-                acces === m
-                  ? "border-brand-300 bg-brand-50/50"
-                  : "border-slate-200 hover:bg-slate-50"
-              }`}
-            >
-              <input
-                type="radio"
-                name="acces"
-                value={m}
-                checked={acces === m}
-                onChange={() => setAcces(m)}
-                className="mt-0.5 h-4 w-4"
-              />
-              <span>
-                <span className="block text-sm font-medium">{COACH_ACCES_LABELS[m]}</span>
-                <span className="block text-xs text-slate-500">{COACH_ACCES_AIDE[m]}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </Field>
+      {estAdmin && (
+        <Field label="Mode d'accès" required>
+          <div className="space-y-2">
+            {MODES.map((m) => (
+              <label
+                key={m}
+                className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
+                  acces === m
+                    ? "border-brand-300 bg-brand-50/50"
+                    : "border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="acces"
+                  value={m}
+                  checked={acces === m}
+                  onChange={() => setAcces(m)}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  <span className="block text-sm font-medium">
+                    {COACH_ACCES_LABELS[m]}
+                  </span>
+                  <span className="block text-xs text-slate-500">
+                    {COACH_ACCES_AIDE[m]}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </Field>
+      )}
 
-      {acces !== "LIEN" && (
+      {estAdmin && acces !== "LIEN" && (
         <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 sm:grid-cols-2">
           <Field
             label={acces === "AD" ? "Identifiant Windows" : "Identifiant local"}

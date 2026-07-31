@@ -18,7 +18,9 @@ const coachSchema = z.object({
   email: z.string().trim().email("Adresse e-mail invalide.").or(z.literal("")),
   telephone: z.string().trim().optional(),
   organisme: z.string().trim().optional(),
-  acces: z.enum(["AD", "LOCAL", "LIEN"]),
+  // Facultatif : le formulaire des gestionnaires ne porte pas ce champ. Voir
+  // la résolution du mode dans `enregistrerAnimateur`.
+  acces: z.enum(["AD", "LOCAL", "LIEN"]).optional(),
   notes: z.string().trim().optional(),
 });
 
@@ -52,9 +54,31 @@ export async function enregistrerAnimateur(
   const login = String(formData.get("login") ?? "").trim().toLowerCase();
   const motDePasse = String(formData.get("motDePasse") ?? "");
 
-  let userId: string | null = null;
+  /**
+   * Le mode d'accès est réservé à la DSI.
+   *
+   * Rattacher un animateur à un compte Active Directory ou lui ouvrir un
+   * identifiant local, c'est créer un accès au système d'information — pas un
+   * choix du service des sports, qui n'a de toute façon aucun moyen de vérifier
+   * qu'un sAMAccountName désigne bien la bonne personne. Un gestionnaire crée
+   * donc toujours un accès par lien, et sur une fiche existante le mode en
+   * place est conservé tel quel : le champ absent du formulaire ne doit pas
+   * pouvoir être réintroduit par une requête forgée.
+   */
+  const estAdmin = admin.role === "ADMIN";
+  const coachExistant = id
+    ? await prisma.coach.findUnique({
+        where: { id },
+        select: { acces: true, userId: true },
+      })
+    : null;
+  const acces = estAdmin ? (d.acces ?? "LIEN") : (coachExistant?.acces ?? "LIEN");
 
-  if (d.acces === "AD") {
+  // Le compte déjà rattaché est repris par défaut : un gestionnaire qui corrige
+  // un numéro de téléphone sur une fiche AD ne doit pas la détacher au passage.
+  let userId: string | null = coachExistant?.userId ?? null;
+
+  if (estAdmin && acces === "AD") {
     if (!login) return erreur("Renseignez l'identifiant Windows de l'animateur.");
     const existant = await prisma.user.findUnique({ where: { login } });
     if (existant?.isLocal) {
@@ -79,7 +103,7 @@ export async function enregistrerAnimateur(
     userId = user.id;
   }
 
-  if (d.acces === "LOCAL") {
+  if (estAdmin && acces === "LOCAL") {
     if (!login) return erreur("Renseignez un identifiant local.");
     const existant = await prisma.user.findUnique({ where: { login } });
     if (existant && !existant.isLocal) {
@@ -107,13 +131,16 @@ export async function enregistrerAnimateur(
     userId = user.id;
   }
 
+  // Bascule vers le lien sécurisé : le compte rattaché n'a plus lieu d'être.
+  if (acces === "LIEN") userId = null;
+
   const champs = {
     nom: d.nom,
     prenom: d.prenom,
     email: d.email || null,
     telephone: d.telephone || null,
     organisme: d.organisme || null,
-    acces: d.acces,
+    acces,
     notes: d.notes || null,
     userId,
   };
@@ -123,20 +150,20 @@ export async function enregistrerAnimateur(
     await audit("ANIMATEUR_MODIFIE", {
       userId: admin.id,
       cible: `${d.prenom} ${d.nom}`,
-      details: d.acces,
+      details: acces,
     });
   } else {
     await prisma.coach.create({ data: champs });
     await audit("ANIMATEUR_CREE", {
       userId: admin.id,
       cible: `${d.prenom} ${d.nom}`,
-      details: d.acces,
+      details: acces,
     });
   }
 
   revalidatePath("/animateurs");
   return succes(
-    d.acces === "LIEN"
+    acces === "LIEN"
       ? `${d.prenom} ${d.nom} enregistré. Générez maintenant son lien d'émargement.`
       : `${d.prenom} ${d.nom} enregistré.`,
   );

@@ -56,7 +56,8 @@ function grouperParActivite<
 }
 
 export default async function AnimateursPage() {
-  await requireUser("GESTIONNAIRE");
+  const utilisateur = await requireUser("GESTIONNAIRE");
+  const estAdmin = utilisateur.role === "ADMIN";
 
   // Échéance proposée pour les liens d'émargement. Une saison déjà terminée ne
   // sert à rien comme date par défaut : l'action refuserait une date passée.
@@ -84,7 +85,7 @@ export default async function AnimateursPage() {
 
       <div className="mb-6">
         <Panneau titre="Ajouter un animateur" sousTitre="Interne ou prestataire extérieur">
-          <AnimateurForm />
+          <AnimateurForm estAdmin={estAdmin} />
         </Panneau>
       </div>
 
@@ -138,15 +139,13 @@ export default async function AnimateursPage() {
                       <h3 className="font-semibold">
                         {c.prenom} {c.nom}
                       </h3>
-                      <Badge
-                        color={
-                          c.acces === "LIEN"
-                            ? "bg-brand-100 text-brand-700 ring-brand-500/20"
-                            : "bg-slate-100 text-slate-600 ring-slate-500/20"
-                        }
-                      >
-                        {COACH_ACCES_LABELS[c.acces]}
-                      </Badge>
+                      {/* Le lien sécurisé est le cas ordinaire — le signaler
+                          sur chaque fiche n'apprend rien. Restent badgés les
+                          deux modes qui, eux, sortent de l'ordinaire : un
+                          compte du domaine ou un identifiant local. */}
+                      {c.acces !== "LIEN" && (
+                        <Badge>{COACH_ACCES_LABELS[c.acces]}</Badge>
+                      )}
                       {!c.actif && <Badge>Désactivé</Badge>}
                       {verrouille && (
                         <Badge color="bg-red-100 text-red-700 ring-red-500/20">
@@ -276,6 +275,7 @@ export default async function AnimateursPage() {
                   </summary>
                   <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4">
                     <AnimateurForm
+                      estAdmin={estAdmin}
                       initial={{
                         id: c.id,
                         nom: c.nom,
