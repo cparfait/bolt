@@ -197,7 +197,12 @@ async function VueBilan({
 
   return (
     <>
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* Trois indicateurs, et non quatre : « Feuilles remplies » mesurait le
+          travail d'émargement des animateurs, pas la qualité de vie au
+          travail. Sa place n'était pas en tête d'un bilan QVT, où il se lisait
+          comme une contre-performance des agents. L'information reste dans le
+          classeur exporté, avec sa définition en regard. */}
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatComparee
           label="Agents inscrits"
           value={ind.inscrits}
@@ -217,18 +222,6 @@ async function VueBilan({
           value={ind.frequentationMoyenne}
           hint="agents par séance"
           ecart={ecart(ind.frequentationMoyenne, indPrecedent?.frequentationMoyenne ?? null)}
-        />
-        <StatComparee
-          label="Feuilles remplies"
-          value={ind.tauxEmargement}
-          suffixe="%"
-          accent={
-            ind.tauxEmargement >= 90
-              ? "text-emerald-600 bg-emerald-50"
-              : "text-amber-600 bg-amber-50"
-          }
-          hint={`${ind.seancesEmargees}/${ind.seancesPassees} séances passées`}
-          ecart={ecart(ind.tauxEmargement, indPrecedent?.tauxEmargement ?? null)}
         />
       </div>
 
