@@ -6,7 +6,14 @@ import {
   revoquerLienAnimateur,
   supprimerAnimateur,
 } from "@/lib/actions/animateurs";
-import { Badge, Card, EmptyState, PageHeader, btnSecondary } from "@/components/ui";
+import {
+  Badge,
+  Card,
+  EmptyState,
+  PageHeader,
+  PastilleActivite,
+  btnSecondary,
+} from "@/components/ui";
 import { Panneau } from "@/components/panneau";
 import { BoutonAction } from "@/components/bouton-action";
 import { AnimateurForm } from "@/components/animateur-form";
@@ -15,6 +22,38 @@ import { COACH_ACCES_LABELS } from "@/lib/constants";
 import { fmtDate, fmtHorodatage, isoDate } from "@/lib/dates";
 import { JOUR_LABELS } from "@/lib/dates";
 import { saisonCourante } from "@/lib/saison";
+
+/**
+ * Créneaux regroupés par activité, l'ordre jour/heure de la requête conservé.
+ *
+ * Un animateur tient souvent la même activité à plusieurs horaires. Une file de
+ * pastilles « activité · jour · heure » répétait alors le nom de l'activité
+ * autant de fois qu'elle avait de créneaux, et il fallait parcourir toute la
+ * ligne pour répondre aussi bien à « qu'anime cette personne ? » qu'à « quand
+ * vient-elle ? ». Groupée, l'activité se nomme une fois et porte ses horaires.
+ */
+function grouperParActivite<
+  T extends { activiteId: string; activite: { nom: string; couleur: string } },
+>(creneaux: T[]) {
+  const groupes = new Map<
+    string,
+    { activiteId: string; nom: string; couleur: string; creneaux: T[] }
+  >();
+
+  for (const cr of creneaux) {
+    const groupe = groupes.get(cr.activiteId);
+    if (groupe) groupe.creneaux.push(cr);
+    else
+      groupes.set(cr.activiteId, {
+        activiteId: cr.activiteId,
+        nom: cr.activite.nom,
+        couleur: cr.activite.couleur,
+        creneaux: [cr],
+      });
+  }
+
+  return [...groupes.values()];
+}
 
 export default async function AnimateursPage() {
   await requireUser("GESTIONNAIRE");
@@ -60,6 +99,36 @@ export default async function AnimateursPage() {
             const lienActif = Boolean(c.token);
             const expire = c.tokenExpiresAt && c.tokenExpiresAt < new Date();
             const verrouille = c.pinLockedUntil && c.pinLockedUntil > new Date();
+
+            // Résumé porté par le repli de l'accès distant : replié quand tout
+            // va bien, il doit malgré tout dire l'essentiel sans être ouvert.
+            const etatLien = verrouille
+              ? {
+                  texte: `code bloqué jusqu'à ${fmtHorodatage(c.pinLockedUntil)}`,
+                  ton: "text-red-600",
+                }
+              : !lienActif
+                ? {
+                    texte: "aucun lien — cet animateur ne peut pas émarger",
+                    ton: "text-amber-600",
+                  }
+                : expire
+                  ? {
+                      texte: `lien expiré le ${fmtDate(c.tokenExpiresAt)}`,
+                      ton: "text-amber-600",
+                    }
+                  : {
+                      texte: c.lastAccessAt
+                        ? `actif · dernier accès ${fmtHorodatage(c.lastAccessAt)}`
+                        : "actif · jamais utilisé",
+                      ton: "text-slate-500",
+                    };
+
+            // Un accès en règle n'a rien à demander : le pavé reste replié. Il
+            // s'ouvre de lui-même dès qu'il y a quelque chose à faire.
+            const accesAttentionRequise = Boolean(
+              !lienActif || expire || verrouille,
+            );
 
             return (
               <Card key={c.id} className={c.actif ? "" : "opacity-60"}>
@@ -122,73 +191,83 @@ export default async function AnimateursPage() {
                   </div>
                 </div>
 
-                {c.creneaux.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {c.creneaux.map((cr) => (
-                      <span
-                        key={cr.id}
-                        className="rounded-full px-2.5 py-0.5 text-xs font-medium"
-                        style={{
-                          backgroundColor: `${cr.activite.couleur}14`,
-                          color: cr.activite.couleur,
-                        }}
+                {c.creneaux.length > 0 ? (
+                  <ul className="mt-4 space-y-1.5">
+                    {grouperParActivite(c.creneaux).map((g) => (
+                      <li
+                        key={g.activiteId}
+                        className="flex flex-wrap items-center gap-x-2.5 gap-y-1"
                       >
-                        {cr.activite.nom} · {JOUR_LABELS[cr.jour]} {cr.heureDebut}
-                      </span>
+                        <PastilleActivite couleur={g.couleur} nom={g.nom} />
+                        <span className="text-sm tabular-nums text-slate-600">
+                          {g.creneaux
+                            .map(
+                              (cr) =>
+                                `${JOUR_LABELS[cr.jour]} ${cr.heureDebut}–${cr.heureFin}`,
+                            )
+                            .join("  ·  ")}
+                        </span>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
+                ) : (
+                  <p className="mt-4 text-sm text-slate-400">
+                    Aucun créneau rattaché.
+                  </p>
                 )}
 
                 {c.acces === "LIEN" && (
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                      <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                        <KeyRound className="h-4 w-4 text-slate-400" />
+                  <details open={accesAttentionRequise} className="mt-4">
+                    <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      <KeyRound className="h-4 w-4 shrink-0 text-slate-400" />
+                      <span className="font-medium text-slate-700">
                         Accès distant
-                      </p>
+                      </span>
+                      <span className={etatLien.ton}>{etatLien.texte}</span>
+                    </summary>
+
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                       {lienActif && (
-                        <BoutonAction
-                          action={revoquerLienAnimateur.bind(null, c.id)}
-                          confirmation="Révoquer le lien ? L'animateur ne pourra plus émarger."
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                        >
-                          <ShieldOff className="h-3.5 w-3.5" /> Révoquer
-                        </BoutonAction>
+                        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                          {/* Le résumé du repli porte déjà l'état ; ne restent
+                              ici que les traces d'usage, utiles au dépannage. */}
+                          <ul className="space-y-1 text-xs text-slate-500">
+                            <li>
+                              Créé le {fmtHorodatage(c.tokenCreatedAt)}
+                              {c.tokenExpiresAt &&
+                                ` · ${expire ? "expiré" : "expire"} le ${fmtDate(c.tokenExpiresAt)}`}
+                            </li>
+                            <li>
+                              {c.lastAccessAt
+                                ? `Dernier accès : ${fmtHorodatage(c.lastAccessAt)}${c.lastAccessIp ? ` depuis ${c.lastAccessIp}` : ""}`
+                                : "Jamais utilisé"}
+                            </li>
+                            {verrouille && (
+                              <li className="flex items-center gap-1.5 text-red-600">
+                                <Ban className="h-3.5 w-3.5" />
+                                Code bloqué jusqu&apos;à{" "}
+                                {fmtHorodatage(c.pinLockedUntil)}
+                              </li>
+                            )}
+                          </ul>
+                          <BoutonAction
+                            action={revoquerLienAnimateur.bind(null, c.id)}
+                            confirmation="Révoquer le lien ? L'animateur ne pourra plus émarger."
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                          >
+                            <ShieldOff className="h-3.5 w-3.5" /> Révoquer
+                          </BoutonAction>
+                        </div>
                       )}
+
+                      <LienForm
+                        coachId={c.id}
+                        avecEmail={Boolean(c.email)}
+                        aDejaUnLien={lienActif}
+                        finSaison={finSaison}
+                      />
                     </div>
-
-                    {lienActif ? (
-                      <ul className="mb-4 space-y-1 text-xs text-slate-500">
-                        <li>
-                          Créé le {fmtHorodatage(c.tokenCreatedAt)}
-                          {c.tokenExpiresAt &&
-                            ` · ${expire ? "expiré" : "expire"} le ${fmtDate(c.tokenExpiresAt)}`}
-                        </li>
-                        <li>
-                          {c.lastAccessAt
-                            ? `Dernier accès : ${fmtHorodatage(c.lastAccessAt)}${c.lastAccessIp ? ` depuis ${c.lastAccessIp}` : ""}`
-                            : "Jamais utilisé"}
-                        </li>
-                        {verrouille && (
-                          <li className="flex items-center gap-1.5 text-red-600">
-                            <Ban className="h-3.5 w-3.5" />
-                            Code bloqué jusqu&apos;à {fmtHorodatage(c.pinLockedUntil)}
-                          </li>
-                        )}
-                      </ul>
-                    ) : (
-                      <p className="mb-4 text-sm text-amber-600">
-                        Aucun lien actif — cet animateur ne peut pas encore émarger.
-                      </p>
-                    )}
-
-                    <LienForm
-                      coachId={c.id}
-                      avecEmail={Boolean(c.email)}
-                      aDejaUnLien={lienActif}
-                      finSaison={finSaison}
-                    />
-                  </div>
+                  </details>
                 )}
 
                 <details className="mt-4">
