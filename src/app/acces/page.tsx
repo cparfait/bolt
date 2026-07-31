@@ -86,7 +86,7 @@ export default async function AccesPage({
         )}
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          Vous êtes sur un poste du réseau ?{" "}
+          Vous avez une adresse mail pro ?{" "}
           <Link href="/connexion" className="font-medium text-brand-600 hover:underline">
             Connexion habituelle
           </Link>
