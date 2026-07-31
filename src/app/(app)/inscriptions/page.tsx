@@ -216,8 +216,9 @@ export default async function InscriptionsPage({
               /* Fond teinté de la couleur de l'activité : avec deux créneaux
                  par activité et six activités, un liseré ne suffisait pas à
                  voir d'un coup d'œil à quoi se rattache une liste d'inscrits.
-                 Teinte très pâle, la liste reste sur fond blanc pour la
-                 lisibilité des noms. */
+                 La liste des inscrits reprend la même teinte en plus soutenu
+                 (1f contre 0f) : elle se détache toujours de la carte, sans
+                 le pavé blanc qui cassait la couleur au milieu du bloc. */
               <Card
                 key={c.id}
                 className="border-l-4"
@@ -254,18 +255,34 @@ export default async function InscriptionsPage({
                           : (inscrits.length / c.capacite) * 100
                       }
                       couleur={c.activite.couleur}
+                      fond="#ffffff"
                     />
                   </div>
                 </div>
 
                 {inscrits.length === 0 ? (
-                  <p className="rounded-xl bg-white/80 px-4 py-3 text-sm text-slate-500">
+                  <p
+                    style={{ backgroundColor: `${c.activite.couleur}1f` }}
+                    className="rounded-xl px-4 py-3 text-sm text-slate-500"
+                  >
                     Aucun inscrit.
                   </p>
                 ) : (
-                  <ul className="divide-y divide-slate-100 rounded-xl bg-white px-3 text-sm">
+                  <ul
+                    style={{ backgroundColor: `${c.activite.couleur}1f` }}
+                    className="divide-y rounded-xl px-3 text-sm"
+                  >
                     {inscrits.map((i) => (
-                      <li key={i.id} className="flex items-center justify-between gap-3 py-2">
+                      <li
+                        key={i.id}
+                        /* La couleur du filet se pose ici et non via
+                           `divide-*` : elle dépend de l'activité, donc hors
+                           palette Tailwind. `divide-y` ne pose la bordure
+                           qu'à partir du deuxième élément, la première ligne
+                           n'en hérite pas. */
+                        style={{ borderTopColor: `${c.activite.couleur}33` }}
+                        className="flex items-center justify-between gap-3 py-2"
+                      >
                         {/* Le nom mène à la fiche : « est-ce que Untel vient
                             encore ? » se pose en lisant une liste d'inscrits. */}
                         <Link
@@ -274,7 +291,7 @@ export default async function InscriptionsPage({
                         >
                           {i.user.displayName}
                           {i.user.service && (
-                            <span className="ml-2 text-xs text-slate-400">
+                            <span className="ml-2 text-xs text-slate-500">
                               {i.user.service}
                             </span>
                           )}
@@ -286,8 +303,12 @@ export default async function InscriptionsPage({
                 )}
 
                 {attente.length > 0 && (
-                  <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700">
+                  /* Bloc neutre et non plus bleu : sur une carte teintée, le
+                     bleu fixe entrait en conflit avec la couleur de l'activité
+                     — et frontalement avec celle du créneau Musculation. Le
+                     statut est déjà porté par le badge de chaque ligne. */
+                  <div className="mt-3 rounded-xl border border-slate-200 bg-white/70 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Liste d&apos;attente — {attente.length}{" "}
                       {pluriel(attente.length, "personne")}
                       {groupe && " · file commune à l'activité"}
@@ -299,7 +320,7 @@ export default async function InscriptionsPage({
                             href={`/agents/${i.userId}`}
                             className="min-w-0 hover:text-brand-600"
                           >
-                            <span className="mr-2 tabular-nums text-blue-600">
+                            <span className="mr-2 tabular-nums text-slate-400">
                               {i.rang}.
                             </span>
                             {i.user.displayName}

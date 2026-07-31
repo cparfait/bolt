@@ -297,15 +297,23 @@ export function Stat({
 export function Jauge({
   valeur,
   couleur = "#006e46",
+  fond,
   className = "",
 }: {
   valeur: number; // 0–100
   couleur?: string;
+  // Le gris de la piste se confond avec un fond teinté : sur une carte aux
+  // couleurs de l'activité, on la repasse en blanc pour que la portion vide
+  // reste lisible.
+  fond?: string;
   className?: string;
 }) {
   const pct = Math.max(0, Math.min(100, valeur));
   return (
-    <div className={`h-2 w-full overflow-hidden rounded-full bg-slate-100 ${className}`}>
+    <div
+      style={fond ? { backgroundColor: fond } : undefined}
+      className={`h-2 w-full overflow-hidden rounded-full bg-slate-100 ${className}`}
+    >
       <div
         className="h-full rounded-full transition-all"
         style={{ width: `${pct}%`, backgroundColor: couleur }}
