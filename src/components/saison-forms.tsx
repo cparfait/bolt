@@ -7,15 +7,24 @@ import {
   enregistrerSaison,
 } from "@/lib/actions/saisons";
 import type { ActionState } from "@/lib/actions/types";
-import { Alert, Field, Input, btnPrimary, btnSecondary } from "@/components/ui";
+import { Alert, Field, Input, Select, btnPrimary, btnSecondary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { pluriel } from "@/lib/constants";
+
+/** Saison proposée comme modèle : seules celles qui ont des créneaux à donner. */
+export type SaisonModele = { id: string; nom: string; creneaux: number };
 
 export function SaisonForm({
   initiale,
+  modeles = [],
 }: {
   initiale?: { id: string; nom: string; debut: string; fin: string };
+  modeles?: SaisonModele[];
 }) {
   const [state, action] = useActionState<ActionState, FormData>(enregistrerSaison, null);
+  // À la création seulement : reprendre une grille existante n'a de sens que
+  // sur une saison encore vide.
+  const reprise = !initiale && modeles.length > 0;
   return (
     <form action={action} className="space-y-4">
       <Alert state={state} />
@@ -31,6 +40,21 @@ export function SaisonForm({
           <Input name="fin" type="date" defaultValue={initiale?.fin} required />
         </Field>
       </div>
+      {reprise && (
+        <Field
+          label="Reprendre les créneaux d'une saison"
+          hint="Activité, jour, horaires, lieu, capacité et animateurs sont recopiés — ni les inscriptions, ni les périodes de vacances, qui sont propres à chaque année. Tout reste modifiable ensuite."
+        >
+          <Select name="dupliquerDe" defaultValue="">
+            <option value="">Aucune — je saisirai les créneaux</option>
+            {modeles.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nom} — {m.creneaux} {pluriel(m.creneaux, "créneau", "créneaux")}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
       <SubmitButton className={btnPrimary}>
         <Save className="h-4 w-4" /> {initiale ? "Enregistrer" : "Créer la saison"}
       </SubmitButton>

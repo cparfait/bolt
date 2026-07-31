@@ -7,6 +7,8 @@ import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { jourUtc } from "@/lib/dates";
 import { genererSeancesSaison } from "@/lib/seances";
+import { reprendreCreneaux } from "@/lib/saison";
+import { pluriel } from "@/lib/constants";
 import { erreur, succes, type ActionState } from "./types";
 
 const saisonSchema = z.object({
@@ -32,11 +34,20 @@ export async function enregistrerSaison(
   const fin = jourUtc(parsed.data.fin);
   if (fin <= debut) return erreur("La fin de saison doit suivre son début.");
 
+  // La reprise ne vaut qu'à la création : sur une saison existante, elle
+  // dupliquerait des créneaux déjà là. Le champ n'est d'ailleurs pas proposé
+  // par le formulaire de modification.
+  const source = id ? "" : String(formData.get("dupliquerDe") ?? "");
+
+  let creee: { id: string } | null = null;
   try {
     if (id) {
       await prisma.saison.update({ where: { id }, data: { nom: parsed.data.nom, debut, fin } });
     } else {
-      await prisma.saison.create({ data: { nom: parsed.data.nom, debut, fin } });
+      creee = await prisma.saison.create({
+        data: { nom: parsed.data.nom, debut, fin },
+        select: { id: true },
+      });
     }
   } catch {
     return erreur("Une saison porte déjà ce nom.");
@@ -47,7 +58,63 @@ export async function enregistrerSaison(
     cible: parsed.data.nom,
   });
   revalidatePath("/parametres/saisons");
-  return succes(`Saison « ${parsed.data.nom} » enregistrée.`);
+
+  if (!creee || !source) {
+    return succes(`Saison « ${parsed.data.nom} » enregistrée.`);
+  }
+
+  // La saison est créée : à partir d'ici, un échec de la reprise ne doit plus
+  // être rendu comme un échec de la création. Le gestionnaire repartira du
+  // bouton « Regénérer », pas d'une saisie qu'il croirait perdue.
+  const modele = await prisma.saison.findUnique({
+    where: { id: source },
+    select: { nom: true },
+  });
+  if (!modele) {
+    return succes(
+      `Saison « ${parsed.data.nom} » créée, mais la saison à reprendre est introuvable : ses créneaux restent à saisir.`,
+    );
+  }
+
+  let repris: number;
+  let ecartes: number;
+  try {
+    ({ repris, ecartes } = await reprendreCreneaux(source, creee.id));
+    await genererSeancesSaison(creee.id);
+  } catch {
+    // La reprise s'arrête peut-être à mi-chemin : ce qui a été créé est
+    // valide, et la page liste les créneaux effectivement en place. Annoncer
+    // une saison perdue serait faux et pousserait à la recréer.
+    return succes(
+      `Saison « ${parsed.data.nom} » créée, mais la reprise des créneaux de « ${modele.nom} » a échoué. Vérifiez la liste des créneaux avant de compléter à la main.`,
+    );
+  }
+
+  await audit("SAISON_CRENEAUX_REPRIS", {
+    userId: user.id,
+    cible: parsed.data.nom,
+    details: `${repris} créneau(x) repris de « ${modele.nom} », ${ecartes} écarté(s)`,
+  });
+  revalidatePath("/parametres/saisons");
+  revalidatePath("/seances");
+
+  if (repris === 0) {
+    return succes(
+      `Saison « ${parsed.data.nom} » créée. Aucun créneau repris de « ${modele.nom} » : ${
+        ecartes > 0
+          ? "ses créneaux relèvent tous d'activités arrêtées."
+          : "cette saison n'en compte aucun."
+      }`,
+    );
+  }
+
+  return succes(
+    `Saison « ${parsed.data.nom} » créée — ${repris} ${pluriel(repris, "créneau", "créneaux")} repris de « ${modele.nom} »${
+      ecartes > 0
+        ? `, ${ecartes} ${pluriel(ecartes, "écarté")} (activité arrêtée)`
+        : ""
+    }. Vérifiez les horaires, puis déclarez les périodes de vacances.`,
+  );
 }
 
 /** Active une saison — une seule à la fois : c'est elle que voient les agents. */

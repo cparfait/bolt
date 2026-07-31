@@ -32,7 +32,13 @@ export default async function ParametresSaisons() {
   return (
     <div className="space-y-6">
       <Panneau titre="Créer une saison" sousTitre="Par exemple septembre 2026 → juin 2027" ouvert={saisons.length === 0}>
-        <SaisonForm />
+        {/* Une saison sans créneau n'a rien à transmettre : la proposer comme
+            modèle ferait espérer une reprise qui ne remplirait rien. */}
+        <SaisonForm
+          modeles={saisons
+            .filter((s) => s._count.creneaux > 0)
+            .map((s) => ({ id: s.id, nom: s.nom, creneaux: s._count.creneaux }))}
+        />
       </Panneau>
 
       {saisons.length === 0 ? (
