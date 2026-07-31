@@ -117,7 +117,15 @@ export default async function MesActivitesPage({
             {mesInscriptions.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div>
-                  <p className="text-sm font-medium">{i.creneau.activite.nom}</p>
+                  {/* Le nom porte la couleur de l'activité, comme au catalogue
+                      en dessous et sur la page Inscriptions : c'est le même
+                      repère d'un écran à l'autre. */}
+                  <p
+                    className="text-sm font-medium"
+                    style={{ color: i.creneau.activite.couleur }}
+                  >
+                    {i.creneau.activite.nom}
+                  </p>
                   <p className="text-xs text-slate-400">
                     {JOUR_LABELS[i.creneau.jour]} {i.creneau.heureDebut}–
                     {i.creneau.heureFin}
@@ -187,10 +195,19 @@ export default async function MesActivitesPage({
               !activitesAvecPlace.has(activite.id);
             const bloqueParQuota = quotaAtteint && !activitesEngagees.has(activite.id);
             return (
+              /* Même traitement que la page Inscriptions : liseré plus fond
+                 très pâle aux couleurs de l'activité. Avec plusieurs activités
+                 à la suite, le seul liseré ne suffisait pas à rattacher une
+                 grille de créneaux à son activité — le regard décroche entre
+                 le titre et le bas de la carte. Les créneaux restent sur fond
+                 blanc, pour qu'ils se détachent de la teinte. */
               <Card
                 key={activite.id}
                 className="border-l-4"
-                style={{ borderLeftColor: activite.couleur }}
+                style={{
+                  borderLeftColor: activite.couleur,
+                  backgroundColor: `${activite.couleur}0f`,
+                }}
               >
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -236,7 +253,7 @@ export default async function MesActivitesPage({
                     return (
                       <div
                         key={c.id}
-                        className="rounded-xl border border-slate-200 p-4"
+                        className="rounded-xl border border-slate-200 bg-white p-4"
                       >
                         <p className="font-medium">
                           {JOUR_LABELS[c.jour]} · {c.heureDebut}–{c.heureFin}
