@@ -83,11 +83,15 @@ export function InscrireForm({
       </button>
 
       {/* <dialog> natif : la touche Échap, le fond modal et le piège de focus
-          sont fournis par le navigateur, sans dépendance ni état à hydrater. */}
+          sont fournis par le navigateur, sans dépendance ni état à hydrater.
+          `m-auto` centre la boîte dans les deux axes — le navigateur pose déjà
+          `inset: 0` sur un dialogue modal, mais le reset de Tailwind remet
+          `margin: 0` sur tous les éléments, ce qui la collait en haut à
+          gauche. */}
       <dialog
         ref={dialogue}
         aria-labelledby={`titre-declarations-${creneauId}`}
-        className="w-[min(40rem,calc(100vw-1.5rem))] rounded-2xl p-0 text-slate-700 shadow-xl backdrop:bg-slate-900/50 open:animate-none"
+        className="m-auto w-[min(40rem,calc(100vw-1.5rem))] rounded-2xl p-0 text-slate-700 shadow-xl backdrop:bg-slate-900/50 open:animate-none"
       >
         <form action={action} className="flex max-h-[85vh] flex-col">
           <input type="hidden" name="creneauId" value={creneauId} />
