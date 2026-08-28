@@ -43,6 +43,13 @@ export default async function AppLayout({
           </form>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 p-4 lg:p-8">{children}</main>
+        {/* Les mentions d'information doivent rester consultables après coup,
+            pas seulement au moment où l'agent les accepte pour s'inscrire. */}
+        <footer className="mx-auto w-full max-w-6xl px-4 pb-6 text-xs text-slate-400 lg:px-8">
+          <a href="/mentions" className="underline-offset-2 hover:underline">
+            Mentions d&apos;information et protection des données
+          </a>
+        </footer>
       </div>
     </div>
   );

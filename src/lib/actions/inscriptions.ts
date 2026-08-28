@@ -5,6 +5,13 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import {
+  CHAMP_RGPD,
+  champDeclaration,
+  declarationsManquantes,
+  getTextesLegaux,
+  libelleDeclaration,
+} from "@/lib/declarations";
+import {
   demanderInscription,
   placeDisponiblePour,
   prochainRang,
@@ -26,7 +33,32 @@ export async function inscrireAction(
   const user = await requireUser();
   const creneauId = String(formData.get("creneauId") ?? "");
   const commentaire = String(formData.get("commentaire") ?? "");
-  const res = await demanderInscription(user.id, creneauId, commentaire);
+
+  // Contrôle des déclarations côté serveur. Le bouton désactivé dans le
+  // navigateur est un confort d'usage : c'est ici que se joue la valeur de la
+  // preuve, une action serveur restant appelable sans passer par l'écran.
+  const textes = await getTextesLegaux();
+  const cochees = textes.declarations
+    .filter((d) => formData.get(champDeclaration(d.cle)) === "on")
+    .map((d) => d.cle);
+  const manquantes = declarationsManquantes(textes.declarations, cochees);
+  if (manquantes.length > 0) {
+    return erreur(
+      manquantes.length === textes.declarations.length
+        ? "Vous devez accepter les déclarations avant de vous inscrire."
+        : `Déclaration${manquantes.length > 1 ? "s" : ""} non acceptée${manquantes.length > 1 ? "s" : ""} : ${manquantes.map((d) => `« ${libelleDeclaration(d)}… »`).join(", ")}.`,
+    );
+  }
+  if (formData.get(CHAMP_RGPD) !== "on") {
+    return erreur(
+      "Vous devez accepter les mentions d'information sur le traitement de vos données.",
+    );
+  }
+
+  const res = await demanderInscription(user.id, creneauId, commentaire, {
+    version: textes.version,
+    rgpdAccepte: true,
+  });
   revalidatePath("/mes-activites");
   revalidatePath("/inscriptions");
   return res.ok ? succes(res.message) : erreur(res.message);

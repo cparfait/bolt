@@ -182,10 +182,18 @@ export async function effectifsParActivite(saisonId: string): Promise<Map<string
  * Statut résultant : VALIDEE (si le service n'arbitre pas et qu'il reste de la
  * place), EN_ATTENTE (arbitrage) ou LISTE_ATTENTE (créneau complet).
  */
+export type Acceptation = {
+  /** Version des textes affichés à l'agent (src/lib/declarations.ts). */
+  version: string;
+  /** Consentement RGPD, coché à part des cinq déclarations. */
+  rgpdAccepte: boolean;
+};
+
 export async function demanderInscription(
   userId: string,
   creneauId: string,
   commentaire?: string,
+  acceptation?: Acceptation,
 ): Promise<Resultat> {
   const creneau = await prisma.creneau.findUnique({
     where: { id: creneauId },
@@ -243,6 +251,17 @@ export async function demanderInscription(
     decisionAt: statut === "VALIDEE" ? new Date() : null,
     decidePar: statut === "VALIDEE" ? "automatique" : null,
     motif: null,
+    // Archivé seulement quand l'agent a réellement coché à l'écran. Une
+    // inscription saisie par le service des sports laisse ces colonnes nulles :
+    // la fiche papier signée reste alors la preuve, et un NULL ne doit jamais
+    // pouvoir se lire comme une acceptation supposée.
+    ...(acceptation
+      ? {
+          declarationsAt: new Date(),
+          declarationsVersion: acceptation.version,
+          consentementRgpdAt: acceptation.rgpdAccepte ? new Date() : null,
+        }
+      : {}),
   };
 
   if (existante) {

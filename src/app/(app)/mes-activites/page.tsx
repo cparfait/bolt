@@ -12,6 +12,7 @@ import {
   PageHeader,
 } from "@/components/ui";
 import { DesinscrireForm, InscrireForm } from "@/components/inscription-agent";
+import { getTextesLegaux } from "@/lib/declarations";
 import { FiltreActivites } from "@/components/filtre-activites";
 import { effectifsParActivite } from "@/lib/inscriptions";
 import {
@@ -31,6 +32,9 @@ export default async function MesActivitesPage({
   const { activite: selection } = await searchParams;
   const saison = await saisonCourante();
   const g = await getGeneralSettings();
+  // Les déclarations et mentions présentées avant l'inscription, dans leur
+  // version en vigueur (Paramètres → Déclarations).
+  const textes = await getTextesLegaux();
 
   if (!saison) {
     return (
@@ -318,7 +322,12 @@ export default async function MesActivitesPage({
                             Quota atteint
                           </p>
                         ) : (
-                          <InscrireForm creneauId={c.id} complet={complet} />
+                          <InscrireForm
+                            creneauId={c.id}
+                            complet={complet}
+                            intitule={`${activite.nom} · ${JOUR_LABELS[c.jour]} ${c.heureDebut}–${c.heureFin}`}
+                            textes={textes}
+                          />
                         )}
                       </div>
                     );

@@ -361,9 +361,24 @@ absence longue au terme de laquelle l'agent retrouve son créneau.
 - **Destinataires** : service des sports, DSI, animateurs pour leurs seuls
   créneaux. Aucun transfert à un tiers, aucun sous-traitant : hébergement
   interne.
-- **Conservation des inscriptions et présences** : à définir avec la DPO. Une
-  durée de deux saisons glissantes couvre le besoin de comparaison annuelle.
-  Cette durée-là n'est pas encore appliquée automatiquement.
+- **Conservation des inscriptions et présences** : réglable en mois dans
+  *Paramètres → Général*, 14 par défaut — la durée annoncée sur la fiche
+  d'inscription papier. Elle s'applique **à la main**, par un bouton dans
+  *Paramètres → Journal* qui annonce le décompte avant d'effacer : contrairement
+  au journal, cet effacement est irréversible et emporte les statistiques de
+  fréquentation des saisons concernées, il ne doit donc pas partir tout seul
+  parce que quelqu'un a ouvert le tableau de bord. Le seuil se compte en
+  saisons closes, jamais au milieu d'une saison. Deux durées à ne pas laisser
+  diverger : celle réglée ici et celle qu'annoncent les mentions
+  d'information — c'est l'écart entre les deux qu'un contrôle relève d'abord.
+- **Déclarations et mentions d'information** : les textes signés à
+  l'inscription (état de santé, responsabilité, mentions RGPD) sont éditables
+  dans *Paramètres → Déclarations & RGPD*, avec gras, souligné et puces. Chaque
+  publication crée une **version archivée** : une inscription enregistre le
+  numéro de version acceptée, corriger un texte ne réécrit donc jamais ce qu'un
+  agent déjà inscrit a lu. La mise en forme passe par un langage restreint
+  (`src/lib/markup.ts`) et jamais par du HTML — la saisie ne peut rien exprimer
+  qui devienne du code chez l'agent.
 - **Restitution managériale** : les statistiques par direction sont agrégées.
   Ne pas diffuser d'assiduité nominative en dehors du service des sports.
 - **Journal d'audit** : accès, décisions et émargements sont horodatés avec
@@ -401,7 +416,9 @@ src/lib/xlsx.ts                classeur Excel du bilan
 src/lib/rappels.ts             rappels de séance et déclenchement
 src/lib/annuaire.ts            miroir de l'annuaire et prise en compte des départs
 src/lib/departs.ts             désactivation d'un compte et retrait des activités
-src/lib/purge.ts               durées de conservation (journal, IP, jetons)
+src/lib/purge.ts               durées de conservation (journal, IP, jetons, inscriptions)
+src/lib/declarations.ts        déclarations et mentions RGPD, versionnées
+src/lib/markup.ts              mise en forme restreinte des textes (gras, souligné, puces)
 src/lib/net.ts                 adresse cliente et plages internes (estInterne)
 src/lib/actions/               actions serveur, par domaine
 src/app/emargement/            feuille publique des animateurs (mobile)

@@ -60,6 +60,17 @@ export type GeneralSettings = {
   // Rappel envoyé aux inscrits la veille de leur séance. Nécessite le SMTP.
   rappelsActifs: boolean;
   rappelHeuresAvant: number; // fenêtre d'anticipation, en heures
+  /**
+   * Durée de conservation des inscriptions et des présences, en mois, comptée
+   * depuis la fin de la saison. Réglable, et non figée dans le code, parce
+   * qu'elle doit pouvoir suivre la durée annoncée dans les mentions
+   * d'information : ces deux valeurs qui divergent, c'est exactement la
+   * promesse que l'application ne tient pas.
+   *
+   * 0 = aucune purge. La purge n'est jamais automatique : elle se déclenche à
+   * la main depuis Paramètres → Journal.
+   */
+  conservationMois: number;
 };
 
 export const DEFAULT_GENERAL: GeneralSettings = {
@@ -76,6 +87,8 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   lienMagiqueActif: false,
   rappelsActifs: false,
   rappelHeuresAvant: 24,
+  // 14 mois : la durée annoncée sur la fiche d'inscription papier.
+  conservationMois: 14,
 };
 
 export async function getSetting<T>(key: string): Promise<T | null> {

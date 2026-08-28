@@ -390,6 +390,16 @@ model Inscription {
   motif      String? // motif de refus ou de désistement
   commentaire String? // message de l'agent (contrainte horaire, niveau…)
 
+  // Preuve de ce que l'agent a accepté en s'inscrivant : les cinq déclarations
+  // de la page 2 du formulaire papier, et les mentions d'information de la
+  // page 3. Horodatées et versionnées (src/lib/declarations.ts) — sans la
+  // version, on saurait qu'il a accepté sans pouvoir dire quel texte.
+  // Nulles sur les inscriptions saisies par le service des sports, où la
+  // fiche papier signée reste la preuve.
+  declarationsAt      DateTime?
+  declarationsVersion String?
+  consentementRgpdAt  DateTime?
+
   creneau   Creneau    @relation(fields: [creneauId], references: [id], onDelete: Cascade)
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   presences Presence[]
@@ -405,6 +415,17 @@ model Setting {
   key       String   @id // « ldap », « smtp », « general »
   value     String // JSON sérialisé
   updatedAt DateTime @updatedAt
+}
+
+// Versions successives des déclarations et mentions d'information acceptées à
+// l'inscription. Archivées, et jamais réécrites : une inscription porte le
+// numéro de version qu'elle a accepté, ce numéro doit continuer de désigner le
+// texte que l'agent a réellement lu, même après correction.
+model TexteLegal {
+  version String   @id // « 2026-08-28 », « 2026-08-28-2 »
+  contenu String // JSON sérialisé de TextesLegaux
+  creeLe  DateTime @default(now())
+  creePar String? // qui a publié cette version
 }
 
 // Miroir en lecture seule de l'annuaire AD, rafraîchi par la synchronisation.

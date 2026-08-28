@@ -2,11 +2,14 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { fmtHorodatage } from "@/lib/dates";
 import {
+  compterAPurger,
   JOURS_CONSERVATION_IP,
   JOURS_CONSERVATION_JOURNAL,
 } from "@/lib/purge";
+import { getGeneralSettings } from "@/lib/settings";
 import { Card, EmptyState, PageHeader, Select, btnSecondary } from "@/components/ui";
 import { FiltreForm } from "@/components/filtre-form";
+import { PurgeForm } from "@/components/purge-form";
 
 const PAGE = 100;
 
@@ -33,6 +36,11 @@ export default async function JournalPage({
 
   const pages = Math.ceil(total / PAGE);
 
+  // Le journal se purge tout seul ; les inscriptions et les présences, non —
+  // c'est un effacement irréversible qui doit rester un geste délibéré.
+  const g = await getGeneralSettings();
+  const aPurger = g.conservationMois > 0 ? await compterAPurger(g.conservationMois) : null;
+
   return (
     <>
       {/* La durée de conservation est affichée, et pas seulement appliquée : le
@@ -54,6 +62,18 @@ export default async function JournalPage({
           </Select>
         </FiltreForm>
       </PageHeader>
+
+      {aPurger && (
+        <Card title="Conservation des inscriptions et des présences" className="mb-6">
+          <PurgeForm
+            mois={g.conservationMois}
+            inscriptions={aPurger.inscriptions}
+            presences={aPurger.presences}
+            saisons={aPurger.saisons}
+            seuil={aPurger.seuil.toLocaleDateString("fr-FR")}
+          />
+        </Card>
+      )}
 
       {lignes.length === 0 ? (
         <EmptyState title="Aucun événement" />

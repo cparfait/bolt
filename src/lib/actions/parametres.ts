@@ -16,6 +16,14 @@ import {
   type LdapSettings,
   type SmtpSettings,
 } from "@/lib/settings";
+import {
+  enregistrerTextesLegaux,
+  getTextesLegaux,
+  nouvelleCle,
+  type Declaration,
+  type MentionRgpd,
+} from "@/lib/declarations";
+import { compterAPurger, purgerInscriptions } from "@/lib/purge";
 import { erreur, succes, type ActionState } from "./types";
 
 function texte(formData: FormData, cle: string): string {
@@ -224,6 +232,9 @@ export async function enregistrerGeneral(
     logo,
     contactEmail: texte(formData, "contactEmail"),
     maxInscriptionsParAgent: Math.max(0, Number(texte(formData, "maxInscriptionsParAgent")) || 0),
+    // 0 = aucune purge. Le champ vide vaut donc « on ne purge pas », pas
+    // « on purge tout » : le sens le moins destructeur gagne.
+    conservationMois: Math.max(0, Number(texte(formData, "conservationMois")) || 0),
     validationRequise: formData.get("validationRequise") === "on",
     absencesAvantRelance: Math.max(1, Number(texte(formData, "absencesAvantRelance")) || 3),
     lienMagiqueActif: formData.get("lienMagiqueActif") === "on",
@@ -300,4 +311,128 @@ export async function basculerUtilisateur(userId: string): Promise<void> {
     await audit("COMPTE_ACTIVE", { userId: admin.id, cible: cible.login });
   }
   revalidatePath("/parametres/utilisateurs");
+}
+
+/**
+ * Efface inscriptions et présences au-delà de la durée de conservation.
+ *
+ * Réservé à l'administrateur, et jamais automatique : l'effacement est
+ * irréversible, il doit rester un geste. La durée appliquée est celle réglée
+ * dans Paramètres → Général, pour qu'elle puisse coller à celle qu'annoncent
+ * les mentions d'information.
+ */
+export async function purgerInscriptionsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser("ADMIN");
+  const g = await getGeneralSettings();
+  if (g.conservationMois <= 0) {
+    return erreur(
+      "Aucune durée de conservation n'est définie (Paramètres → Général). Rien n'a été effacé.",
+    );
+  }
+
+  // Le décompte affiché sur le bouton est renvoyé avec la demande : s'il a
+  // changé entre l'affichage et le clic, on s'arrête. L'administrateur doit
+  // détruire ce qu'il a lu, pas ce qui se trouve là au moment du clic.
+  const attendu = Number(texte(formData, "attendu"));
+  const decompte = await compterAPurger(g.conservationMois);
+  if (attendu !== decompte.inscriptions) {
+    return erreur(
+      `Le décompte a changé depuis l'affichage (${decompte.inscriptions} au lieu de ${attendu}). Rien n'a été effacé : rechargez la page et recommencez.`,
+    );
+  }
+  if (decompte.inscriptions === 0 && decompte.presences === 0) {
+    return succes("Rien à effacer : aucune saison n'est close depuis assez longtemps.");
+  }
+
+  const res = await purgerInscriptions(g.conservationMois, user.displayName);
+  revalidatePath("/parametres/journal");
+  return succes(
+    `${res.inscriptions} inscription(s) et ${res.presences} présence(s) effacées définitivement.`,
+  );
+}
+
+/** Une valeur de formulaire, sans le `trim` qui mangerait la mise en forme. */
+function bloc(formData: FormData, cle: string): string {
+  return String(formData.get(cle) ?? "").replace(/\r\n/g, "\n").trim();
+}
+
+/**
+ * Publie les déclarations et mentions d'information.
+ *
+ * Une modification crée une nouvelle version archivée : les inscriptions déjà
+ * enregistrées continuent de désigner le texte que leur agent a réellement lu.
+ */
+export async function enregistrerTextes(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser("GESTIONNAIRE");
+  const actuels = await getTextesLegaux();
+
+  const declarations: Declaration[] = [];
+  for (const [i, d] of actuels.declarations.entries()) {
+    // Supprimée : la case « retirer » est cochée en face d'elle.
+    if (formData.get(`retirer_${d.cle}`) === "on") continue;
+    const t = bloc(formData, `declaration_${d.cle}`);
+    if (!t) {
+      return erreur(`La déclaration n°${i + 1} est vide. Retirez-la ou renseignez-la.`);
+    }
+    declarations.push({ cle: d.cle, texte: t });
+  }
+  const ajoutee = bloc(formData, "nouvelleDeclaration");
+  if (ajoutee) declarations.push({ cle: nouvelleCle(), texte: ajoutee });
+
+  if (declarations.length === 0) {
+    return erreur("Il faut au moins une déclaration : sans elle, l'inscription n'engage à rien.");
+  }
+
+  const mentions: MentionRgpd[] = [];
+  for (const m of actuels.mentions) {
+    if (formData.get(`retirerMention_${m.intitule}`) === "on") continue;
+    const intitule = texte(formData, `intitule_${m.intitule}`) || m.intitule;
+    const corps = bloc(formData, `mention_${m.intitule}`);
+    if (!corps) return erreur(`La mention « ${intitule} » est vide. Retirez-la ou renseignez-la.`);
+    mentions.push({ intitule, texte: corps });
+  }
+  const intituleAjoute = texte(formData, "nouvelIntitule");
+  const mentionAjoutee = bloc(formData, "nouvelleMention");
+  if (intituleAjoute && mentionAjoutee) {
+    mentions.push({ intitule: intituleAjoute, texte: mentionAjoutee });
+  }
+
+  // Deux mentions de même intitulé se marcheraient dessus au prochain
+  // enregistrement : les champs du formulaire portent l'intitulé.
+  if (new Set(mentions.map((m) => m.intitule)).size !== mentions.length) {
+    return erreur("Deux mentions portent le même intitulé. Distinguez-les avant d'enregistrer.");
+  }
+
+  const consentement = bloc(formData, "rgpdConsentement");
+  if (!consentement) {
+    return erreur("La phrase de consentement ne peut pas être vide : c'est elle que l'agent coche.");
+  }
+
+  const { textes, publiee } = await enregistrerTextesLegaux(
+    {
+      declarations,
+      rgpdPreambule: bloc(formData, "rgpdPreambule"),
+      mentions,
+      rgpdRecours: bloc(formData, "rgpdRecours"),
+      rgpdConsentement: consentement,
+    },
+    user.displayName,
+  );
+
+  if (!publiee) return succes("Aucune modification : les textes sont inchangés.");
+
+  await audit("TEXTES_PUBLIES", {
+    userId: user.id,
+    details: `version ${textes.version}`,
+  });
+  revalidatePath("/parametres/declarations");
+  revalidatePath("/mentions");
+  revalidatePath("/mes-activites");
+  return succes(`Version ${textes.version} publiée. Elle s'applique aux prochaines inscriptions.`);
 }

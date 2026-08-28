@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import { getSetting, setSetting } from "./settings";
 import { ajouterJours } from "./dates";
+import { audit } from "./audit";
 
 /**
  * Effacement automatique des données de journalisation.
@@ -109,4 +110,90 @@ export async function declencherPurgeSiBesoin(): Promise<void> {
   } catch {
     // le tableau de bord doit s'afficher quoi qu'il arrive
   }
+}
+
+/**
+ * Inscriptions et présences : la purge que l'application ne faisait pas.
+ *
+ * Les mentions d'information annoncent une durée de conservation. Jusqu'ici
+ * rien ne l'appliquait : les inscriptions et les présences restaient
+ * indéfiniment, et la collectivité annonçait donc une durée qu'elle ne tenait
+ * pas — le genre d'écart qu'un contrôle relève en premier.
+ *
+ * Trois partis pris, parce que ce traitement est le plus destructeur de
+ * l'application après la prise en compte des départs :
+ *
+ *  • **il ne part jamais tout seul.** Contrairement à la purge du journal, il
+ *    n'est branché sur aucun déclencheur automatique : c'est un geste, fait par
+ *    un administrateur qui sait ce qu'il efface. Un effacement irréversible qui
+ *    se déclenche parce qu'un utilisateur a ouvert le tableau de bord serait
+ *    une mauvaise surprise ;
+ *  • **il se compte en saisons, pas en séances.** Le seuil s'applique à la date
+ *    de fin de la saison : on n'efface pas la moitié d'une saison, ce qui
+ *    fausserait ses statistiques sans que personne ne s'en aperçoive ;
+ *  • **il s'annonce avant d'agir.** `compterAPurger` donne le décompte exact
+ *    affiché sur le bouton, pour qu'on sache ce qu'on détruit avant de le
+ *    détruire.
+ */
+
+export type DecomptePurge = {
+  /** Fin de saison en deçà de laquelle tout part. */
+  seuil: Date;
+  saisons: string[];
+  inscriptions: number;
+  presences: number;
+};
+
+/** Saisons closes depuis plus de `mois`. */
+function filtreSaison(seuil: Date) {
+  return { saison: { fin: { lt: seuil } } };
+}
+
+function seuilDe(mois: number): Date {
+  const seuil = new Date();
+  seuil.setMonth(seuil.getMonth() - mois);
+  return seuil;
+}
+
+/** Ce que la purge effacerait, sans rien effacer. */
+export async function compterAPurger(mois: number): Promise<DecomptePurge> {
+  const seuil = seuilDe(mois);
+  const [saisons, inscriptions, presences] = await Promise.all([
+    prisma.saison.findMany({
+      where: { fin: { lt: seuil } },
+      select: { nom: true },
+      orderBy: { fin: "asc" },
+    }),
+    prisma.inscription.count({ where: { creneau: filtreSaison(seuil) } }),
+    prisma.presence.count({ where: { seance: { creneau: filtreSaison(seuil) } } }),
+  ]);
+  return { seuil, saisons: saisons.map((s) => s.nom), inscriptions, presences };
+}
+
+/**
+ * Efface inscriptions et présences des saisons closes depuis plus de `mois`.
+ * Les séances et les créneaux restent : ils ne portent aucune donnée
+ * personnelle, et les supprimer ferait disparaître l'historique de l'offre.
+ */
+export async function purgerInscriptions(
+  mois: number,
+  auteur: string,
+): Promise<{ inscriptions: number; presences: number }> {
+  const seuil = seuilDe(mois);
+
+  // Les présences d'abord : elles sont rattachées à l'inscription en
+  // `SetNull`, donc supprimer l'inscription seule les laisserait en place —
+  // avec le nom de l'agent et sa venue à chaque séance.
+  const presences = await prisma.presence.deleteMany({
+    where: { seance: { creneau: filtreSaison(seuil) } },
+  });
+  const inscriptions = await prisma.inscription.deleteMany({
+    where: { creneau: filtreSaison(seuil) },
+  });
+
+  await audit("PURGE_INSCRIPTIONS", {
+    details: `${inscriptions.count} inscription(s) et ${presences.count} présence(s) antérieures au ${seuil.toLocaleDateString("fr-FR")}, par ${auteur}`,
+  });
+
+  return { inscriptions: inscriptions.count, presences: presences.count };
 }

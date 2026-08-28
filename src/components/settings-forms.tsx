@@ -417,6 +417,17 @@ export function GeneralForm({
             defaultValue={cfg.absencesAvantRelance}
           />
         </Field>
+        <Field
+          label="Conservation des inscriptions (mois)"
+          hint="Doit correspondre à la durée annoncée dans vos mentions d'information. La purge ne part jamais seule : elle se déclenche depuis Paramètres → Journal. 0 = aucune purge."
+        >
+          <Input
+            name="conservationMois"
+            type="number"
+            min={0}
+            defaultValue={cfg.conservationMois}
+          />
+        </Field>
       </div>
 
       <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm">

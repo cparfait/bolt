@@ -7,6 +7,7 @@ const onglets = [
   { href: "/parametres", label: "Général" },
   { href: "/parametres/saisons", label: "Saisons & calendrier" },
   { href: "/parametres/lieux", label: "Lieux" },
+  { href: "/parametres/declarations", label: "Déclarations & RGPD" },
   { href: "/parametres/annuaire", label: "Annuaire (LDAPS)", adminSeul: true },
   { href: "/parametres/messagerie", label: "Messagerie", adminSeul: true },
   { href: "/parametres/utilisateurs", label: "Comptes & rôles", adminSeul: true },
