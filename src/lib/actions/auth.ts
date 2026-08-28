@@ -27,6 +27,18 @@ export type LoginState = { error?: string } | null;
 const HORS_RESEAU =
   "Cette page n'est accessible que depuis le réseau de la collectivité ou via le VPN.";
 
+/**
+ * Nombre maximal de liens de connexion expédiés en une heure sur demande
+ * venue d'Internet, toutes adresses et toutes sources confondues.
+ *
+ * Dimensionné sur l'usage réel, pas sur une prudence abstraite : même le jour
+ * de l'ouverture des inscriptions, les demandes se comptent en dizaines. 200
+ * laisse donc une marge confortable tout en divisant par cent le volume qu'une
+ * attaque pourrait faire sortir. Si le journal montre des
+ * « LIEN_MAGIQUE_PLAFOND » sans attaque, c'est ce chiffre qu'il faut relever.
+ */
+const PLAFOND_HORAIRE = 200;
+
 export async function loginAction(
   _prev: LoginState,
   formData: FormData,
@@ -107,6 +119,29 @@ export async function demanderLienAction(
   // courriels par l'application depuis l'extérieur.
   if (process.env.PUBLIC_AGENT_ACCESS !== "1" && !estInterne(ip)) {
     return { error: HORS_RESEAU };
+  }
+
+  // Plafond global, sans clé d'identité.
+  //
+  // Les deux compteurs ci-dessous sont indexés sur une identité — une adresse,
+  // une IP. Chacun fait bien son travail, mais ils partagent un angle mort :
+  // une source distribuée les contourne en faisant varier les deux, et aucun
+  // ne se remplit jamais. Avec un millier d'adresses IP, ce qui coûte quelques
+  // euros, cette action expédierait 20 000 courriels par heure sous le domaine
+  // de la collectivité. Le dommage n'est pas la fuite — chaque lien part à son
+  // seul destinataire et expire en 30 minutes — c'est la réputation
+  // d'expéditeur, qui met des semaines à se réparer et emporte avec elle tout
+  // le courrier de la mairie.
+  //
+  // Il ne vaut que pour l'extérieur : pendant une attaque, un agent sur le
+  // réseau ou en VPN doit continuer à recevoir son lien. Sans cette réserve,
+  // le plafond deviendrait lui-même un déni de service à bas prix.
+  //
+  // La ligne d'audit n'est pas décorative : c'est le seul signal qui dira que
+  // le plafond a servi, donc qu'on vous attaque.
+  if (!estInterne(ip) && !rateLimit("magic:global", PLAFOND_HORAIRE, 3600).ok) {
+    await audit("LIEN_MAGIQUE_PLAFOND", { cible: email });
+    return { error: "Trop de demandes en cours. Réessayez dans quelques minutes." };
   }
 
   for (const cle of [`magic:${email.toLowerCase()}`, `magic-ip:${ip}`]) {

@@ -90,6 +90,23 @@ deux conséquences : n'importe qui pourrait déclencher depuis Internet l'envoi 
 courriels par l'application, et une adresse professionnelle deviendrait à elle
 seule un moyen d'accès. À peser avant, pas après.
 
+Le premier de ces deux risques est borné par **trois** compteurs, et il en
+fallait trois. Cinq demandes par quart d'heure et par adresse empêchent de
+noyer la boîte d'un agent ; cinq par quart d'heure et par IP empêchent une
+machine de balayer l'annuaire. Mais ces deux-là sont indexés sur une identité :
+une source distribuée les contourne en faisant varier les deux, et aucun ne se
+remplit jamais. Avec un millier d'adresses IP — quelques euros —, l'action
+expédierait 20 000 courriels par heure sous le domaine de la collectivité. Le
+dommage ne serait pas la fuite (chaque lien part à son seul destinataire et
+expire en 30 minutes) mais la **réputation d'expéditeur** : des semaines à se
+réparer, et tout le courrier de la mairie en indésirable entre-temps. D'où un
+troisième compteur, sans clé d'identité, plafonné à 200 envois par heure. Il ne
+s'applique qu'aux demandes venues de l'extérieur : pendant une attaque, un
+agent sur le réseau ou en VPN continue de recevoir son lien, faute de quoi le
+plafond serait lui-même un déni de service à bas prix. Chaque déclenchement est
+journalisé (`LIEN_MAGIQUE_PLAFOND`) — c'est le seul signal qui dira qu'on vous
+attaque.
+
 ---
 
 ## Nommer l'application
