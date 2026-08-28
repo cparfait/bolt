@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { dimensionsImage, redimensionner } from "./images";
 import { getGeneralSettings, getSmtpSettings, type SmtpSettings } from "./settings";
 
 export type MailResult = { ok: boolean; message: string };
@@ -42,7 +43,7 @@ export async function envoyerMail(
       to,
       subject,
       text: corps,
-      html: gabarit(subject, corps, Boolean(logo), signature),
+      html: gabarit(subject, corps, logo, signature),
       attachments: logo
         ? [
             {
@@ -69,21 +70,44 @@ const EXTENSIONS: Record<string, string> = {
   "image/webp": "webp",
 };
 
+/** Hauteur d'affichage du logo dans le courriel, en pixels. */
+export const HAUTEUR_LOGO_MAIL = 44;
+
+export type LogoMail = {
+  contenu: Buffer;
+  mime: string;
+  extension: string;
+  /**
+   * Dimensions d'affichage, posées en **attributs HTML** et pas seulement en
+   * CSS : Outlook rend le message avec le moteur de Word, qui ignore
+   * `max-width` et `max-height`. Un logo de 1200 px s'y affichait donc à
+   * 1200 px et chassait le texte du message hors de l'écran — défaut
+   * invisible partout ailleurs, les autres messageries respectant le CSS.
+   *
+   * `null` quand les dimensions n'ont pas pu être lues : le gabarit retombe
+   * alors sur le seul attribut `height`, que ce moteur respecte aussi.
+   */
+  largeur: number | null;
+  hauteur: number | null;
+};
+
 /**
  * Prépare le logo configuré pour l'envoi en pièce jointe inline.
  * Formats matriciels uniquement : le SVG n'est pas affiché par Gmail ni
  * Outlook, même en pièce jointe — un logo SVG laisse le mail sans image
  * plutôt que d'y glisser une icône cassée.
  */
-function logoPourMail(
-  dataUri: string,
-): { contenu: Buffer; mime: string; extension: string } | null {
+function logoPourMail(dataUri: string): LogoMail | null {
   const m = dataUri.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
   if (!m) return null;
+  const contenu = Buffer.from(m[2], "base64");
+  const taille = redimensionner(dimensionsImage(contenu), HAUTEUR_LOGO_MAIL);
   return {
-    contenu: Buffer.from(m[2], "base64"),
+    contenu,
     mime: m[1],
     extension: EXTENSIONS[m[1]],
+    largeur: taille?.largeur ?? null,
+    hauteur: taille?.hauteur ?? null,
   };
 }
 
@@ -149,16 +173,20 @@ function echapper(s: string): string {
 function gabarit(
   titre: string,
   corps: string,
-  avecLogo: boolean,
+  logoMail: LogoMail | null,
   signature: string,
 ): string {
   const paragraphes = corps
     .split(/\n{2,}/)
     .map((p) => `<p style="margin:0 0 14px;line-height:1.6">${echapper(p).replace(/\n/g, "<br>")}</p>`)
     .join("");
-  const logo = avecLogo
-    ? `<img src="cid:${CID_LOGO}" alt="" style="display:block;max-height:44px;margin:0 0 14px">\n    `
-    : "";
+  // Les attributs `width`/`height` d'abord — seul bornage qu'Outlook respecte —,
+  // repris en CSS pour les messageries qui, elles, suivent la feuille de style.
+  const dims =
+    logoMail?.largeur && logoMail?.hauteur
+      ? ` width="${logoMail.largeur}" height="${logoMail.hauteur}" style="display:block;width:${logoMail.largeur}px;height:${logoMail.hauteur}px;margin:0 0 14px"`
+      : ` height="${HAUTEUR_LOGO_MAIL}" style="display:block;height:${HAUTEUR_LOGO_MAIL}px;width:auto;margin:0 0 14px"`;
+  const logo = logoMail ? `<img src="cid:${CID_LOGO}" alt=""${dims}>\n    ` : "";
   return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;padding:24px">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 4px 20px rgba(0,0,0,.06)">
     ${logo}<p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#006e46;letter-spacing:.04em;text-transform:uppercase">${signature}</p>
