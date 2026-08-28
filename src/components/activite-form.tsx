@@ -14,6 +14,7 @@ export type ActiviteInitiale = {
   couleur: string;
   capacitePartagee: boolean;
   capacite: number | null;
+  suiviPresence: boolean;
 };
 
 export function ActiviteForm({
@@ -114,6 +115,34 @@ export function ActiviteForm({
             Chaque créneau garde ses propres places, définies sur sa fiche.
           </p>
         )}
+      </fieldset>
+
+      {/* Une activité en autonomie n'a personne pour pointer : sans ce
+          réglage, ses séances passées comptaient comme des feuilles jamais
+          transmises et elle sortait du bilan avec 0 % de présence. */}
+      <fieldset className="rounded-xl border border-slate-200 p-4">
+        <legend className="px-1.5 text-sm font-medium text-slate-700">
+          Suivi de présence
+        </legend>
+        <label className="flex items-start gap-2.5 text-sm">
+          <input
+            type="checkbox"
+            name="suiviPresence"
+            defaultChecked={initiale?.suiviPresence ?? true}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300"
+          />
+          <span>
+            <span className="block font-medium">
+              Les séances sont émargées par un animateur
+            </span>
+            <span className="block text-xs text-slate-500">
+              Décochez pour une pratique en autonomie — salle en libre accès,
+              sans animateur. Aucune feuille ne sera attendue, et l&apos;activité
+              n&apos;entrera pas dans le taux de présence du bilan. Les
+              inscriptions et le remplissage restent comptés.
+            </span>
+          </span>
+        </label>
       </fieldset>
 
       <SubmitButton className={btnPrimary}>

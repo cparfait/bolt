@@ -179,7 +179,15 @@ export async function feuillesAttendues<
 
   const creneauIds = [...new Set(seances.map((s) => s.creneauId))];
   const seanceIds = seances.map((s) => s.id);
-  const [inscriptions, pointages, attendus] = await Promise.all([
+  const [creneauxPointes, inscriptions, pointages, attendus] = await Promise.all([
+    // Une activité pratiquée en autonomie n'a personne pour pointer : ses
+    // séances ne doivent jamais figurer parmi les feuilles attendues, sans quoi
+    // l'alerte du tableau de bord réclame indéfiniment une feuille qui
+    // n'existera pas.
+    prisma.creneau.findMany({
+      where: { id: { in: creneauIds }, activite: { suiviPresence: true } },
+      select: { id: true },
+    }),
     prisma.inscription.findMany({
       where: { creneauId: { in: creneauIds }, statut: "VALIDEE" },
       select: { creneauId: true, decisionAt: true, demandeAt: true },
@@ -206,12 +214,14 @@ export async function feuillesAttendues<
   }
   const pointees = new Set(pointages.map((p) => p.seanceId));
   const annoncees = new Set(attendus.map((p) => p.seanceId));
+  const emargeables = new Set(creneauxPointes.map((c) => c.id));
 
   return seances.filter(
     (s) =>
-      pointees.has(s.id) ||
-      annoncees.has(s.id) ||
-      (parCreneau.get(s.creneauId) ?? []).some((i) => participeALaSeance(i, s.date)),
+      emargeables.has(s.creneauId) &&
+      (pointees.has(s.id) ||
+        annoncees.has(s.id) ||
+        (parCreneau.get(s.creneauId) ?? []).some((i) => participeALaSeance(i, s.date))),
   );
 }
 

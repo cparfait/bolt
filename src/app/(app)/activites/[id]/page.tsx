@@ -166,6 +166,7 @@ export default async function ActiviteDetail({
             couleur: activite.couleur,
             capacitePartagee: activite.capacitePartagee,
             capacite: activite.capacite,
+            suiviPresence: activite.suiviPresence,
           }}
         />
       </Panneau>

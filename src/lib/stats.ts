@@ -74,7 +74,8 @@ export type Indicateurs = {
   seancesTotal: number;
   seancesEmargees: number;
   seancesAnnulees: number;
-  seancesPassees: number;
+  seancesPassees: number; // passées, non annulées, ET soumises à émargement
+  seancesSansEmargement: number; // passées, sur une activité non pointée
   tauxEmargement: number; // séances émargées / séances passées non annulées
   presents: number;
   absents: number;
@@ -110,7 +111,14 @@ export async function indicateurs(f: Filtre): Promise<Indicateurs> {
 
   const emargees = seances.filter((s) => s.statut === "FAITE");
   const annulees = seances.filter((s) => s.statut === "ANNULEE").length;
-  const passees = seances.filter((s) => s.date <= today && s.statut !== "ANNULEE").length;
+
+  // Le dénominateur du taux d'émargement ne retient que ce qui devait être
+  // émargé. Une activité en autonomie n'a pas de feuille à transmettre : l'y
+  // compter revenait à reprocher au service des sports une négligence qui
+  // n'existe pas, et faisait plonger l'indicateur de tête du bilan.
+  const revolues = seances.filter((s) => s.date <= today && s.statut !== "ANNULEE");
+  const passees = revolues.filter((s) => s.creneau.activite.suiviPresence).length;
+  const sansEmargement = revolues.length - passees;
 
   for (const s of emargees) {
     capacite += placesOffertes(s);
@@ -128,6 +136,7 @@ export async function indicateurs(f: Filtre): Promise<Indicateurs> {
     seancesEmargees: emargees.length,
     seancesAnnulees: annulees,
     seancesPassees: passees,
+    seancesSansEmargement: sansEmargement,
     tauxEmargement: passees > 0 ? Math.round((emargees.length / passees) * 100) : 0,
     presents,
     absents,
@@ -145,6 +154,8 @@ export type LigneActivite = {
   activiteId: string;
   nom: string;
   couleur: string;
+  /** Faux : les colonnes de présence n'ont pas de sens pour cette activité. */
+  suiviPresence: boolean;
   seancesEmargees: number;
   presents: number;
   absents: number;
@@ -176,6 +187,7 @@ export async function parActivite(f: Filtre): Promise<LigneActivite[]> {
         activiteId: a.id,
         nom: a.nom,
         couleur: a.couleur,
+        suiviPresence: a.suiviPresence,
         seancesEmargees: 0,
         presents: 0,
         absents: 0,

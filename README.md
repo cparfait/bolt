@@ -198,6 +198,20 @@ place appartient à l'agent, suivre deux séances n'en consomme qu'une, et la
 liste d'attente est commune aux créneaux. Le quota d'inscriptions par agent se
 compte lui aussi en activités, jamais en créneaux.
 
+Une activité peut se pratiquer **sans émargement** — salle de musculation en
+libre accès, sans animateur pour pointer. La case se décoche sur la fiche de
+l'activité, et la conséquence est surtout statistique : ses séances passées ne
+sont plus comptées comme des feuilles jamais transmises, elles disparaissent de
+l'alerte du tableau de bord, et le bilan affiche « — » au lieu de « 0 % » sur
+ses colonnes de présence. Une fréquentation qu'on ne mesure pas n'est pas une
+fréquentation nulle : un zéro dans un classeur qui circule en comité se lit
+comme un échec, et se cite comme tel. Les inscriptions et le remplissage, eux,
+restent comptés — c'est souvent l'activité la plus courue.
+
+Décocher n'interdit pas de pointer : si une feuille est malgré tout remplie,
+ses présences comptent normalement. Le drapeau dit « aucune feuille n'est
+attendue », pas « aucune donnée n'est acceptée ».
+
 Les **périodes de fermeture** (vacances scolaires, jours fériés, fermeture de la
 piscine) sont déclarées au niveau de la saison, mais **dérogeables créneau par
 créneau** : le formulaire de créneau liste toutes les périodes et l'on coche

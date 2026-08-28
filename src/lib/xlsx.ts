@@ -89,7 +89,13 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
     ["Séances planifiées", ind.seancesTotal, ""],
     ["Séances émargées", ind.seancesEmargees, ""],
     ["Séances annulées", ind.seancesAnnulees, ""],
-    ["Taux de feuilles remplies", `${ind.tauxEmargement} %`, "sur les séances passées non annulées"],
+    [
+      "Taux de feuilles remplies",
+      `${ind.tauxEmargement} %`,
+      ind.seancesSansEmargement > 0
+        ? `sur les séances passées non annulées ; ${ind.seancesSansEmargement} séance(s) en autonomie exclues`
+        : "sur les séances passées non annulées",
+    ],
     ["Présences", ind.presents, "agents effectivement venus"],
     ["Absences", ind.absents, "inscrits pointés absents"],
     ["Taux de présence", `${ind.tauxPresence} %`, "présences / pointages"],
@@ -115,14 +121,18 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
   ]);
   enTeteActivites.font = { bold: true };
   for (const a of activites) {
+    // Une activité pratiquée en autonomie n'a pas une fréquentation nulle :
+    // elle a une fréquentation inconnue. Un « 0 % » dans un classeur qui
+    // circule en comité se lit comme un échec, et se cite comme tel.
+    const sansObjet = "sans émargement";
     synthese.addRow([
       a.nom,
       a.inscrits,
-      a.seancesEmargees,
-      a.presents,
-      a.moyenne,
-      `${a.tauxPresence} %`,
-      `${a.tauxRemplissage} %`,
+      a.suiviPresence ? a.seancesEmargees : sansObjet,
+      a.suiviPresence ? a.presents : sansObjet,
+      a.suiviPresence ? a.moyenne : sansObjet,
+      a.suiviPresence ? `${a.tauxPresence} %` : sansObjet,
+      a.suiviPresence ? `${a.tauxRemplissage} %` : sansObjet,
     ]);
   }
 

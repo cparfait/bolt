@@ -190,6 +190,17 @@ model Activite {
   couleur     String  @default("#4f46e5") // teinte des badges et graphiques
   icone       String  @default("Activity") // nom d'icône lucide
   actif       Boolean @default(true)
+
+  /// L'activité fait-elle l'objet d'un émargement ?
+  ///
+  /// Faux pour une pratique en autonomie — musculation en libre accès, salle
+  /// ouverte sans animateur : personne n'y pointe qui que ce soit. Sans ce
+  /// drapeau, ses séances passées comptaient comme des feuilles jamais
+  /// transmises, le taux d'émargement de la collectivité s'effondrait, et
+  /// l'activité apparaissait au bilan avec 0 % de présence — soit exactement
+  /// l'inverse de la vérité, puisqu'elle peut très bien être la plus courue.
+  /// Les inscriptions et le remplissage, eux, restent comptés.
+  suiviPresence Boolean @default(true)
   ordre       Int     @default(0)
 
   // Capacité mutualisée entre les créneaux de l'activité.

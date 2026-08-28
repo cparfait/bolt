@@ -58,6 +58,9 @@ export async function enregistrerActivite(
     couleur: parsed.data.couleur,
     capacitePartagee,
     capacite,
+    // Coché par défaut à la création : la quasi-totalité des activités sont
+    // émargées, et l'exception doit être un geste conscient.
+    suiviPresence: formData.get("suiviPresence") === "on",
   };
 
   let creee: string | null = null;

@@ -601,13 +601,31 @@ function TableauActivites({
                   {a.nom}
                 </span>
                 <span className="text-xs text-slate-400">
-                  {a.seancesEmargees}{" "}
-                  {pluriel(a.seancesEmargees, "séance émargée", "séances émargées")}
+                  {a.suiviPresence ? (
+                    <>
+                      {a.seancesEmargees}{" "}
+                      {pluriel(a.seancesEmargees, "séance émargée", "séances émargées")}
+                    </>
+                  ) : (
+                    "pratique en autonomie, sans émargement"
+                  )}
                 </span>
               </td>
               <td className="py-2.5 text-right tabular-nums">{a.inscrits}</td>
-              <td className="py-2.5 text-right font-medium tabular-nums">{a.moyenne}</td>
-              <td className="py-2.5 text-right tabular-nums">{a.tauxPresence}%</td>
+              {/* Un tiret, pas un zéro : une activité qu'on ne pointe pas n'a
+                  pas une fréquentation nulle, elle a une fréquentation
+                  inconnue. Afficher 0 % la ferait passer pour la moins suivie
+                  alors qu'elle est parfois la plus courue. */}
+              <td className="py-2.5 text-right font-medium tabular-nums">
+                {a.suiviPresence ? a.moyenne : <span className="text-slate-300">—</span>}
+              </td>
+              <td className="py-2.5 text-right tabular-nums">
+                {a.suiviPresence ? (
+                  `${a.tauxPresence}%`
+                ) : (
+                  <span className="text-slate-300">—</span>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
