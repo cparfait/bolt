@@ -33,17 +33,13 @@ export async function envoyerMail(
   // des messageries ignorent les images en data URI dans le HTML — Gmail les
   // retire purement et simplement.
   const logo = logoPourMail(g.logo);
-  // Même ligne que sous le logo des écrans de connexion : le destinataire doit
-  // pouvoir nommer l'outil qui lui écrit, logo ou pas.
-  const signature = [g.appName, g.appDescription].filter(Boolean).join(" · ");
-
   try {
     await transport.sendMail({
       from: smtp.from,
       to,
       subject,
       text: corps,
-      html: gabarit(subject, corps, logo, signature),
+      html: gabarit(subject, corps, logo, g.appName, g.appDescription, g.orgName),
       attachments: logo
         ? [
             {
@@ -161,7 +157,7 @@ function expliquer(e: unknown, smtp: SmtpSettings): string {
   return brut;
 }
 
-function echapper(s: string): string {
+export function echapper(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -169,31 +165,156 @@ function echapper(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Gabarit HTML sobre, aux couleurs de l'application. */
+/** Teinte de l'application, reprise sur le filet, l'en-tête et les liens. */
+const VERT = "#006e46";
+
+/**
+ * Pile de polices.
+ *
+ * Répétée sur CHAQUE élément de texte, et pas seulement sur `body` : les
+ * clients de messagerie n'héritent pas de la police de manière fiable — Outlook
+ * en particulier retombe sur Times New Roman dès qu'un élément ne la déclare
+ * pas lui-même. C'est ce qui donne aux courriels leur air de document Word des
+ * années 2000.
+ */
+const POLICE =
+  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+/** Repère les URL dans un texte déjà échappé, pour les rendre cliquables. */
+const LIEN = /(https?:\/\/[^\s<>"]*[^\s<>".,;:])/g;
+
+/**
+ * Rend les adresses cliquables. Le lien d'émargement d'un animateur et le lien
+ * de connexion d'un agent voyagent dans le corps du message : les laisser en
+ * texte brut oblige à les recopier, et certaines messageries les coupent en
+ * deux à l'affichage.
+ */
+export function avecLiens(texteEchappe: string): string {
+  return texteEchappe.replace(
+    LIEN,
+    (url) =>
+      `<a href="${url}" style="color:${VERT};text-decoration:underline;word-break:break-all">${url}</a>`,
+  );
+}
+
+/**
+ * Texte d'aperçu, affiché par la messagerie à côté de l'objet dans la liste
+ * des messages. Sans lui, toutes les lignes se ressemblent : « Bonjour
+ * Christophe, » n'apprend rien. On saute donc la salutation pour prendre la
+ * première phrase utile.
+ */
+export function apercu(corps: string): string {
+  const paragraphes = corps.split(/\n{2,}/).map((p) => p.trim());
+  const utile = paragraphes.find((p) => p && !/^bonjour\b/i.test(p)) ?? paragraphes[0] ?? "";
+  const plat = utile.replace(/\s+/g, " ");
+  return plat.length > 140 ? `${plat.slice(0, 139)}…` : plat;
+}
+
+/**
+ * Gabarit HTML des courriels.
+ *
+ * Construit en TABLEAUX, et non en `div` : Outlook rend le HTML avec le moteur
+ * de Word, qui ignore `max-width`, `border-radius`, `box-shadow` et la plupart
+ * des marges. La mise en page précédente s'y effondrait en texte nu sur fond
+ * blanc — la carte censée encadrer le message n'existait tout simplement pas
+ * chez la moitié des destinataires. Un tableau de largeur fixe, lui, est
+ * respecté partout depuis vingt ans.
+ *
+ * Les quelques propriétés modernes qui subsistent (angles arrondis) sont des
+ * agréments : là où elles ne sont pas comprises, la mise en page reste entière.
+ */
 function gabarit(
   titre: string,
   corps: string,
   logoMail: LogoMail | null,
-  signature: string,
+  appName: string,
+  appDescription: string,
+  organisation: string,
 ): string {
   const paragraphes = corps
     .split(/\n{2,}/)
-    .map((p) => `<p style="margin:0 0 14px;line-height:1.6">${echapper(p).replace(/\n/g, "<br>")}</p>`)
+    .filter((p) => p.trim())
+    .map(
+      (p) =>
+        `<p style="margin:0 0 16px;font-family:${POLICE};font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#334155">${avecLiens(echapper(p.trim()).replace(/\n/g, "<br>"))}</p>`,
+    )
     .join("");
+
   // Les attributs `width`/`height` d'abord — seul bornage qu'Outlook respecte —,
   // repris en CSS pour les messageries qui, elles, suivent la feuille de style.
   const dims =
     logoMail?.largeur && logoMail?.hauteur
-      ? ` width="${logoMail.largeur}" height="${logoMail.hauteur}" style="display:block;width:${logoMail.largeur}px;height:${logoMail.hauteur}px;margin:0 0 14px"`
-      : ` height="${HAUTEUR_LOGO_MAIL}" style="display:block;height:${HAUTEUR_LOGO_MAIL}px;width:auto;margin:0 0 14px"`;
-  const logo = logoMail ? `<img src="cid:${CID_LOGO}" alt=""${dims}>\n    ` : "";
-  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc;padding:24px">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 4px 20px rgba(0,0,0,.06)">
-    ${logo}<p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#006e46;letter-spacing:.04em;text-transform:uppercase">${signature}</p>
-    <h1 style="margin:0 0 18px;font-size:19px;color:#0f172a">${echapper(titre)}</h1>
-    <div style="font-size:15px;color:#334155">${paragraphes}</div>
-  </div>
-</div>`;
+      ? ` width="${logoMail.largeur}" height="${logoMail.hauteur}" style="display:block;width:${logoMail.largeur}px;height:${logoMail.hauteur}px;border:0"`
+      : ` height="${HAUTEUR_LOGO_MAIL}" style="display:block;height:${HAUTEUR_LOGO_MAIL}px;width:auto;border:0"`;
+
+  // L'identité de l'application dans un bandeau : le logo à gauche, le nom et
+  // sa ligne d'accompagnement à droite. En deux cellules plutôt qu'en `flex`,
+  // qu'Outlook ne connaît pas — et le logo garde sa largeur déclarée, sans quoi
+  // la cellule de texte se ferait écraser.
+  const cellules = logoMail
+    ? `<td width="${logoMail.largeur ?? HAUTEUR_LOGO_MAIL}" valign="middle" style="padding-right:14px">
+                    <img src="cid:${CID_LOGO}" alt=""${dims}>
+                  </td>
+                  <td valign="middle">`
+    : `<td valign="middle">`;
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Sans ces deux lignes, Outlook.com et Apple Mail inversent eux-mêmes les
+     couleurs en thème sombre, et le vert de la collectivité y devient illisible. -->
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>${echapper(titre)}</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;-webkit-text-size-adjust:100%">
+<!-- Texte d'aperçu : lu par la messagerie dans sa liste, jamais affiché. -->
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden">${echapper(apercu(corps))}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9">
+  <tr>
+    <td align="center" style="padding:24px 12px">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px">
+        <!-- Filet de couleur : un aplat de fond, que tout client sait rendre,
+             là où une ombre portée ne serait vue que par la moitié d'entre eux. -->
+        <tr><td height="4" style="height:4px;line-height:4px;font-size:0;background:${VERT};border-radius:12px 12px 0 0">&nbsp;</td></tr>
+        <tr>
+          <td style="padding:20px 32px;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                ${cellules}
+                  <div style="font-family:${POLICE};font-size:15px;line-height:20px;font-weight:700;color:#0f172a">${echapper(appName)}</div>
+                  ${appDescription ? `<div style="font-family:${POLICE};font-size:12px;line-height:16px;color:#64748b">${echapper(appDescription)}</div>` : ""}
+                  </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 32px 18px">
+            <h1 style="margin:0;font-family:${POLICE};font-size:21px;line-height:28px;font-weight:700;color:#0f172a">${echapper(titre)}</h1>
+          </td>
+        </tr>
+        <tr><td style="padding:0 32px 14px">${paragraphes}</td></tr>
+        <tr><td style="padding:0 32px 26px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr><td height="1" style="height:1px;line-height:1px;font-size:0;background:#e2e8f0">&nbsp;</td></tr>
+          </table>
+        </td></tr>
+      </table>
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px">
+        <tr>
+          <td align="center" style="padding:14px 32px 0;font-family:${POLICE};font-size:12px;line-height:18px;color:#94a3b8">
+            ${echapper(organisation)}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
 }
 
 /** Corps de mail transmettant à un animateur son lien d'émargement et son code. */
