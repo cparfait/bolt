@@ -182,6 +182,92 @@ export async function effectifsParActivite(saisonId: string): Promise<Map<string
  * Statut résultant : VALIDEE (si le service n'arbitre pas et qu'il reste de la
  * place), EN_ATTENTE (arbitrage) ou LISTE_ATTENTE (créneau complet).
  */
+
+/**
+ * Accusé de réception envoyé à l'agent qui vient de demander son inscription.
+ *
+ * Il manquait, et son absence était trompeuse plutôt que gênante : jusqu'ici
+ * l'application n'écrivait qu'au moment de l'arbitrage — donc jamais, quand
+ * la validation automatique est active. L'agent voyait un message à l'écran,
+ * refermait l'onglet, et n'avait plus aucune trace de sa demande : ni
+ * confirmation, ni rang en liste d'attente, ni de quoi savoir s'il devait
+ * relancer le service des sports. Beaucoup en concluaient que « ça n'avait pas
+ * marché », et recommençaient.
+ *
+ * Le texte dépend de ce qui s'est réellement passé : une inscription
+ * confirmée, une demande en attente d'arbitrage et une place en liste
+ * d'attente n'appellent pas la même suite, et le dire d'une seule formule
+ * vague obligerait l'agent à venir le demander.
+ *
+ * Silencieux : une messagerie en panne ne doit pas faire échouer une
+ * inscription qui, elle, est bien enregistrée.
+ */
+async function accuserReception(
+  userId: string,
+  creneau: {
+    jour: string;
+    heureDebut: string;
+    heureFin: string;
+    lieu: string | null;
+    activite: { nom: string };
+  },
+  statut: InscriptionStatut,
+  rang: number | null,
+): Promise<void> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, email: true, emailContact: true },
+    });
+    if (!user) return;
+    const adresse = adresseDeContact(user);
+    if (!adresse) return;
+
+    const g = await getGeneralSettings();
+    const quand = `${creneau.jour.toLowerCase()} de ${creneau.heureDebut} à ${creneau.heureFin}${creneau.lieu ? ` — ${creneau.lieu}` : ""}`;
+    const nom = creneau.activite.nom;
+
+    const contenus: Partial<Record<InscriptionStatut, { objet: string; corps: string[] }>> = {
+      VALIDEE: {
+        objet: `Inscription confirmée — ${nom}`,
+        corps: [
+          `Votre inscription à ${nom} est confirmée : ${quand}.`,
+          `Un empêchement, ou vous souhaitez vous désinscrire ? Faites-le depuis l'application, votre place profitera à un collègue en liste d'attente.`,
+        ],
+      },
+      EN_ATTENTE: {
+        objet: `Demande d'inscription reçue — ${nom}`,
+        corps: [
+          `Votre demande d'inscription à ${nom} (${quand}) est bien enregistrée.`,
+          `Le service des sports l'examine : vous recevrez un message dès qu'une décision sera prise. Vous n'avez rien d'autre à faire d'ici là.`,
+        ],
+      },
+      LISTE_ATTENTE: {
+        objet: `Liste d'attente — ${nom}`,
+        corps: [
+          `Le créneau de ${nom} (${quand}) est complet : vous êtes en liste d'attente${rang ? `, en position ${rang}` : ""}.`,
+          `Vous serez prévenu par courriel dès qu'une place se libère. Votre demande reste valable, il est inutile de la renouveler.`,
+        ],
+      },
+    };
+
+    const contenu = contenus[statut];
+    if (!contenu) return; // REFUSEE, DESISTEE : ces cas ont leur propre message
+
+    await envoyerMail(
+      adresse,
+      contenu.objet,
+      [
+        `Bonjour ${prenomDe(user.displayName)},`,
+        ...contenu.corps,
+        g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
+      ].join("\n\n"),
+    );
+  } catch {
+    // l'inscription est enregistrée : un courriel manqué ne doit rien annuler
+  }
+}
+
 export type Acceptation = {
   /** Version des textes affichés à l'agent (src/lib/declarations.ts). */
   version: string;
@@ -275,6 +361,8 @@ export async function demanderInscription(
     cible: `${creneau.activite.nom} ${creneau.jour} ${creneau.heureDebut}`,
     details: statut,
   });
+
+  await accuserReception(userId, creneau, statut, rang);
 
   const messages: Record<InscriptionStatut, string> = {
     VALIDEE: `Inscription confirmée pour ${creneau.activite.nom}.`,

@@ -140,7 +140,12 @@ L'enregistrement est optimiste : la saisie reste fluide même sur un réseau mob
 médiocre.
 
 **Pour l'agent** — catalogue des créneaux avec places restantes, inscription en
-ligne, liste d'attente automatique, historique de sa propre assiduité.
+ligne, liste d'attente automatique, historique de sa propre assiduité. Chaque
+demande vaut **accusé de réception par courriel**, dont le texte dépend de ce
+qui s'est réellement passé : inscription confirmée, demande transmise au
+service des sports, ou place en liste d'attente avec son rang. Sans lui, l'agent
+refermait son onglet sans plus aucune trace de sa demande — beaucoup en
+concluaient que « ça n'avait pas marché » et recommençaient.
 
 **Pour le service des sports** — activités et créneaux, calendrier généré
 automatiquement hors vacances et jours fériés, arbitrage des demandes,
