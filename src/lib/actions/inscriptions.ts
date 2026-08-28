@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
+import { accuserReception } from "@/lib/inscriptions";
 import {
   CHAMP_RGPD,
   champDeclaration,
@@ -263,6 +264,12 @@ export async function inscrireAgentAction(
     userId: admin.id,
     cible: `${agent.displayName} → ${creneau.activite.nom}`,
   });
+
+  // L'agent n'a rien demandé : sans ce message, il découvrirait son inscription
+  // en recevant le rappel de la veille — ou sur place. Il part à l'adresse que
+  // le service des sports a saisie pour lui quand elle existe.
+  await accuserReception(userId, creneauId, data.statut, data.rang, "service");
+
   revalidatePath("/inscriptions");
   return succes(
     complet

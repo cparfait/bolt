@@ -183,76 +183,114 @@ export async function effectifsParActivite(saisonId: string): Promise<Map<string
  * place), EN_ATTENTE (arbitrage) ou LISTE_ATTENTE (créneau complet).
  */
 
+/** Qui est à l'origine de l'inscription — le texte du message en dépend. */
+export type Origine = "agent" | "service";
+
 /**
- * Accusé de réception envoyé à l'agent qui vient de demander son inscription.
+ * Accusé de réception envoyé à l'agent, à l'adresse que le service des sports
+ * a saisie pour lui quand elle existe (`adresseDeContact`, src/lib/comptes.ts).
  *
- * Il manquait, et son absence était trompeuse plutôt que gênante : jusqu'ici
- * l'application n'écrivait qu'au moment de l'arbitrage — donc jamais, quand
- * la validation automatique est active. L'agent voyait un message à l'écran,
+ * Il manquait, et son absence était trompeuse plutôt que gênante :
+ * l'application n'écrivait qu'au moment de l'arbitrage — donc jamais, quand la
+ * validation automatique est active. L'agent voyait un message à l'écran,
  * refermait l'onglet, et n'avait plus aucune trace de sa demande : ni
  * confirmation, ni rang en liste d'attente, ni de quoi savoir s'il devait
- * relancer le service des sports. Beaucoup en concluaient que « ça n'avait pas
- * marché », et recommençaient.
+ * relancer. Beaucoup en concluaient que « ça n'avait pas marché », et
+ * recommençaient — d'où les doublons que le service devait ensuite démêler.
  *
- * Le texte dépend de ce qui s'est réellement passé : une inscription
- * confirmée, une demande en attente d'arbitrage et une place en liste
- * d'attente n'appellent pas la même suite, et le dire d'une seule formule
- * vague obligerait l'agent à venir le demander.
+ * Le texte dépend de deux choses : ce qui s'est réellement passé (inscription
+ * validée, demande en attente d'arbitrage, place en liste d'attente) et qui en
+ * est à l'origine. Un agent qu'on inscrit sans qu'il ait rien demandé doit
+ * l'apprendre autrement qu'en lisant « votre demande a bien été enregistrée » :
+ * il n'a rien demandé, et c'est précisément ce qu'il faut lui dire.
  *
  * Silencieux : une messagerie en panne ne doit pas faire échouer une
  * inscription qui, elle, est bien enregistrée.
  */
-async function accuserReception(
+export async function accuserReception(
   userId: string,
-  creneau: {
-    jour: string;
-    heureDebut: string;
-    heureFin: string;
-    lieu: string | null;
-    activite: { nom: string };
-  },
+  creneauId: string,
   statut: InscriptionStatut,
   rang: number | null,
+  origine: Origine,
 ): Promise<void> {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { displayName: true, email: true, emailContact: true },
-    });
-    if (!user) return;
+    const [user, creneau] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { displayName: true, email: true, emailContact: true },
+      }),
+      prisma.creneau.findUnique({
+        where: { id: creneauId },
+        select: {
+          jour: true,
+          heureDebut: true,
+          heureFin: true,
+          lieu: true,
+          activite: { select: { nom: true } },
+        },
+      }),
+    ]);
+    if (!user || !creneau) return;
     const adresse = adresseDeContact(user);
     if (!adresse) return;
 
     const g = await getGeneralSettings();
     const quand = `${creneau.jour.toLowerCase()} de ${creneau.heureDebut} à ${creneau.heureFin}${creneau.lieu ? ` — ${creneau.lieu}` : ""}`;
     const nom = creneau.activite.nom;
+    const seDesinscrire = `Si cette inscription ne vous convient pas, désinscrivez-vous depuis l'application : votre place profitera à un collègue en liste d'attente.`;
 
-    const contenus: Partial<Record<InscriptionStatut, { objet: string; corps: string[] }>> = {
-      VALIDEE: {
-        objet: `Inscription confirmée — ${nom}`,
-        corps: [
-          `Votre inscription à ${nom} est confirmée : ${quand}.`,
-          `Un empêchement, ou vous souhaitez vous désinscrire ? Faites-le depuis l'application, votre place profitera à un collègue en liste d'attente.`,
-        ],
+    const textes: Record<
+      Origine,
+      Partial<Record<InscriptionStatut, { objet: string; corps: string[] }>>
+    > = {
+      agent: {
+        VALIDEE: {
+          objet: `Inscription confirmée — ${nom}`,
+          corps: [
+            `Votre inscription à ${nom} est confirmée : ${quand}.`,
+            `Un empêchement, ou vous souhaitez vous désinscrire ? Faites-le depuis l'application, votre place profitera à un collègue en liste d'attente.`,
+          ],
+        },
+        EN_ATTENTE: {
+          objet: `Demande d'inscription reçue — ${nom}`,
+          corps: [
+            `Votre demande d'inscription à ${nom} (${quand}) est bien enregistrée.`,
+            `Le service des sports l'examine : vous recevrez un message dès qu'une décision sera prise. Vous n'avez rien d'autre à faire d'ici là.`,
+          ],
+        },
+        LISTE_ATTENTE: {
+          objet: `Liste d'attente — ${nom}`,
+          corps: [
+            `Le créneau de ${nom} (${quand}) est complet : vous êtes en liste d'attente${rang ? `, en position ${rang}` : ""}.`,
+            `Vous serez prévenu par courriel dès qu'une place se libère. Votre demande reste valable, il est inutile de la renouveler.`,
+          ],
+        },
       },
-      EN_ATTENTE: {
-        objet: `Demande d'inscription reçue — ${nom}`,
-        corps: [
-          `Votre demande d'inscription à ${nom} (${quand}) est bien enregistrée.`,
-          `Le service des sports l'examine : vous recevrez un message dès qu'une décision sera prise. Vous n'avez rien d'autre à faire d'ici là.`,
-        ],
-      },
-      LISTE_ATTENTE: {
-        objet: `Liste d'attente — ${nom}`,
-        corps: [
-          `Le créneau de ${nom} (${quand}) est complet : vous êtes en liste d'attente${rang ? `, en position ${rang}` : ""}.`,
-          `Vous serez prévenu par courriel dès qu'une place se libère. Votre demande reste valable, il est inutile de la renouveler.`,
-        ],
+      service: {
+        VALIDEE: {
+          objet: `Vous êtes inscrit — ${nom}`,
+          corps: [
+            `Le service des sports vous a inscrit à ${nom} : ${quand}.`,
+            seDesinscrire,
+          ],
+        },
+        LISTE_ATTENTE: {
+          objet: `Liste d'attente — ${nom}`,
+          corps: [
+            `Le service des sports a enregistré votre inscription à ${nom} (${quand}), mais le créneau est complet : vous êtes en liste d'attente${rang ? `, en position ${rang}` : ""}.`,
+            `Vous serez prévenu dès qu'une place se libère.`,
+          ],
+        },
       },
     };
 
-    const contenu = contenus[statut];
-    if (!contenu) return; // REFUSEE, DESISTEE : ces cas ont leur propre message
+    // REFUSEE et DESISTEE ont leur propre message, envoyé ailleurs. Une
+    // inscription mise en attente par un animateur ne déclenche rien non plus :
+    // c'est l'arbitrage du service qui écrira, et l'agent n'aurait pas compris
+    // un courriel annonçant une demande qu'il n'a pas faite.
+    const contenu = textes[origine][statut];
+    if (!contenu) return;
 
     await envoyerMail(
       adresse,
@@ -362,7 +400,7 @@ export async function demanderInscription(
     details: statut,
   });
 
-  await accuserReception(userId, creneau, statut, rang);
+  await accuserReception(userId, creneauId, statut, rang, "agent");
 
   const messages: Record<InscriptionStatut, string> = {
     VALIDEE: `Inscription confirmée pour ${creneau.activite.nom}.`,
@@ -424,6 +462,13 @@ export async function inscrireDirectement(
   } else {
     await prisma.inscription.create({ data: { creneauId, userId, ...data } });
   }
+
+  // Prévenir l'agent, mais seulement quand la décision est prise : `decidePar`
+  // nul, c'est un animateur qui signale une venue, la demande part en attente
+  // et c'est l'arbitrage du service qui écrira. Sans cette réserve, l'agent
+  // recevrait deux courriels pour une inscription qu'il n'a pas demandée.
+  if (decidePar) await accuserReception(userId, creneauId, statut, rang, "service");
+
   return { deja: false, statut, rang };
 }
 
