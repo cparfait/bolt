@@ -149,11 +149,25 @@ tous), synchronisation en lecture seule, gestion des rôles, journal d'audit
 complet. Les erreurs SMTP courantes sont traduites en conseil actionnable
 plutôt qu'en message OpenSSL.
 
-**Rappels de séance** — facultatifs, envoyés aux inscrits N heures avant. Le
-déclenchement se fait au fil du trafic sur l'application : aucun ordonnanceur
-n'est nécessaire dans le conteneur. Si vous disposez d'un cron, définissez
-`CRON_TOKEN` et appelez `GET /api/taches/rappels` — sans ce jeton la route reste
-fermée. Une séance n'est rappelée qu'une fois, quelle que soit la voie.
+**Rappels de séance** — facultatifs, envoyés aux inscrits N heures avant.
+
+Le déclenchement vient d'un **ordonnanceur interne au conteneur**
+(`src/lib/ordonnanceur.ts`, démarré par `src/instrumentation.ts`), qui bat
+toutes les cinq minutes que quelqu'un soit connecté ou non. Aucun conteneur
+supplémentaire, aucune crontab sur l'hôte. Il porte aussi les durées de
+conservation et la synchronisation quotidienne de l'annuaire.
+
+Ces trois tâches étaient auparavant déclenchées au fil du trafic, à l'affichage
+du tableau de bord. C'était commode à écrire et faux en exploitation : sur une
+application consultée par à-coups, personne ne passe la nuit ni le week-end, et
+un rappel dû à 18 h pour le lendemain partait à la première connexion du matin
+— parfois le jour même de la séance. La panne était en outre invisible : rien
+n'échoue, les courriels sortent simplement trop tard.
+
+Si vous préférez un ordonnanceur externe, définissez `CRON_TOKEN` et appelez
+`GET /api/taches/rappels` — sans ce jeton la route reste fermée. Les deux voies
+coexistent sans risque : les verrous sont en base, et une séance n'est rappelée
+qu'une fois quelle que soit la voie.
 
 ---
 
@@ -315,8 +329,8 @@ pour qu'un agent puisse se connecter.
 **La synchronisation alimente un miroir** (`AdAccount`), qui sert à trois
 choses : inscrire un agent qui ne s'est *jamais* connecté, ouvrir la connexion
 par lien e-mail, et tenir les statistiques par direction. Elle tourne
-**automatiquement une fois par jour** (au premier passage sur le tableau de bord,
-et par le cron s'il est configuré), et reste déclenchable à la main depuis
+**automatiquement une fois par jour**, portée par l'ordonnanceur interne (et
+par le cron externe s'il est configuré), et reste déclenchable à la main depuis
 *Paramètres → Annuaire*. Elle exige un compte de service : sans lui, la lecture
 en masse est impossible et le geste reste manuel.
 
@@ -391,8 +405,8 @@ absence longue au terme de laquelle l'agent retrouve son créneau.
   Ne pas diffuser d'assiduité nominative en dehors du service des sports.
 - **Journal d'audit** : accès, décisions et émargements sont horodatés avec
   l'adresse IP. Deux durées, appliquées automatiquement (`src/lib/purge.ts`,
-  déclenchée une fois par jour depuis le tableau de bord et par le cron s'il
-  existe) :
+  déclenchée une fois par jour par l'ordonnanceur interne, et par le cron
+  externe s'il existe) :
   - **adresses IP effacées à 90 jours** — journal d'audit et dernier accès des
     animateurs. Passé un trimestre, une adresse ne répond plus à aucune question
     qu'on se pose encore ;
@@ -425,6 +439,8 @@ src/lib/rappels.ts             rappels de séance et déclenchement
 src/lib/annuaire.ts            miroir de l'annuaire et prise en compte des départs
 src/lib/departs.ts             désactivation d'un compte et retrait des activités
 src/lib/purge.ts               durées de conservation (journal, IP, jetons, inscriptions)
+src/lib/ordonnanceur.ts        battement des tâches de fond, dans le conteneur
+src/instrumentation.ts         démarrage de l'ordonnanceur au lancement du serveur
 src/lib/declarations.ts        déclarations et mentions RGPD, versionnées
 src/lib/markup.ts              mise en forme restreinte des textes (gras, souligné, puces)
 src/lib/net.ts                 adresse cliente et plages internes (estInterne)

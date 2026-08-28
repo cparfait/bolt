@@ -9,19 +9,19 @@ import { audit } from "./audit";
 /**
  * Rappels de séance envoyés aux inscrits.
  *
- * Déclenchement sans ordonnanceur : Bolt tourne dans un conteneur sans crontab,
- * et ajouter un service dédié pour un mail quotidien serait disproportionné.
- * Le passage d'un utilisateur sur l'application suffit à déclencher la
- * vérification, au plus une fois par intervalle — c'est le mécanisme déjà
- * employé par SimCity pour ses sauvegardes.
- *
- * Une route protégée (`/api/taches/rappels`) permet malgré tout de brancher un
- * vrai cron si la collectivité en dispose : les deux voies sont sûres, le
+ * Déclenchement : l'ordonnanceur interne au conteneur
+ * (`src/lib/ordonnanceur.ts`), qui bat toutes les cinq minutes que quelqu'un
+ * soit connecté ou non. Une route protégée (`/api/taches/rappels`) permet en
+ * plus de brancher un ordonnanceur externe : les deux voies sont sûres, le
  * verrou et l'horodatage par séance empêchent tout double envoi.
  */
 
 const CLE_VERROU = "rappels.dernier";
-const INTERVALLE_MS = 30 * 60 * 1000; // au plus une vérification par demi-heure
+// Au plus une vérification par tranche de cinq minutes — la période de
+// l'ordonnanceur (src/lib/ordonnanceur.ts). Ce verrou protège d'un
+// ordonnanceur externe mal réglé qui appellerait la route en boucle ; le
+// garde-fou contre un double envoi reste `rappelEnvoyeAt`, posé par séance.
+const INTERVALLE_MS = 5 * 60 * 1000;
 
 export type ResultatRappels = {
   envoyes: number;
@@ -120,10 +120,9 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
 }
 
 /**
- * Déclenchement opportuniste, appelé depuis une page consultée régulièrement.
- * Ne fait rien si la dernière vérification date de moins de 30 minutes.
- * Silencieux et non bloquant : une erreur ici ne doit pas empêcher un
- * gestionnaire d'afficher son tableau de bord.
+ * Appelé par l'ordonnanceur interne (src/lib/ordonnanceur.ts) et par la route
+ * de cron. Ne fait rien si la dernière vérification est trop récente.
+ * Silencieux : une erreur ici ne doit rien interrompre.
  */
 export async function declencherRappelsSiBesoin(): Promise<void> {
   try {

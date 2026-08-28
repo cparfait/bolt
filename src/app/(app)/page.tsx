@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { after } from "next/server";
 import {
   AlertTriangle,
   CalendarCheck,
@@ -14,9 +13,6 @@ import { estGestionnaire, requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import { decrocheurs, indicateurs, parActivite } from "@/lib/stats";
-import { declencherRappelsSiBesoin } from "@/lib/rappels";
-import { declencherPurgeSiBesoin } from "@/lib/purge";
-import { declencherSyncSiBesoin } from "@/lib/annuaire";
 import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
 import { prochainesSeancesDe } from "@/lib/actions/absences";
 import { MesSeances } from "@/components/mes-seances";
@@ -68,25 +64,6 @@ export default async function TableauDeBord({
 }) {
   const user = await requireUser();
 
-  // Entretien quotidien : durées de conservation, et prise en compte des
-  // départs déclarés dans l'annuaire. Chacun porte son propre verrou de 24 h.
-  //
-  // Placés avant la distinction des rôles, contrairement aux rappels : ni
-  // l'effacement des adresses IP ni la fermeture de l'accès d'un agent parti ne
-  // doivent dépendre de la connexion d'un gestionnaire. Toute connexion aboutit
-  // ici — `loginAction` redirige sur cette page —, donc n'importe quel
-  // utilisateur amorce la vérification.
-  //
-  // `after` et non `await` : la synchronisation lit tout l'annuaire puis écrit
-  // le miroir compte par compte. Attendue pendant le rendu, elle ferait patienter
-  // plusieurs secondes le premier utilisateur de la journée, devant une page
-  // blanche — et lui seul paierait pour tous les autres. Exécutée après l'envoi
-  // de la réponse, elle ne coûte rien à personne. Le verrou étant posé avant le
-  // travail, deux connexions simultanées n'en lancent toujours qu'une.
-  after(async () => {
-    await declencherPurgeSiBesoin();
-    await declencherSyncSiBesoin();
-  });
 
   const { vue: vueBrute } = await searchParams;
   const vue: Vue = vueBrute && vueBrute in VUES ? (vueBrute as Vue) : "jour";
@@ -257,15 +234,6 @@ export default async function TableauDeBord({
     );
   }
 
-  // ── Vue service des sports / DSI ─────────────────────────────────────────
-  // Les rappels dus partent ici, au plus une fois par demi-heure : le service
-  // des sports consulte son tableau de bord tous les jours, cela suffit. Après
-  // la réponse, comme l'entretien plus haut : une campagne de rappels est une
-  // série d'envois SMTP, et personne n'a à en attendre la fin pour voir ses
-  // séances du jour.
-  after(async () => {
-    await declencherRappelsSiBesoin();
-  });
 
   const filtre = { saisonId: saison.id };
   const periode = bornes(vue);

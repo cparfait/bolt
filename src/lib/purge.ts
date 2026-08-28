@@ -90,14 +90,13 @@ export async function purger(): Promise<ResultatPurge> {
 }
 
 /**
- * Déclenchement opportuniste, une fois par jour au plus, sur le modèle de
- * `declencherRappelsSiBesoin`.
+ * Une fois par jour au plus, appelé par l'ordonnanceur interne
+ * (src/lib/ordonnanceur.ts) et par la route de cron.
  *
- * Pourquoi pas seulement un cron : le `CRON_TOKEN` est facultatif, et une
- * installation qui n'en pose pas ne doit pas conserver des adresses IP pour
- * autant. L'application tient donc ses propres durées, que l'ordonnanceur
- * existe ou non. Silencieux : une purge qui échoue ne doit jamais empêcher un
- * gestionnaire d'afficher son tableau de bord.
+ * L'application tient ses propres durées de conservation, que la collectivité
+ * dispose ou non d'un ordonnanceur externe : `CRON_TOKEN` est facultatif, et
+ * une installation qui n'en pose pas ne doit pas garder des adresses IP pour
+ * autant. Silencieux : une purge qui échoue ne doit rien interrompre.
  */
 export async function declencherPurgeSiBesoin(): Promise<void> {
   try {
