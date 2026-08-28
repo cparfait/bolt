@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { authenticate, ensureBootstrapAdmin } from "@/lib/auth";
+import { authenticate, ensureBootstrapAdmin, resoudreIdentifiant } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 import { rateLimit } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
@@ -31,28 +31,41 @@ export async function loginAction(
   _prev: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
-  const login = String(formData.get("login") ?? "").trim();
+  const saisie = String(formData.get("login") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  if (!login || !password) {
+  if (!saisie || !password) {
     return { error: "Renseignez votre identifiant et votre mot de passe." };
   }
 
   const ip = clientIp(await headers());
   if (!estInterne(ip)) {
-    await audit("CONNEXION_HORS_RESEAU", { cible: login });
+    await audit("CONNEXION_HORS_RESEAU", { cible: saisie });
     return { error: HORS_RESEAU };
   }
 
-  // Anti-bruteforce : par identifiant ET par adresse, pour couvrir aussi bien
-  // l'acharnement sur un compte que le balayage de plusieurs comptes.
-  for (const cle of [`login:${login.toLowerCase()}`, `ip:${ip}`]) {
+  const bloque = (cle: string) => {
     const rl = rateLimit(cle, 10, 300);
-    if (!rl.ok) {
-      await audit("CONNEXION_BLOQUEE", { cible: login });
-      return {
-        error: `Trop de tentatives. Réessayez dans ${Math.ceil(rl.retryAfterSec / 60)} minute(s).`,
-      };
-    }
+    return rl.ok
+      ? null
+      : `Trop de tentatives. Réessayez dans ${Math.ceil(rl.retryAfterSec / 60)} minute(s).`;
+  };
+
+  // Anti-bruteforce, par adresse d'abord : ce compteur-là ne coûte aucune
+  // requête, et doit rester devant la résolution de l'identifiant.
+  const parIp = bloque(`ip:${ip}`);
+  if (parIp) {
+    await audit("CONNEXION_BLOQUEE", { cible: saisie });
+    return { error: parIp };
+  }
+
+  // L'agent saisit son identifiant Windows ou son adresse : les deux mènent au
+  // même compte. Le compteur porte sur l'identifiant RÉSOLU — sinon alterner
+  // les deux formes de la même identité doublerait le nombre d'essais permis.
+  const login = await resoudreIdentifiant(saisie);
+  const parLogin = bloque(`login:${login}`);
+  if (parLogin) {
+    await audit("CONNEXION_BLOQUEE", { cible: saisie });
+    return { error: parLogin };
   }
 
   await ensureBootstrapAdmin();

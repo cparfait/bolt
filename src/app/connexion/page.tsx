@@ -38,7 +38,8 @@ export default async function ConnexionPage() {
         </div>
         <LoginForm />
         <p className="mt-6 text-center text-xs text-slate-400">
-          Connectez-vous avec votre identifiant Windows habituel.
+          Votre mot de passe est celui de votre session Windows. L&apos;identifiant
+          peut être celui de votre session ou votre adresse professionnelle.
         </p>
         {/* Les agents sans compte Windows individuel (terrain, crèches,
             gardiennage) passent par le lien envoyé sur leur adresse e-mail.

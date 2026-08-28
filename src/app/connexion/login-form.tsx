@@ -10,8 +10,17 @@ export function LoginForm() {
   return (
     <form action={action} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <Alert state={state} />
-      <Field label="Identifiant" required>
-        <Input name="login" autoComplete="username" autoFocus required />
+      {/* Les deux formes mènent au même compte : beaucoup d'agents ne
+          connaissent que leur adresse, et hésiter sur ce champ suffit à faire
+          renoncer. La traduction en sAMAccountName se fait côté serveur. */}
+      <Field label="Identifiant Windows ou adresse professionnelle" required>
+        <Input
+          name="login"
+          autoComplete="username"
+          placeholder="jdupont ou j.dupont@…"
+          autoFocus
+          required
+        />
       </Field>
       <Field label="Mot de passe" required>
         <Input name="password" type="password" autoComplete="current-password" required />

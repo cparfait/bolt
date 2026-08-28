@@ -23,8 +23,16 @@ Bolt sépare les deux populations :
 | | Qui | Comment il se connecte | Exposé sur Internet |
 |---|---|---|---|
 | **Animateur** | souvent prestataire extérieur | lien à jeton + code à 6 chiffres, **aucun compte de domaine** | oui, `/emargement/*` uniquement |
-| **Agent** | agent de la collectivité | identifiant Windows, LDAPS | non (interne / VPN) |
-| **Service des sports, DSI** | agents | identifiant Windows, LDAPS | non (interne / VPN) |
+| **Agent** | agent de la collectivité | identifiant Windows **ou adresse professionnelle**, LDAPS | non (interne / VPN) |
+| **Service des sports, DSI** | agents | identifiant Windows ou adresse professionnelle, LDAPS | non (interne / VPN) |
+
+L'écran de connexion accepte les deux formes : beaucoup d'agents ne connaissent
+que leur adresse, et hésiter sur ce champ suffit à faire renoncer. Le mot de
+passe reste celui du domaine. La traduction de l'adresse en `sAMAccountName` se
+fait côté serveur (`resoudreIdentifiant`), sur les comptes Bolt puis sur le
+miroir d'annuaire — tout ce qui suit, bind LDAPS et appartenance aux groupes,
+continue de s'indexer sur le seul `sAMAccountName`. Deux comptes partageant une
+adresse ne se départagent pas : la connexion est refusée plutôt que devinée.
 
 Conséquence : **aucune identité Active Directory ne transite jamais hors du
 réseau**, et le contrôleur de domaine n'est joignable que depuis le serveur
