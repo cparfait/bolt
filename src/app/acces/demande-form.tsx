@@ -55,14 +55,16 @@ export function DemandeLienForm() {
     >
       <Alert state={state} />
 
-      {/* Ni « professionnelle » ni « personnelle » : c'est l'adresse que le
-          service des sports connaît. Beaucoup des agents visés — terrain,
-          crèches, gardiennage — sont enregistrés avec une adresse personnelle,
-          faute de boîte professionnelle qu'ils consultent. Promettre l'adresse
-          professionnelle les envoyait saisir celle qui n'ouvre rien. */}
+      {/* L'adresse professionnelle d'abord, parce que c'est le cas de la
+          plupart des agents et que c'est elle que porte l'annuaire. Mais elle ne
+          couvre pas tout le monde : terrain, crèches, gardiennage ont une boîte
+          professionnelle qu'ils n'ouvrent jamais, quand ils en ont une — d'où la
+          seconde phrase, qui doit rester visible dès le premier regard et non
+          derrière un lien « en savoir plus ». C'est exactement la population
+          pour qui cet écran existe. */}
       <Field
-        label="Votre adresse e-mail"
-        hint="Celle à laquelle le service des sports vous écrit."
+        label="Votre adresse e-mail professionnelle"
+        hint="Vous n'en avez pas, ou vous ne la consultez jamais ? Indiquez votre adresse personnelle."
         required
       >
         <Input

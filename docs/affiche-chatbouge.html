@@ -1,0 +1,380 @@
+<title>Chat'Bouge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;800&family=Karla:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+
+<style>
+  /* ---------------------------------------------------------------------
+     Palette : le vert de l'application, un jaune de terrain de sport, et un
+     neutre tiré vers le vert plutôt qu'un gris d'usine.
+     --------------------------------------------------------------------- */
+  :root {
+    --fond: #F2F4F0;
+    --carte: #FFFFFF;
+    --encre: #14201A;
+    --encre-douce: #5C6B62;
+    --vert: #2F6F4E;
+    --vert-clair: #E4EEE7;
+    --jaune: #E9C33F;
+    --trait: #DCE3DC;
+    --ombre: 0 1px 2px rgba(20, 32, 26, .05), 0 12px 32px -12px rgba(20, 32, 26, .18);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fond: #0E1411;
+      --carte: #161F1A;
+      --encre: #ECF2ED;
+      --encre-douce: #93A399;
+      --vert: #6FBF8E;
+      --vert-clair: #1D2C23;
+      --jaune: #F2D25C;
+      --trait: #26332B;
+      --ombre: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px -12px rgba(0, 0, 0, .6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --fond: #0E1411;
+    --carte: #161F1A;
+    --encre: #ECF2ED;
+    --encre-douce: #93A399;
+    --vert: #6FBF8E;
+    --vert-clair: #1D2C23;
+    --jaune: #F2D25C;
+    --trait: #26332B;
+    --ombre: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px -12px rgba(0, 0, 0, .6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--fond);
+    color: var(--encre);
+    font-family: Karla, "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 40px 24px 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  /* --- Bandeau institutionnel ---------------------------------------- */
+  .bandeau {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 20px;
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--encre-douce);
+    border-bottom: 1px solid var(--trait);
+    padding-bottom: 14px;
+  }
+  .bandeau em { font-style: normal; color: var(--vert); }
+
+  /* --- Identité ------------------------------------------------------- */
+  .identite {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .marque { flex: none; }
+  .nom {
+    font-family: "Big Shoulders Display", "Haettenschweiler", Impact, sans-serif;
+    font-weight: 800;
+    font-size: clamp(52px, 12vw, 84px);
+    line-height: .84;
+    letter-spacing: .01em;
+    margin: 0;
+    color: var(--vert);
+    text-wrap: balance;
+  }
+  .baseline {
+    margin: 6px 0 0;
+    font-size: 15px;
+    color: var(--encre-douce);
+  }
+
+  /* --- Accroche ------------------------------------------------------- */
+  .accroche {
+    background: var(--carte);
+    border: 1px solid var(--trait);
+    border-radius: 18px;
+    box-shadow: var(--ombre);
+    padding: clamp(28px, 5vw, 46px);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .accroche h2 {
+    font-family: "Big Shoulders Display", Impact, sans-serif;
+    font-weight: 700;
+    font-size: clamp(44px, 9vw, 76px);
+    line-height: .92;
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: .005em;
+  }
+  .accroche h2 span {
+    display: inline-block;
+    background: var(--jaune);
+    color: #14201A;
+    padding: 0 .18em;
+    transform: rotate(-1.2deg);
+  }
+  .accroche p {
+    margin: 0;
+    max-width: 58ch;
+    font-size: 17px;
+  }
+  .accroche p + p { color: var(--encre-douce); }
+
+  /* --- Bloc d'inscription --------------------------------------------- */
+  .inscription {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: clamp(20px, 4vw, 36px);
+    background: var(--vert-clair);
+    border: 1px solid var(--trait);
+    border-radius: 18px;
+    padding: clamp(22px, 4vw, 32px);
+  }
+  @media (max-width: 620px) {
+    .inscription { grid-template-columns: 1fr; justify-items: start; }
+  }
+
+  .qr {
+    background: #FFFFFF;
+    padding: 12px;
+    border-radius: 12px;
+    line-height: 0;
+    box-shadow: var(--ombre);
+  }
+  .qr svg { display: block; width: 168px; height: 168px; }
+  .qr-attente {
+    width: 168px; height: 168px;
+    display: flex; align-items: center; justify-content: center;
+    color: #5C6B62; font-size: 13px; line-height: 1.4; text-align: center;
+  }
+
+  .appel .quoi {
+    font-family: "Big Shoulders Display", Impact, sans-serif;
+    font-size: clamp(30px, 5vw, 40px);
+    font-weight: 700;
+    line-height: 1;
+    margin: 0 0 10px;
+  }
+  .appel .ou {
+    margin: 0 0 4px;
+    font-size: 13px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--encre-douce);
+  }
+  .adresse {
+    display: inline-block;
+    font-weight: 700;
+    font-size: clamp(17px, 3.4vw, 22px);
+    color: var(--vert);
+    text-decoration: none;
+    border-bottom: 3px solid var(--jaune);
+    word-break: break-word;
+  }
+  .adresse:hover, .adresse:focus-visible { background: var(--jaune); color: #14201A; }
+  .appel .duree { margin: 14px 0 0; font-size: 15px; color: var(--encre-douce); }
+
+  /* --- Ce qu'on y trouve ---------------------------------------------- */
+  .section-titre {
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--encre-douce);
+    margin: 0 0 14px;
+  }
+  .activites { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .activites li {
+    border: 1px solid var(--trait);
+    background: var(--carte);
+    border-radius: 999px;
+    padding: 7px 15px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  /* --- Les trois arguments -------------------------------------------- */
+  .arguments {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1px;
+    background: var(--trait);
+    border: 1px solid var(--trait);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .arguments div { background: var(--carte); padding: 22px; }
+  .arguments dt {
+    font-family: "Big Shoulders Display", Impact, sans-serif;
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--vert);
+    font-variant-numeric: tabular-nums;
+  }
+  .arguments dd { margin: 6px 0 0; font-size: 15px; color: var(--encre-douce); }
+
+  /* --- Pied ------------------------------------------------------------ */
+  .pied {
+    border-top: 1px solid var(--trait);
+    padding-top: 18px;
+    font-size: 14px;
+    color: var(--encre-douce);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+  }
+  .pied a { color: var(--vert); }
+
+  a:focus-visible, .adresse:focus-visible {
+    outline: 3px solid var(--jaune);
+    outline-offset: 3px;
+  }
+
+  /* --- Impression : une affiche, ça finit sur un mur ------------------- */
+  @media print {
+    :root {
+      --fond: #FFFFFF; --carte: #FFFFFF; --encre: #14201A; --encre-douce: #47554C;
+      --vert: #2F6F4E; --vert-clair: #EDF4EF; --jaune: #E9C33F; --trait: #C9D4CB;
+      --ombre: none;
+    }
+    body { font-size: 14px; }
+    .page { padding: 0; max-width: none; gap: 22px; }
+    .bandeau, .pied { border-color: #C9D4CB; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="bandeau">
+    <span>Ville de Châtillon &middot; Service des sports</span>
+    <span><em>Démarche qualité de vie au travail</em> &middot; Saison 2026-2027</span>
+  </header>
+
+  <div class="identite">
+    <!-- Marque provisoire : remplacez ce SVG par le logo du chat de l'application. -->
+    <svg class="marque" width="76" height="76" viewBox="0 0 76 76" role="img" aria-label="Chat'Bouge">
+      <circle cx="38" cy="38" r="38" fill="var(--vert)"></circle>
+      <path d="M20 34 L24 18 L36 27 Z" fill="var(--jaune)"></path>
+      <path d="M56 34 L52 18 L40 27 Z" fill="var(--jaune)"></path>
+      <circle cx="30" cy="40" r="3.6" fill="#14201A"></circle>
+      <circle cx="46" cy="40" r="3.6" fill="#14201A"></circle>
+      <path d="M34 50 q4 4 8 0" stroke="#14201A" stroke-width="3" fill="none" stroke-linecap="round"></path>
+      <path d="M14 44 h10 M14 50 h10 M62 44 h-10 M62 50 h-10" stroke="#14201A" stroke-width="2" stroke-linecap="round" opacity=".55"></path>
+    </svg>
+    <div>
+      <h1 class="nom">CHAT'BOUGE</h1>
+      <p class="baseline">Les activités sportives des agents de la Ville</p>
+    </div>
+  </div>
+
+  <section class="accroche">
+    <h2>Un chat dort <span>16 heures</span> par jour.<br>Vous n'êtes pas un chat.</h2>
+    <p>
+      Une heure de sport par semaine, encadrée, à deux pas du bureau. C'est gratuit,
+      c'est entre collègues, et personne ne vous demandera de courir un marathon.
+    </p>
+    <p>
+      La seule difficulté du programme, c'est de s'inscrire. Ça prend deux minutes,
+      et ça se fait depuis votre téléphone.
+    </p>
+  </section>
+
+  <section class="inscription">
+    <div class="qr" id="qr">
+      <div class="qr-attente">Code à scanner</div>
+    </div>
+    <div class="appel">
+      <p class="quoi">Scannez, choisissez, venez.</p>
+      <p class="ou">Ou rendez-vous sur</p>
+      <a class="adresse" href="https://chatbouge.chatillon92.fr">chatbouge.chatillon92.fr</a>
+      <p class="duree">
+        Votre adresse professionnelle suffit&nbsp;: vous recevez un lien de connexion.
+        Aucun mot de passe à retenir.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-titre">Au programme cette saison</h2>
+    <ul class="activites">
+      <li>Musculation</li>
+      <li>Renforcement</li>
+      <li>Yoga</li>
+      <li>Badminton</li>
+      <li>Course à pied</li>
+      <li>Marche active</li>
+      <li>Pilates</li>
+      <li>Football</li>
+    </ul>
+  </section>
+
+  <dl class="arguments">
+    <div>
+      <dt>0 €</dt>
+      <dd>Aucune participation demandée. Les créneaux et les animateurs sont pris en charge par la collectivité.</dd>
+    </div>
+    <div>
+      <dt>2 min</dt>
+      <dd>Le temps de s'inscrire. Vous choisissez votre créneau, on vous confirme votre place.</dd>
+    </div>
+    <div>
+      <dt>1 h</dt>
+      <dd>Par semaine, sur la pause méridienne ou en fin de journée selon l'activité.</dd>
+    </div>
+  </dl>
+
+  <footer class="pied">
+    <span>Une question&nbsp;? Le service des sports&nbsp;: <a href="mailto:sports@chatillon92.fr">sports@chatillon92.fr</a></span>
+    <span>Places limitées par créneau &middot; liste d'attente automatique</span>
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+  // Le QR est dessiné à l'affichage plutôt que collé en image : il reste net à
+  // l'impression, quelle que soit la taille de l'affiche, et l'adresse ne peut
+  // pas diverger de celle écrite juste à côté.
+  (function () {
+    var cible = document.getElementById("qr");
+    var adresse = document.querySelector(".adresse");
+    if (!cible || !adresse || typeof qrcode !== "function") return;
+    try {
+      var qr = qrcode(0, "M");
+      qr.addData(adresse.getAttribute("href"));
+      qr.make();
+      cible.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 0, scalable: true });
+    } catch (e) {
+      // La bordure blanche et l'adresse écrite en toutes lettres suffisent :
+      // l'affiche reste utilisable sans le code.
+    }
+  })();
+</script>
