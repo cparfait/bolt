@@ -21,25 +21,28 @@ import { audit } from "./audit";
 const VALIDITE_MINUTES = 30;
 
 /**
- * Depuis Internet, seul un compte AGENT peut ouvrir une session.
+ * Qui peut ouvrir une session depuis Internet.
  *
- * Le cloisonnement du proxy porte sur les CHEMINS, et une action serveur n'est
- * pas liée au chemin qui l'affiche : elle est adressée par un identifiant
- * global (voir le commentaire de `estInterne`, src/lib/net.ts). Une session de
- * gestionnaire obtenue depuis l'extérieur permettrait donc d'appeler les
- * actions du back-office depuis un chemin publié, alors même que les écrans
- * correspondants restent injoignables. Bloquer les PAGES ne suffit pas : il
- * faut empêcher la session privilégiée de naître.
+ * Tout le monde sauf ADMIN — et ce n'est pas un relâchement : ce qu'une session
+ * venue d'Internet peut FAIRE est borné ailleurs, par `requireUser`
+ * (src/lib/session.ts), qui refuse tout écran et toute action de gestion à une
+ * requête externe. Un gestionnaire connecté de chez lui atteint son espace
+ * personnel, rien d'autre.
  *
- * D'où cette règle, appliquée à l'envoi ET à la consommation du lien — un lien
- * demandé depuis le réseau pourrait sinon être ouvert depuis l'extérieur.
+ * La première version refusait la connexion à tout ce qui n'était pas AGENT.
+ * C'était plus simple, et trop large : le service des sports est aussi composé
+ * d'agents qui font du sport, et on leur fermait leurs propres inscriptions.
  *
- * COACH en fait partie : le rôle donne accès au planning, donc à des écrans de
- * gestion. Les animateurs prestataires, eux, ne passent pas par ce mécanisme
- * mais par leur jeton et leur PIN — rien ne change pour eux.
+ * ADMIN reste bloqué au seuil, en défense de profondeur : c'est le rôle qui
+ * passe tous les contrôles de rôle, il tient dans une poignée de personnes, et
+ * elles ont le VPN. Si une action de gestion échappait un jour à `requireUser`,
+ * autant qu'aucune session d'administrateur ne puisse exister dehors.
+ *
+ * Les animateurs prestataires ne passent pas par ce mécanisme mais par leur
+ * jeton et leur PIN : rien ne change pour eux.
  */
 export function autoriseDepuisInternet(role: Role): boolean {
-  return role === "AGENT";
+  return role !== "ADMIN";
 }
 
 /**
@@ -94,8 +97,7 @@ export async function envoyerLienConnexion(
     });
   }
 
-  // Un gestionnaire qui demande son lien depuis Internet ne reçoit rien : sa
-  // session ouvrirait le back-office par le biais des actions serveur. Le
+  // Un administrateur qui demande son lien depuis Internet ne reçoit rien. Le
   // silence est volontaire — l'appelant renvoie le même message à tout le
   // monde, et dire « votre compte ne peut pas se connecter ainsi » désignerait
   // les comptes privilégiés à qui les cherche.
@@ -120,8 +122,8 @@ export async function envoyerLienConnexion(
   });
 
   const base = urlEspaceAgent(g);
-  // Doit pointer sur le gestionnaire de route qui consomme le jeton
-  // (src/app/acces/lien/route.ts) : toute autre adresse renvoie un 404, et le
+  // Doit pointer sur l'écran de confirmation qui consomme le jeton
+  // (src/app/acces/lien/page.tsx) : toute autre adresse renvoie un 404, et le
   // lien reçu par courriel devient une impasse.
   const lien = `${base}/acces/lien?token=${token}`;
 
@@ -157,9 +159,9 @@ export async function consommerLien(token: string, options: { externe: boolean }
   if (!row.user.active) return null;
 
   // Second passage de la même règle qu'à l'envoi : un lien demandé depuis le
-  // réseau, puis ouvert depuis l'extérieur, n'ouvre pas de session privilégiée.
-  // Le jeton n'est PAS consommé — le gestionnaire pourra s'en servir en
-  // arrivant au bureau, plutôt que de le brûler en le lisant dans le train.
+  // réseau, puis ouvert depuis l'extérieur, n'ouvre pas de session
+  // d'administrateur. Le jeton n'est PAS consommé — il servira en arrivant au
+  // bureau, plutôt que d'être brûlé en le lisant dans le train.
   if (options.externe && !autoriseDepuisInternet(row.user.role)) {
     await audit("LIEN_MAGIQUE_REFUS_ROLE", { userId: row.userId });
     return null;

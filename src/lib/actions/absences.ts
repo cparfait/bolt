@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/session";
+import { requireAgent, requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { aujourdhui } from "@/lib/dates";
 import { erreur, succes, type ActionState } from "./types";
@@ -109,7 +109,7 @@ export async function declarerAbsence(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  const user = await requireAgent();
   const ids = formData.getAll("seanceId").map(String).filter(Boolean);
   const motif = String(formData.get("motif") ?? "").trim();
   if (ids.length === 0) return erreur("Sélectionnez une séance.");
@@ -167,7 +167,7 @@ export async function declarerAbsence(
  * Une feuille déjà transmise n'est pas touchée : l'animateur a constaté.
  */
 export async function annulerAbsence(seanceIds: string[]): Promise<void> {
-  const user = await requireUser();
+  const user = await requireAgent();
   if (seanceIds.length === 0) return;
 
   const seances = await prisma.seance.findMany({

@@ -1,7 +1,9 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getIronSession, type IronSession } from "iron-session";
 import { redirect } from "next/navigation";
 import { prisma } from "./db";
+import { clientIp, estInterne } from "./net";
+import { audit } from "./audit";
 import type { Role, User } from "@prisma/client";
 
 export type SessionData = {
@@ -60,12 +62,54 @@ export async function currentUser(): Promise<User | null> {
 }
 
 /**
- * Récupère l'utilisateur connecté ou redirige vers /connexion.
- * Si des rôles sont fournis, vérifie que l'utilisateur en a un (ADMIN passe toujours).
+ * Compte connecté, pour l'ESPACE AGENT : ses activités, ses inscriptions, ses
+ * absences. Ne contrôle pas l'origine réseau — c'est justement l'espace qui a
+ * vocation à être joint depuis Internet.
+ *
+ * À n'employer que là où un agent agit sur ses propres données. Tout le reste
+ * passe par `requireUser`, qui refuse l'extérieur.
+ */
+export async function requireAgent(): Promise<User> {
+  const user = await currentUser();
+  if (!user) redirect("/connexion");
+  return user;
+}
+
+/**
+ * Compte connecté, pour le BACK-OFFICE. Redirige vers /connexion si personne
+ * n'est connecté, et vérifie les rôles fournis (ADMIN passe toujours).
+ *
+ * Refuse aussi tout appel venu d'Internet, quel que soit le rôle — c'est le
+ * point de passage unique qui rend vraie la décision « le back-office ne sort
+ * pas du réseau ».
+ *
+ * Pourquoi ici et pas dans le middleware : celui-ci filtre des CHEMINS, or une
+ * action serveur est adressée par un identifiant global et s'exécute même si la
+ * requête est arrivée sur une autre page. Une session de gestionnaire ouverte
+ * depuis Internet — un agent du service qui consulte ses propres activités de
+ * chez lui — pourrait sinon appeler les actions de gestion depuis un chemin
+ * publié.
+ *
+ * Pourquoi l'IP de la requête plutôt qu'une marque posée sur la session : une
+ * session ouverte au bureau part avec l'ordinateur portable. C'est l'origine de
+ * CETTE requête qui compte, pas celle du jour où l'on s'est connecté.
+ *
+ * Strict par défaut, et c'est délibéré : une action de gestion oubliée ici
+ * refuse l'extérieur au lieu de l'accepter. Plusieurs — pointage, clôture,
+ * annulation de séance — n'exigent aucun rôle et s'appuient sur
+ * `seanceAutorisee` ; un contrôle branché sur l'argument `roles` les aurait
+ * toutes manquées.
  */
 export async function requireUser(...roles: Role[]): Promise<User> {
   const user = await currentUser();
   if (!user) redirect("/connexion");
+
+  const ip = clientIp(await headers());
+  if (!estInterne(ip)) {
+    await audit("GESTION_HORS_RESEAU", { userId: user.id });
+    redirect("/mes-activites");
+  }
+
   if (roles.length > 0 && user.role !== "ADMIN" && !roles.includes(user.role)) {
     redirect("/");
   }

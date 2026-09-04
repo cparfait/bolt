@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/session";
+import { requireAgent, requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { accuserReception } from "@/lib/inscriptions";
 import {
@@ -31,7 +31,7 @@ export async function inscrireAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  const user = await requireAgent();
   const creneauId = String(formData.get("creneauId") ?? "");
   const commentaire = String(formData.get("commentaire") ?? "");
 
@@ -70,7 +70,7 @@ export async function desisterAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  const user = await requireAgent();
   const id = String(formData.get("id") ?? "");
   const inscription = await prisma.inscription.findUnique({
     where: { id },

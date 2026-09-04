@@ -108,16 +108,24 @@ function Liens({
   role,
   compteurs,
   demandesActives,
+  externe,
   onClick,
 }: {
   role: Role;
   compteurs?: Compteurs;
   demandesActives?: boolean;
+  externe?: boolean;
   onClick?: () => void;
 }) {
   const pathname = usePathname();
   const visible = items.filter(
     (i) =>
+      // Depuis Internet, seul l'espace personnel est joignable : `requireUser`
+      // refuse les écrans de gestion, et le proxy ne publie même pas leurs
+      // chemins. Les afficher offrirait des liens qui ne mènent qu'à une
+      // redirection — y compris « Tableau de bord », dont le chemin « / » n'est
+      // pas publié.
+      (!externe || i.groupe === "personnel") &&
       (!i.roles || i.roles.includes(role) || role === "ADMIN") &&
       // Une entrée optionnelle reste affichée tant qu'il y a des demandes à
       // traiter, même après désactivation du formulaire : sinon la file
@@ -182,11 +190,13 @@ export function Sidebar({
   role,
   compteurs,
   demandesActives,
+  externe,
   appName,
 }: {
   role: Role;
   compteurs?: Compteurs;
   demandesActives?: boolean;
+  externe?: boolean;
   appName: string;
 }) {
   return (
@@ -198,7 +208,12 @@ export function Sidebar({
         <span className="text-lg font-semibold tracking-tight text-brand-600">{appName}</span>
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
-        <Liens role={role} compteurs={compteurs} demandesActives={demandesActives} />
+        <Liens
+          role={role}
+          compteurs={compteurs}
+          demandesActives={demandesActives}
+          externe={externe}
+        />
       </nav>
       <p className="border-t border-slate-100 p-4 text-xs text-slate-400">
         Activités sportives · QVT
@@ -212,11 +227,13 @@ export function NavMobile({
   role,
   compteurs,
   demandesActives,
+  externe,
   appName,
 }: {
   role: Role;
   compteurs?: Compteurs;
   demandesActives?: boolean;
+  externe?: boolean;
   appName: string;
 }) {
   const enAttente = Object.values(compteurs ?? {}).reduce((n, v) => n + v, 0);
@@ -238,7 +255,12 @@ export function NavMobile({
         <span className="ml-auto hidden text-xs text-slate-400 group-open:inline">Fermer</span>
       </summary>
       <nav className="space-y-0.5 p-3 pt-0">
-        <Liens role={role} compteurs={compteurs} demandesActives={demandesActives} />
+        <Liens
+          role={role}
+          compteurs={compteurs}
+          demandesActives={demandesActives}
+          externe={externe}
+        />
       </nav>
     </details>
   );

@@ -6,14 +6,14 @@ import { autoriseDepuisInternet } from "../src/lib/magic";
 /**
  * Qui peut ouvrir une session depuis Internet.
  *
- * Le cloisonnement du proxy porte sur les chemins, et une action serveur n'est
- * pas liée au chemin qui l'affiche : une session de gestionnaire obtenue depuis
- * l'extérieur permettrait d'appeler les actions du back-office depuis un chemin
- * publié. Bloquer les écrans ne suffit donc pas — il faut empêcher la session
- * privilégiée de naître, et c'est cette fonction qui le décide.
+ * Le gros du cloisonnement est ailleurs : `requireUser` (src/lib/session.ts)
+ * refuse tout écran et toute action de gestion à une requête venue de
+ * l'extérieur, quel que soit le rôle. Cette fonction-ci ne décide que du seuil,
+ * et n'y arrête qu'ADMIN — en défense de profondeur, pour qu'aucune session du
+ * rôle qui passe tous les contrôles ne puisse exister dehors.
  *
- * Une règle d'une ligne, mais dont l'inversion ouvrirait le back-office à
- * Internet sans qu'aucun écran ne change d'apparence. Elle mérite ses tests.
+ * Une règle d'une ligne, dont l'inversion ne changerait l'apparence d'aucun
+ * écran. Elle mérite ses tests.
  */
 
 const roles: Role[] = ["ADMIN", "GESTIONNAIRE", "COACH", "AGENT"];
@@ -23,19 +23,23 @@ describe("connexion par lien depuis Internet", () => {
     assert.equal(autoriseDepuisInternet("AGENT"), true);
   });
 
-  it("refuse les rôles qui ouvrent des écrans de gestion", () => {
-    // COACH compris : le rôle donne accès au planning. Les animateurs
-    // prestataires ne passent pas par ce mécanisme mais par leur jeton et leur
-    // PIN — rien ne change pour eux.
-    assert.equal(autoriseDepuisInternet("ADMIN"), false);
-    assert.equal(autoriseDepuisInternet("GESTIONNAIRE"), false);
-    assert.equal(autoriseDepuisInternet("COACH"), false);
+  it("autorise le gestionnaire et l'animateur, qui sont aussi des agents", () => {
+    // Le service des sports est composé de gens qui font du sport. Leur fermer
+    // la connexion leur fermait leurs propres inscriptions ; ce que leur
+    // session peut faire est borné par `requireUser`, pas ici.
+    assert.equal(autoriseDepuisInternet("GESTIONNAIRE"), true);
+    assert.equal(autoriseDepuisInternet("COACH"), true);
   });
 
-  it("n'autorise qu'un seul rôle, quoi qu'il arrive à l'énumération", () => {
-    // Un rôle ajouté plus tard sera refusé par défaut. C'est le bon sens du
-    // défaut : se tromper coûte un agent qui appelle le service, pas un
-    // back-office ouvert sur Internet.
-    assert.deepEqual(roles.filter(autoriseDepuisInternet), ["AGENT"]);
+  it("arrête l'administrateur au seuil", () => {
+    // Le seul rôle qui passe tous les contrôles de rôle. Il tient dans une
+    // poignée de personnes, elles ont le VPN : si une action de gestion
+    // échappait un jour à `requireUser`, aucune session d'administrateur ne
+    // doit exister dehors pour en profiter.
+    assert.equal(autoriseDepuisInternet("ADMIN"), false);
+  });
+
+  it("n'arrête qu'ADMIN, quoi qu'il arrive à l'énumération", () => {
+    assert.deepEqual(roles.filter((r) => !autoriseDepuisInternet(r)), ["ADMIN"]);
   });
 });

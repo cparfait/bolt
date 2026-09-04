@@ -1,22 +1,29 @@
 import { LogOut } from "lucide-react";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
-import { estGestionnaire, requireUser } from "@/lib/session";
+import { estGestionnaire, requireAgent } from "@/lib/session";
 import { logoutAction } from "@/lib/actions/auth";
 import { NavMobile, Sidebar, type Compteurs } from "@/components/nav";
 import { ROLE_LABELS } from "@/lib/constants";
 import { getGeneralSettings } from "@/lib/settings";
 import { compterDemandesEnAttente } from "@/lib/demandes";
+import { clientIp, estInterne } from "@/lib/net";
 
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const user = await requireUser();
+  const user = await requireAgent();
   const g = await getGeneralSettings();
+
+  // Depuis Internet, l'espace personnel et rien d'autre : `requireUser` refuse
+  // déjà les écrans de gestion, mais les laisser dans la navigation offrirait
+  // des liens qui ne mènent qu'à une redirection.
+  const externe = !estInterne(clientIp(await headers()));
 
   // Demandes d'inscription en attente d'arbitrage : le service des sports doit
   // les voir depuis n'importe quel écran, pas seulement en ouvrant la page.
   const compteurs: Compteurs = {};
-  if (estGestionnaire(user)) {
+  if (estGestionnaire(user) && !externe) {
     const aValider = await prisma.inscription.count({
       where: { statut: "EN_ATTENTE", creneau: { saison: { active: true } } },
     });
@@ -35,6 +42,7 @@ export default async function AppLayout({
         role={user.role}
         compteurs={compteurs}
         demandesActives={g.demandeAccesActive}
+        externe={externe}
         appName={g.appName}
       />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -42,6 +50,7 @@ export default async function AppLayout({
           role={user.role}
           compteurs={compteurs}
           demandesActives={g.demandeAccesActive}
+          externe={externe}
           appName={g.appName}
         />
         <header className="sticky top-0 z-10 flex h-14 items-center justify-end gap-4 border-b border-slate-200 bg-white/80 px-4 backdrop-blur lg:px-6">

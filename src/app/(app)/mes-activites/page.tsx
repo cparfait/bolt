@@ -1,6 +1,6 @@
 import { CalendarCheck, CalendarOff, Info, MapPin, Users } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/session";
+import { requireAgent } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import { aujourdhui, ajouterJours, fmtDateLongue, JOUR_LABELS } from "@/lib/dates";
@@ -28,7 +28,7 @@ export default async function MesActivitesPage({
 }: {
   searchParams: Promise<{ activite?: string }>;
 }) {
-  const user = await requireUser();
+  const user = await requireAgent();
   const { activite: selection } = await searchParams;
   const saison = await saisonCourante();
   const g = await getGeneralSettings();
