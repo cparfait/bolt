@@ -143,6 +143,10 @@ export default async function InscriptionsPage({
         />
       </div>
 
+      {/* Ancre : les alertes du tableau de bord mènent ici, pas en haut
+          de la page — une alerte qui dépose sur un écran où il faut encore
+          chercher n'a fait que la moitié du chemin. */}
+      <div id="a-decider" className="scroll-mt-6" />
       <Card title="Demandes en attente de décision" className="mb-6">
         {demandes.length === 0 ? (
           <p className="text-sm text-slate-400">Aucune demande à traiter.</p>

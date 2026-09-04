@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   CalendarDays,
   ClipboardCheck,
+  Hourglass,
   TrendingUp,
   UserX,
   Users,
@@ -29,6 +30,7 @@ import {
   fmtJourCourt,
 } from "@/lib/dates";
 import {
+  Alerte,
   Badge,
   Card,
   EmptyState,
@@ -367,57 +369,71 @@ export default async function TableauDeBord({
         />
       </div>
 
-      {/* Une inscription qui attend bloque un agent : elle passe avant les
-          indicateurs de fond, avec le lien qui la traite. Les deux situations
-          restent distinctes — l'une appelle une décision, l'autre une place. */}
-      {aTraiter > 0 && (
-        <Link
-          href="/inscriptions"
-          className="mb-6 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-5 transition hover:border-amber-300"
-        >
-          <ClipboardCheck className="h-5 w-5 shrink-0 text-amber-600" />
-          <span className="min-w-0 flex-1">
-            {aValider > 0 && (
-              <span className="block text-sm font-semibold text-amber-800">
+      {/* Chaque alerte est une carte entière cliquable, avec son icône : elles
+          partagent la même couleur, et c'est l'icône qui les distingue avant
+          qu'on ait lu le texte. Une inscription qui attend bloque un agent :
+          elle passe avant les indicateurs de fond. */}
+      <div className="mb-6">
+        {aValider > 0 && (
+          <Alerte
+            href="/inscriptions#a-decider"
+            icon={<ClipboardCheck className="h-5 w-5" />}
+            titre={
+              <>
                 {aValider} {pluriel(aValider, "demande")} d&apos;inscription{" "}
                 {pluriel(aValider, "attend", "attendent")} une décision
-              </span>
-            )}
-            {enListeAttente > 0 && (
-              <span className="block text-sm font-semibold text-amber-800">
-                {enListeAttente} {pluriel(enListeAttente, "agent")}{" "}
-                {pluriel(enListeAttente, "est", "sont")}{" "}
-                en liste d&apos;attente
-              </span>
-            )}
-            <span className="block text-sm text-amber-700">
-              {aValider > 0 && enListeAttente > 0
-                ? "Arbitrer les demandes, et ouvrir une place ou prévenir ceux qui attendent."
-                : aValider > 0
-                  ? "Inscrire, placer en liste d'attente ou refuser."
-                  : "Ouvrir un créneau, augmenter la capacité, ou prévenir qu'il n'y aura pas de place."}
-            </span>
-          </span>
-          <span className="shrink-0 text-sm font-medium text-amber-800 underline">
-            Traiter
-          </span>
-        </Link>
-      )}
+              </>
+            }
+            detail="Inscrire, placer en liste d'attente ou refuser."
+            action="Arbitrer"
+          />
+        )}
 
-      {lachages.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <p className="flex items-center gap-2 text-sm font-semibold text-amber-800">
-            <UserX className="h-4 w-4" />
-            {lachages.length} {pluriel(lachages.length, "agent")} {pluriel(lachages.length, "ne vient plus", "ne viennent plus")}
-          </p>
-          <p className="mt-1 text-sm text-amber-700">
-            {g.absencesAvantRelance} absences consécutives ou plus —{" "}
-            <Link href="/statistiques#decrocheurs" className="font-medium underline">
-              relancer ou libérer les places
-            </Link>
-          </p>
-        </div>
-      )}
+        {enListeAttente > 0 && (
+          <Alerte
+            href="/inscriptions"
+            icon={<Hourglass className="h-5 w-5" />}
+            titre={
+              <>
+                {enListeAttente} {pluriel(enListeAttente, "agent")}{" "}
+                {pluriel(enListeAttente, "est", "sont")} en liste d&apos;attente
+              </>
+            }
+            detail="Ouvrir un créneau, augmenter la capacité, ou prévenir qu'il n'y aura pas de place."
+            action="Voir la file"
+          />
+        )}
+
+        {lachages.length > 0 && (
+          <Alerte
+            href="/statistiques#decrocheurs"
+            icon={<UserX className="h-5 w-5" />}
+            titre={
+              <>
+                {lachages.length} {pluriel(lachages.length, "agent")}{" "}
+                {pluriel(lachages.length, "ne vient plus", "ne viennent plus")}
+              </>
+            }
+            detail={`${g.absencesAvantRelance} absences consécutives ou plus : relancer, ou libérer la place.`}
+            action="Lister"
+          />
+        )}
+
+        {aEmarger > 0 && (
+          <Alerte
+            href="/seances?periode=manquantes"
+            icon={<AlertTriangle className="h-5 w-5" />}
+            titre={
+              <>
+                {aEmarger} {pluriel(aEmarger, "feuille")}{" "}
+                {pluriel(aEmarger, "non transmise", "non transmises")}
+              </>
+            }
+            detail={`Séances des ${JOURS_FEUILLES_MANQUANTES} derniers jours dont personne n'a envoyé l'émargement.`}
+            action="Lister"
+          />
+        )}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card

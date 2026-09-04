@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Ticket } from "lucide-react";
+import { ChevronRight, Ticket } from "lucide-react";
 import type {
   CSSProperties,
   InputHTMLAttributes,
@@ -157,6 +157,49 @@ export function Card({
       )}
       {children}
     </div>
+  );
+}
+
+/**
+ * Alerte du tableau de bord : ce qui attend une action du service.
+ *
+ * Entièrement cliquable, et pas seulement sur un mot souligné au milieu du
+ * texte. Une alerte dit qu'il se passe quelque chose ; le premier réflexe est
+ * de cliquer dessus pour savoir QUI est concerné, et une carte dont seule une
+ * portion réagit fait douter qu'il y ait quoi que ce soit à voir.
+ *
+ * L'icône n'est pas décorative : plusieurs alertes peuvent coexister, toutes de
+ * la même couleur, et c'est elle qui les distingue d'un coup d'œil avant même
+ * qu'on ait lu le texte. Elle est donc obligatoire — pas de valeur par défaut.
+ */
+export function Alerte({
+  href,
+  icon,
+  titre,
+  detail,
+  action = "Voir",
+}: {
+  href: string;
+  icon: ReactNode;
+  titre: ReactNode;
+  detail: ReactNode;
+  action?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="mb-4 flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-5 transition hover:border-amber-300 hover:bg-amber-100/60"
+    >
+      <span className="shrink-0 text-amber-600">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-amber-800">{titre}</span>
+        <span className="block text-sm text-amber-700">{detail}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-amber-800">
+        {action}
+        <ChevronRight className="h-4 w-4" />
+      </span>
+    </Link>
   );
 }
 
