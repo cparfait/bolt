@@ -24,7 +24,13 @@ Bolt sépare les deux populations :
 |---|---|---|---|
 | **Animateur** | souvent prestataire extérieur | lien à jeton + code à 6 chiffres, **aucun compte de domaine** | oui, `/emargement/*` uniquement |
 | **Agent** | agent de la collectivité | identifiant Windows **ou adresse professionnelle**, LDAPS | non (interne / VPN) |
+| **Agent, sans poste sur le réseau** | terrain, crèches, gardiennage, et les personnes hors annuaire | lien envoyé par courriel, **aucun mot de passe** | au choix : interne, ou `/acces` publié (voir plus bas) |
 | **Service des sports, DSI** | agents | identifiant Windows ou adresse professionnelle, LDAPS | non (interne / VPN) |
+
+La ligne qui compte est la deuxième : **`/connexion` — le seul écran où se
+saisit un mot de passe de domaine — n'est publiée dans aucune configuration.**
+Ouvrir l'application à Internet ne rend donc jamais un identifiant Active
+Directory volé utilisable de l'extérieur.
 
 L'écran de connexion accepte les deux formes : beaucoup d'agents ne connaissent
 que leur adresse, et hésiter sur ce champ suffit à faire renoncer. Le mot de
@@ -72,23 +78,73 @@ rappels de séance, annonces d'annulation, relances.
 
 Activation : case dans *Paramètres → Général*.
 
-**Cet accès fonctionne depuis le réseau de la collectivité, pas depuis
-Internet — et c'est voulu.** Un agent qui ouvre son courriel depuis chez lui ou
-en 4G ne pourra pas suivre le lien : il devra le faire depuis un poste de la
-mairie, ce qui lui évite seulement d'avoir à saisir son mot de passe Windows.
-Deux raisons, aucune accidentelle : l'Apache en DMZ ne publie que quatre
-préfixes (`/emargement/`, `/icones/`, `/_next/static/`, `/favicon.ico`), dont
-`/acces` ne fait pas partie ; et l'URL du lien envoyé porte le nom interne du
-back-office, absent du DNS public.
+**Cet accès est interne par défaut.** Le publier sur Internet est une décision
+explicite, qui demande trois gestes simultanés — aucun ne suffit seul :
 
-`PUBLIC_AGENT_ACCESS=1` **ne suffit donc pas** à publier cet espace : la variable
-n'ouvre que le filtre applicatif de `src/proxy.ts`, elle ne touche pas au vhost
-Apache. L'activer seule n'a aucun effet visible pour l'agent, et affaiblit le
-second verrou pour rien. Publier réellement cet accès demanderait d'ajouter
-`/acces` et `/mes-activites` aux `ProxyPass`, un nom DNS public, et d'accepter
-deux conséquences : n'importe qui pourrait déclencher depuis Internet l'envoi de
-courriels par l'application, et une adresse professionnelle deviendrait à elle
-seule un moyen d'accès. À peser avant, pas après.
+1. `PUBLIC_AGENT_ACCESS=1`, qui n'ouvre que le filtre applicatif de
+   `src/proxy.ts` (`/acces`, `/mes-activites`, `/mentions`, `/demande-acces`) ;
+2. le bloc « Espace agent » de `deploy/apache-emargement.conf`, à décommenter :
+   sans lui, le vhost refuse ces chemins avant même de contacter l'application ;
+3. *Paramètres → Général → URL de pointage*, sur laquelle se construisent les
+   liens envoyés aux agents (`urlEspaceAgent`, `src/lib/settings.ts`). Laissée
+   vide, les liens portent le nom du back-office, absent du DNS public : une
+   impasse pour l'agent qui lit son courriel de chez lui, c'est-à-dire pour
+   toute la population visée.
+
+**`/connexion` n'est publiée dans aucun cas.** C'est l'invariant de cette
+architecture : aucun mot de passe de domaine n'est saisissable depuis Internet,
+donc un identifiant Active Directory volé ou hameçonné n'ouvre rien ici. C'est
+plus fort qu'un second facteur posé sur une page de connexion publiée.
+
+Ce que publier coûte, à peser avant et non après : n'importe qui peut déclencher
+depuis Internet l'envoi d'un courriel par l'application — borné par les trois
+compteurs décrits plus bas — et une adresse enregistrée devient à elle seule un
+moyen d'accès. La sécurité de la boîte de l'agent devient donc une partie du
+périmètre.
+
+### Les personnes qui n'ont pas de compte de domaine
+
+Vacataire, contrat court, agent d'un autre organisme, élu : ces personnes
+n'existent pas dans l'annuaire. Elles ont un compte `no_ad.…` créé dans Bolt —
+par le service des sports sur la fiche agent, ou par un animateur en séance —
+et se connectent ensuite par le lien e-mail, comme les autres.
+
+Reste à savoir comment elles demandent cet accès. **Pas en se l'accordant.** Un
+code ou un lien reçu par courriel prouve qu'on est titulaire d'une boîte : cela
+*authentifie*, cela n'*autorise* pas. Si une adresse quelconque suffisait à
+obtenir un compte, le formulaire publié sur Internet serait une inscription
+libre à un outil interne — et filtrer sur le domaine de la collectivité ne
+sauverait rien, puisque la population visée est précisément celle qu'on
+enregistre avec une adresse personnelle.
+
+D'où le formulaire de **demande d'accès** (*Paramètres → Général*, désactivé par
+défaut), servi sur `/demande-acces`. C'est le seul chemin de l'application qui
+accepte une identité inconnue, et il ne délivre rien :
+
+- aucun compte, aucune session, aucun droit — juste une ligne dans une file ;
+- **aucun courriel vers l'adresse saisie**. Sinon le formulaire recréerait ce
+  que les compteurs du lien de connexion empêchent : un moyen de faire expédier
+  du courrier par la collectivité à une adresse arbitraire. Le seul envoi
+  immédiat va au service des sports, à son adresse fixe, et il est plafonné à
+  20 par heure pour que personne ne puisse noyer cette boîte-là ;
+- la réponse est la même dans tous les cas — adresse inconnue, adresse déjà
+  titulaire d'un compte, demande déjà déposée. Ce formulaire ne doit pas
+  permettre de vérifier qui travaille dans la collectivité, pas plus que
+  l'écran de connexion.
+
+Le service des sports arbitre depuis *Demandes d'accès*, qui porte son compteur
+dans la navigation. **La validation est le seul endroit où une identité naît
+d'une adresse saisie sur Internet** — et c'est un geste humain. Elle crée le
+compte `no_ad.…` et envoie à la personne un message lui annonçant que son accès
+est ouvert, avec l'adresse de l'espace agent : pas un lien de connexion, dont
+les trente minutes seraient écoulées quand elle lira le message. Un refus, lui,
+n'envoie rien : le motif reste interne, et c'est au service de reprendre contact
+s'il le juge utile.
+
+L'écran `/acces` porte en permanence la mention « contactez le service des
+sports » et le lien vers ce formulaire. En permanence, et non en réponse à une
+adresse inconnue : afficher « adresse inconnue, contactez le service » ferait de
+cette page l'oracle que `envoyerLienConnexion` se garde d'être.
 
 Le premier de ces deux risques est borné par **trois** compteurs, et il en
 fallait trois. Cinq demandes par quart d'heure et par adresse empêchent de

@@ -46,7 +46,20 @@ services:
       # et la connexion Active Directory ne sont pas exposés à Internet.
       INTERNAL_CIDRS: ${INTERNAL_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32}
       # Décommentez pour ouvrir aussi l'espace agent (connexion par lien e-mail)
-      # aux agents sans poste sur le réseau.
+      # aux agents sans poste sur le réseau — et, si le formulaire est activé
+      # dans Paramètres, la demande d'accès des personnes hors annuaire.
+      #
+      # Cette variable ne suffit pas : elle n'ouvre que le filtre applicatif
+      # (src/proxy.ts). Le reverse proxy doit publier les mêmes chemins — voir
+      # le bloc « Espace agent » de deploy/apache-emargement.conf. Et renseignez
+      # BOLT_POINTAGE_URL ci-dessus : c'est sur elle que se construisent les
+      # liens de connexion envoyés aux agents (src/lib/settings.ts,
+      # urlEspaceAgent). Restés sur BOLT_PUBLIC_URL, ils pointeraient vers le
+      # nom du back-office, absent du DNS public.
+      #
+      # /connexion — la page qui accepte un identifiant Active Directory — n'est
+      # publiée dans aucun cas : c'est ce qui fait qu'un mot de passe de domaine
+      # volé n'ouvre rien sur cette application depuis Internet.
       # PUBLIC_AGENT_ACCESS: "1"
       # Jeton facultatif pour déclencher les rappels depuis un cron externe.
       # CRON_TOKEN: ${CRON_TOKEN:-}

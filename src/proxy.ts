@@ -44,7 +44,23 @@ const PUBLIC_PREFIXES = [
 // La page de connexion Active Directory (/connexion), elle, n'est JAMAIS
 // publiée : aucun identifiant de domaine ne doit être saisissable depuis
 // Internet.
-const PUBLIC_AGENT_PREFIXES = ["/acces", "/mes-activites"];
+//
+// `/mentions` en fait partie sans être un écran d'accès : c'est le lien que
+// porte le pied de page de l'espace agent. Absent d'ici, un agent connecté
+// depuis Internet qui clique sur « Mentions d'information » obtient un 403 —
+// soit exactement l'information qu'on lui promet accessible à tout moment.
+//
+// `/demande-acces` est le seul chemin de l'application qui accepte une identité
+// inconnue. Il ne délivre rien : ni compte, ni session, ni courriel vers
+// l'adresse saisie (voir src/lib/demandes.ts). Le back-office qui arbitre ces
+// demandes, `/agents/demandes`, reste sous `/agents` — donc injoignable
+// d'Internet.
+const PUBLIC_AGENT_PREFIXES = [
+  "/acces",
+  "/mes-activites",
+  "/mentions",
+  "/demande-acces",
+];
 
 function isPublicPath(pathname: string): boolean {
   const prefixes =
