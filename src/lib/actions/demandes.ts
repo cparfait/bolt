@@ -14,7 +14,7 @@ import {
   validerDemande,
 } from "@/lib/demandes";
 import { requireUser } from "@/lib/session";
-import { codeDemandeValide, getGeneralSettings } from "@/lib/settings";
+import { getGeneralSettings } from "@/lib/settings";
 import { erreur, succes, type ActionState } from "./types";
 
 /**
@@ -67,13 +67,6 @@ export async function deposerDemandeAction(
   const g = await getGeneralSettings();
   if (!g.demandeAccesActive) {
     return erreur("Les demandes d'accès en ligne ne sont pas activées.");
-  }
-
-  // Même contrôle que la page, et pas seulement là : une action serveur est
-  // adressée par un identifiant global, donc appelable depuis n'importe quel
-  // chemin publié — la vérification faite à l'affichage ne la couvre pas.
-  if (!codeDemandeValide(g, String(formData.get("i") ?? ""))) {
-    return erreur("Ce formulaire n'est plus disponible à cette adresse.");
   }
 
   // Champ leurre : un humain ne le voit pas, un robot le remplit. On répond

@@ -39,7 +39,7 @@ export default async function MesActivitesPage({
   if (!saison) {
     return (
       <>
-        <PageHeader title="Mes activités" />
+        <PageHeader title="Activités" />
         <EmptyState title="Aucune saison n'est ouverte pour l'instant" />
       </>
     );
@@ -108,7 +108,7 @@ export default async function MesActivitesPage({
   return (
     <>
       <PageHeader
-        title="Mes activités"
+        title="Activités"
         subtitle={`Saison ${saison.nom} — ${creneaux.length} créneaux proposés`}
       />
 
@@ -161,9 +161,15 @@ export default async function MesActivitesPage({
         </div>
       )}
 
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Catalogue
-      </h2>
+      <div className="mb-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Catalogue de la saison
+        </h2>
+        <p className="mt-0.5 text-sm text-slate-400">
+          Toutes les activités proposées, y compris celles où vous n&apos;êtes pas
+          inscrit.
+        </p>
+      </div>
 
       <FiltreActivites
         base="/mes-activites"

@@ -46,6 +46,37 @@ export function autoriseDepuisInternet(role: Role): boolean {
 }
 
 /**
+ * L'adresse est-elle déjà rattachée à quelqu'un ?
+ *
+ * Même périmètre que `envoyerLienConnexion` : un compte Bolt actif — par son
+ * adresse d'annuaire ou son adresse de contact — ou une entrée du miroir
+ * d'annuaire. Sert à l'écran d'accès pour décider s'il envoie un lien ou s'il
+ * propose de demander un accès. N'écrit rien et n'envoie rien.
+ */
+export async function adresseConnue(emailBrut: string): Promise<boolean> {
+  const email = emailBrut.trim().toLowerCase();
+  if (!email.includes("@")) return false;
+
+  const compte = await prisma.user.findFirst({
+    where: {
+      active: true,
+      OR: [
+        { email: { equals: email, mode: "insensitive" } },
+        { emailContact: { equals: email, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (compte) return true;
+
+  const ad = await prisma.adAccount.findFirst({
+    where: { email: { equals: email, mode: "insensitive" }, enabled: true },
+    select: { samAccountName: true },
+  });
+  return ad !== null;
+}
+
+/**
  * Envoie un lien de connexion. Renvoie toujours le même message, que l'adresse
  * soit connue ou non : l'écran de connexion ne doit pas permettre de savoir qui
  * travaille dans la collectivité.

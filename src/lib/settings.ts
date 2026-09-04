@@ -70,21 +70,16 @@ export type GeneralSettings = {
   // se valide d'un clic. Nécessite la connexion par lien, seul moyen de
   // connexion d'un compte hors annuaire.
   demandeAccesActive: boolean;
-  // Code de campagne exigé dans l'URL du formulaire (?i=…).
+  // Domaine de messagerie de la collectivité (« chatillon92.fr »).
   //
-  // Le formulaire est publié : un robot qui balaie le domaine le trouve, un
-  // curieux aussi, et le service des sports trie des demandes que personne n'a
-  // sollicitées. Le code fait que la page n'existe pas sans lui — le service
-  // distribue le lien complet sur une affiche, dans un courriel, sur
-  // l'intranet.
+  // Sert à trancher, sur l'écran d'accès, entre « votre lien est parti » et
+  // « vous n'avez pas encore d'accès ». Une adresse de ce domaine reçoit
+  // toujours la première réponse, qu'elle existe ou non : sans cela, l'écran
+  // permettrait de vérifier depuis Internet si telle personne travaille dans la
+  // collectivité, en tapant des adresses jusqu'à ce que la réponse change.
   //
-  // Ce n'est PAS un secret : il voyage dans une URL, il finira dans un
-  // historique et dans un journal de proxy. Il filtre la découverte fortuite et
-  // le balayage, rien de plus. Ce qui protège du reste, ce sont les compteurs
-  // et le champ leurre.
-  //
-  // Vide : le formulaire est ouvert à qui connaît son adresse.
-  demandeAccesCode: string;
+  // Vide : on reprend le domaine de l'adresse de contact du service.
+  domaineAgents: string;
   // Rappel envoyé aux inscrits la veille de leur séance. Nécessite le SMTP.
   rappelsActifs: boolean;
   rappelHeuresAvant: number; // fenêtre d'anticipation, en heures
@@ -114,7 +109,7 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   absencesAvantRelance: 3,
   lienMagiqueActif: false,
   demandeAccesActive: false,
-  demandeAccesCode: "",
+  domaineAgents: "",
   rappelsActifs: false,
   rappelHeuresAvant: 24,
   // 14 mois : la durée annoncée sur la fiche d'inscription papier.
@@ -188,26 +183,33 @@ export function urlEspaceAgent(g: GeneralSettings): string {
 }
 
 /**
- * Le code de campagne fourni ouvre-t-il le formulaire de demande d'accès ?
+ * Domaine de messagerie de la collectivité, en minuscules et sans « @ ».
  *
- * Vrai quand aucun code n'est configuré : le réglage est facultatif, et son
- * absence ne doit pas fermer un formulaire que la collectivité a activé.
- *
- * Comparaison simple, sans précaution de temps constant : ce code n'est pas un
- * secret. Il voyage en clair dans une URL affichée sur un mur.
+ * Déduit de l'adresse de contact du service quand il n'est pas renseigné : une
+ * collectivité qui a saisi « sport@ville.fr » a déjà dit ce qu'il fallait
+ * savoir, autant ne pas le lui redemander.
  */
-export function codeDemandeValide(
-  g: GeneralSettings,
-  fourni: string | undefined | null,
-): boolean {
-  const attendu = g.demandeAccesCode.trim();
-  if (!attendu) return true;
-  return (fourni ?? "").trim() === attendu;
+export function domaineDesAgents(g: GeneralSettings): string {
+  const explicite = g.domaineAgents.trim().replace(/^@/, "").toLowerCase();
+  if (explicite) return explicite;
+  const contact = g.contactEmail.trim().toLowerCase();
+  const arobase = contact.lastIndexOf("@");
+  return arobase === -1 ? "" : contact.slice(arobase + 1);
 }
 
-/** Adresse complète à distribuer pour le formulaire de demande d'accès. */
-export function lienDemandeAcces(g: GeneralSettings): string {
-  const base = urlEspaceAgent(g);
-  const code = g.demandeAccesCode.trim();
-  return `${base}/demande-acces${code ? `?i=${encodeURIComponent(code)}` : ""}`;
+/**
+ * L'adresse saisie est-elle celle d'un agent de la collectivité ?
+ *
+ * Sur le seul domaine, sans consulter l'annuaire : c'est précisément ce qui
+ * rend la réponse identique pour toutes les adresses du domaine, existantes ou
+ * non. Sans domaine configuré, on renvoie faux — l'écran se rabat alors sur la
+ * seule question « cette adresse est-elle connue de Bolt ? ».
+ */
+export function estAdresseDeLaCollectivite(
+  g: GeneralSettings,
+  email: string,
+): boolean {
+  const domaine = domaineDesAgents(g);
+  if (!domaine) return false;
+  return email.trim().toLowerCase().endsWith(`@${domaine}`);
 }

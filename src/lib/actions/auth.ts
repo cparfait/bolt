@@ -8,11 +8,22 @@ import { rateLimit } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 import { alerterSecurite } from "@/lib/alertes";
 import { clientIp, estInterne } from "@/lib/net";
-import { consommerLien, envoyerLienConnexion } from "@/lib/magic";
-import { getGeneralSettings } from "@/lib/settings";
+import { adresseConnue, consommerLien, envoyerLienConnexion } from "@/lib/magic";
+import { estAdresseDeLaCollectivite, getGeneralSettings } from "@/lib/settings";
 import type { ActionState } from "./types";
 
 export type LoginState = { error?: string } | null;
+
+/**
+ * Retour de l'écran d'accès.
+ *
+ * `inconnue` fait apparaître le formulaire de demande d'accès à la place du
+ * message : c'est le seul moment où quelqu'un doit voir ce formulaire, et il
+ * arrive là parce qu'il a saisi une adresse que personne ne connaît.
+ */
+export type AccesState =
+  | (ActionState & { inconnue?: boolean; email?: string })
+  | null;
 
 /**
  * Ces deux actions n'ont rien à faire depuis Internet, et le filtrage de chemins
@@ -102,9 +113,9 @@ export async function loginAction(
  * page est publiée sur Internet, elle ne doit pas servir à énumérer les agents.
  */
 export async function demanderLienAction(
-  _prev: ActionState,
+  _prev: AccesState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<AccesState> {
   const email = String(formData.get("email") ?? "").trim();
   if (!email.includes("@")) return { error: "Adresse e-mail invalide." };
 
@@ -156,13 +167,30 @@ export async function demanderLienAction(
     }
   }
 
+  // Aiguillage, et c'est tout l'écran d'accès.
+  //
+  // Une adresse du domaine de la collectivité obtient TOUJOURS « regardez votre
+  // messagerie », qu'elle existe ou non. C'est ce qui empêche de tester des
+  // adresses jusqu'à ce que la réponse change, et d'apprendre ainsi qui
+  // travaille ici. Pour une adresse extérieure, la question n'est plus la même :
+  // savoir qu'un compte personnel n'est pas inscrit à l'application sportive de
+  // la ville n'apprend rien sur personne.
+  const g2 = await getGeneralSettings();
+  const interne = estAdresseDeLaCollectivite(g2, email);
+
+  if (!interne && g2.demandeAccesActive && !(await adresseConnue(email))) {
+    // Rien n'est envoyé : on montre le formulaire de demande, l'adresse déjà
+    // saisie. Expédier un courriel de vérification à une adresse que n'importe
+    // qui vient de taper ferait de cet écran un moyen de faire écrire la
+    // collectivité à des tiers — le taux de rebond emporterait sa réputation
+    // d'expéditeur avant que le premier robot ne se lasse.
+    return { inconnue: true, email };
+  }
+
   // `externe` commande la règle de rôle de `envoyerLienConnexion` : depuis
-  // Internet, seul un compte AGENT reçoit un lien.
+  // Internet, un compte ADMIN ne reçoit pas de lien.
   await envoyerLienConnexion(email, { externe: !estInterne(ip) });
   return {
-    // Formulation volontairement conditionnelle : identique que l'adresse soit
-    // connue ou non. Cette page est publiée sur Internet, elle ne doit pas
-    // permettre de vérifier qui travaille dans la collectivité.
     success:
       "Si cette adresse est enregistrée, le lien vient de partir. Regardez votre messagerie — il est valable 30 minutes.",
   };

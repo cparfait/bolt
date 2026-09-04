@@ -95,9 +95,8 @@ export default async function AccesPage({
             Vous ne recevez rien ?
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            C&apos;est que cette adresse n&apos;est pas celle enregistrée pour
-            vous — ou que vous n&apos;avez pas encore d&apos;accès. Dans les deux
-            cas, le service des sports s&apos;en occupe
+            C&apos;est que ce n&apos;est pas l&apos;adresse enregistrée pour
+            vous. Essayez l&apos;autre, ou demandez au service des sports
             {g.contactEmail ? (
               <>
                 {" : "}
@@ -113,21 +112,6 @@ export default async function AccesPage({
             )}
             .
           </p>
-          {/* Le lien vers le formulaire n'apparaît que si aucun code de campagne
-              n'est exigé : l'afficher avec le code reviendrait à publier ce code
-              sur la page même qu'il sert à protéger. */}
-          {g.demandeAccesActive && !g.demandeAccesCode ? (
-            <p className="mt-2 text-sm text-slate-500">
-              Vous n&apos;êtes pas agent de la collectivité ?{" "}
-              <Link
-                href="/demande-acces"
-                className="font-medium text-brand-600 hover:underline"
-              >
-                Demandez un accès
-              </Link>
-              .
-            </p>
-          ) : null}
         </div>
 
         {interne && (

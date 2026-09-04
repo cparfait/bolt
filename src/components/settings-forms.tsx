@@ -487,34 +487,15 @@ export function GeneralForm({
       </label>
 
       <Field
-        label="Code de campagne du formulaire de demande"
-        hint="Le formulaire n'existe qu'à l'adresse qui porte ce code : sans lui, la page répond « introuvable ». Distribuez le lien complet ci-dessous sur vos affiches et dans vos courriels, et changez le code à chaque saison. Laissez vide pour un formulaire ouvert à qui connaît son adresse."
+        label="Domaine de messagerie de la collectivité"
+        hint="Sert à distinguer un agent d'une personne extérieure sur l'écran de connexion. Une adresse de ce domaine reçoit toujours « regardez votre messagerie », qu'elle existe ou non : c'est ce qui empêche de tester des adresses pour savoir qui travaille chez vous. Laissez vide pour reprendre le domaine de l'adresse de contact ci-dessus."
       >
         <Input
-          name="demandeAccesCode"
-          defaultValue={cfg.demandeAccesCode}
-          placeholder="rentree2026"
+          name="domaineAgents"
+          defaultValue={cfg.domaineAgents}
+          placeholder="collectivite.fr"
         />
       </Field>
-
-      {cfg.demandeAccesActive && (
-        <p className="rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
-          Adresse à communiquer :{" "}
-          <span className="font-medium break-all text-slate-700">
-            {`${(cfg.pointageUrl || cfg.appUrl).replace(/\/+$/, "")}/demande-acces${
-              cfg.demandeAccesCode ? `?i=${encodeURIComponent(cfg.demandeAccesCode)}` : ""
-            }`}
-          </span>
-          {cfg.demandeAccesCode ? (
-            <>
-              {" "}
-              — ce code n&apos;est pas un secret : il voyage dans une URL, il
-              finira dans un historique. Il évite qu&apos;un robot ou un visiteur
-              de passage remplisse le formulaire, rien de plus.
-            </>
-          ) : null}
-        </p>
-      )}
 
       <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm">
         <input

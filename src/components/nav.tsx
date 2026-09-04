@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logoutAction } from "@/lib/actions/auth";
 import {
   BarChart3,
   CalendarDays,
+  LogOut,
   ClipboardCheck,
   Dumbbell,
   Inbox,
@@ -229,12 +231,17 @@ export function NavMobile({
   demandesActives,
   externe,
   appName,
+  utilisateur,
 }: {
   role: Role;
   compteurs?: Compteurs;
   demandesActives?: boolean;
   externe?: boolean;
   appName: string;
+  // Identité et déconnexion vivent ici sur téléphone : l'en-tête qui les
+  // portait est masqué sous md, où deux barres empilées mangeaient 112 px de
+  // hauteur avant le moindre contenu.
+  utilisateur: { nom: string; role: string };
 }) {
   const enAttente = Object.values(compteurs ?? {}).reduce((n, v) => n + v, 0);
   return (
@@ -262,6 +269,23 @@ export function NavMobile({
           externe={externe}
         />
       </nav>
+      <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium leading-tight">
+            {utilisateur.nom}
+          </p>
+          <p className="text-xs leading-tight text-slate-400">{utilisateur.role}</p>
+        </div>
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Se déconnecter
+          </button>
+        </form>
+      </div>
     </details>
   );
 }

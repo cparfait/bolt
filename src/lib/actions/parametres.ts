@@ -239,8 +239,7 @@ export async function enregistrerGeneral(
     absencesAvantRelance: Math.max(1, Number(texte(formData, "absencesAvantRelance")) || 3),
     lienMagiqueActif: formData.get("lienMagiqueActif") === "on",
     demandeAccesActive: formData.get("demandeAccesActive") === "on",
-    // Espaces et « ? » interdits : ce code part dans une URL.
-    demandeAccesCode: texte(formData, "demandeAccesCode").replace(/[^A-Za-z0-9._-]/g, ""),
+    domaineAgents: texte(formData, "domaineAgents").replace(/^@/, "").toLowerCase(),
     rappelsActifs: formData.get("rappelsActifs") === "on",
     rappelHeuresAvant: Math.min(
       168,
