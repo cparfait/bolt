@@ -141,3 +141,65 @@ export async function desactiverCompte(
 export function adosseALAnnuaire(user: { isLocal: boolean; login: string }): boolean {
   return !user.isLocal && !estCreeALaMain(user.login);
 }
+
+/**
+ * Efface l'identité d'un agent, sans effacer sa fréquentation.
+ *
+ * SUPPRIMER LA LIGNE N'EST PAS UNE OPTION. `Inscription` et `Presence` sont en
+ * CASCADE sur `User` : un DELETE emporterait toutes ses venues, et le bilan de
+ * fréquentation des saisons passées — ce que cette application existe pour
+ * produire — se mettrait à mentir rétroactivement, sans que rien ne le signale.
+ *
+ * On efface donc ce qui désigne la personne : nom, identifiant, adresses, mot
+ * de passe. Ce qui reste ne désigne plus personne — un rattachement direction /
+ * service, et des liens vers des séances. C'est exactement ce qu'il faut pour
+ * les statistiques, et c'est le sens de l'anonymisation au regard du RGPD :
+ * la donnée n'est plus personnelle, donc elle n'a plus de durée de conservation
+ * à respecter.
+ *
+ * Le rattachement hiérarchique est conservé volontairement : « combien d'agents
+ * de la direction des sports ont pratiqué cette saison » reste une question
+ * légitime, et la réponse ne réidentifie personne dès lors que le nom est parti.
+ * Sur un service d'une seule personne, elle le réidentifierait — d'où le choix
+ * de ne PAS conserver le service quand il ne compte qu'un agent anonymisé.
+ */
+export async function anonymiserCompte(
+  userId: string,
+  auteur: string,
+): Promise<{ applique: boolean; nom: string }> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || user.anonymiseAt) return { applique: false, nom: user?.displayName ?? "" };
+
+  const nom = user.displayName;
+
+  // Les places d'abord : une identité effacée qui occuperait encore un créneau
+  // laisserait une ligne « Agent supprimé » sur les feuilles à venir.
+  await desinscrireDeTout(userId, auteur, "compte supprimé");
+
+  // Identifiant neutre, unique, et impossible à confondre avec un
+  // sAMAccountName ou un participant hors annuaire : la synchronisation de
+  // l'annuaire ne doit jamais rattacher ce compte à quoi que ce soit.
+  const login = `supprime.${userId.slice(-12)}`;
+
+  await prisma.$transaction([
+    // Les jetons de connexion en cours cessent d'ouvrir quoi que ce soit.
+    prisma.magicToken.deleteMany({ where: { userId } }),
+    // Une fiche d'animateur qui pointerait sur ce compte le perd.
+    prisma.coach.updateMany({ where: { userId }, data: { userId: null } }),
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        login,
+        displayName: "Agent supprimé",
+        email: null,
+        emailContact: null,
+        passwordHash: null,
+        active: false,
+        anonymiseAt: new Date(),
+      },
+    }),
+  ]);
+
+  await audit("COMPTE_ANONYMISE", { cible: nom, details: `par ${auteur}` });
+  return { applique: true, nom };
+}

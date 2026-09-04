@@ -115,7 +115,10 @@ export async function validerDemandeAction(
   formData: FormData,
 ): Promise<ActionState> {
   const admin = await requireUser("GESTIONNAIRE");
-  const res = await validerDemande(String(formData.get("id") ?? ""), admin);
+  const res = await validerDemande(String(formData.get("id") ?? ""), admin, {
+    direction: String(formData.get("direction") ?? ""),
+    service: String(formData.get("service") ?? ""),
+  });
   revalidatePath("/agents/demandes");
   revalidatePath("/agents");
   revalidatePath("/", "layout");

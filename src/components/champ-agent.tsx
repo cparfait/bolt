@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Search } from "lucide-react";
+import { mentionCompte } from "@/lib/comptes";
 import {
   rechercherAgents,
   rechercherAgentsConnus,
@@ -85,7 +86,7 @@ export function ChampAgent({
           <div className="min-w-0">
             <p className="text-sm font-medium">{choisi.nom}</p>
             <p className="truncate text-xs text-slate-500">
-              {[choisi.login, choisi.service ?? choisi.direction, choisi.email]
+              {[mentionCompte(choisi.login), choisi.service ?? choisi.direction, choisi.email]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
@@ -123,7 +124,7 @@ export function ChampAgent({
                       <span className="min-w-0">
                         <span className="block text-sm font-medium">{c.nom}</span>
                         <span className="block truncate text-xs text-slate-400">
-                          {[c.login, c.service ?? c.direction].filter(Boolean).join(" · ")}
+                          {[mentionCompte(c.login), c.service ?? c.direction].filter(Boolean).join(" · ")}
                         </span>
                       </span>
                       {c.source === "annuaire" && (

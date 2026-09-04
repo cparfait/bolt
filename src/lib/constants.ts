@@ -98,6 +98,40 @@ export function prenomDe(nomAffiche: string): string {
   return mots.find((m) => !enCapitales(m)) ?? mots[0];
 }
 
+/**
+ * Nom tel qu'on l'écrit en tête d'un courriel : « Prénom Nom ».
+ *
+ * `prenomDe` suffit à l'écran, où « Bonjour Christophe » est le ton juste. Dans
+ * un courriel, il faut le nom entier — et surtout dans le bon ordre.
+ *
+ * L'annuaire rend « PARFAIT Christophe » : patronyme en capitales d'abord,
+ * convention d'affichage d'un AD, illisible en salutation. On repère les mots
+ * en capitales — le patronyme — et on les renvoie après les autres, en
+ * capitale initiale seulement.
+ *
+ * Quand rien ne distingue les mots — « Chloé Parfait », saisi à la main —, on
+ * ne devine pas : l'ordre saisi est conservé. C'est pourquoi le formulaire de
+ * demande d'accès réclame « prénom puis nom » plutôt que l'inverse.
+ */
+export function nomPourSalutation(nomAffiche: string): string {
+  const mots = nomAffiche.trim().split(/\s+/).filter(Boolean);
+  if (mots.length < 2) return nomAffiche.trim();
+
+  const enCapitales = (m: string) =>
+    m === m.toLocaleUpperCase("fr") && m !== m.toLocaleLowerCase("fr");
+
+  const patronyme = mots.filter(enCapitales);
+  const prenoms = mots.filter((m) => !enCapitales(m));
+  if (patronyme.length === 0 || prenoms.length === 0) return mots.join(" ");
+
+  const capitaliser = (m: string) =>
+    m
+      .toLocaleLowerCase("fr")
+      .replace(/(^|[-'’])(\p{L})/gu, (_, s, l) => s + l.toLocaleUpperCase("fr"));
+
+  return [...prenoms, ...patronyme.map(capitaliser)].join(" ");
+}
+
 export function pluriel(n: number, singulier: string, plurielMot?: string): string {
   return n > 1 ? (plurielMot ?? `${singulier}s`) : singulier;
 }

@@ -3,7 +3,7 @@ import { adresseDeContact } from "./comptes";
 import { envoyerMail } from "./mail";
 import { getGeneralSettings } from "./settings";
 import { fmtDate, fmtDateLongue, JOUR_LABELS } from "./dates";
-import { prenomDe } from "./constants";
+import { nomPourSalutation } from "./constants";
 import { audit } from "./audit";
 
 /**
@@ -78,7 +78,7 @@ export async function notifierSeanceRetablie(
       adresse,
       `Séance maintenue — ${seance.creneau.activite.nom}`,
       [
-        `Bonjour ${prenomDe(u.displayName)},`,
+        `Bonjour ${nomPourSalutation(u.displayName)},`,
         `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du ${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}${seance.creneau.lieu ? ` (${seance.creneau.lieu})` : ""}, aura finalement bien lieu.`,
         `Elle avait été annulée : vous pouvez la réinscrire à votre agenda.`,
         g.contactEmail
@@ -174,7 +174,7 @@ export async function notifierSeancesAnnulees(
       agent.email,
       `${plusieurs ? "Séances annulées" : "Séance annulée"}${seuleActivite ? ` — ${seuleActivite}` : ""}`,
       [
-        `Bonjour ${prenomDe(agent.nom)},`,
+        `Bonjour ${nomPourSalutation(agent.nom)},`,
         plusieurs
           ? `Les séances suivantes n'auront pas lieu :`
           : `La séance suivante n'aura pas lieu :`,
@@ -265,7 +265,7 @@ export async function notifierChangementCreneau(
       adresseDeContact(i.user)!,
       `Changement — ${creneau.activite.nom}`,
       [
-        `Bonjour ${prenomDe(i.user.displayName)},`,
+        `Bonjour ${nomPourSalutation(i.user.displayName)},`,
         `Votre créneau de ${intitule} a été modifié.`,
         ...blocs,
         `Votre inscription reste valable : rien à faire de votre part. Consultez le détail dans l'application à tout moment.`,

@@ -6,7 +6,12 @@ import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { aujourdhui, fmtDate, fmtDateLongue, fmtHorodatage, JOUR_LABELS } from "@/lib/dates";
 import { effectifsParActivite } from "@/lib/inscriptions";
-import { adresseDeContact, estCreeALaMain, estHorsAnnuaire } from "@/lib/comptes";
+import {
+  adresseDeContact,
+  estCreeALaMain,
+  estHorsAnnuaire,
+  mentionCompte,
+} from "@/lib/comptes";
 import { Badge, Card, EmptyState, PageHeader, Stat } from "@/components/ui";
 import { EmailAgentForm, RattacherAdForm } from "@/components/agent-identite-forms";
 import { RetirerForm } from "@/components/inscription-actions";
@@ -155,7 +160,9 @@ export default async function FicheAgent({
 
       <PageHeader
         title={agent.displayName}
-        subtitle={[agent.login, agent.service, agent.direction].filter(Boolean).join(" · ")}
+        subtitle={[mentionCompte(agent.login), agent.service, agent.direction]
+          .filter(Boolean)
+          .join(" · ")}
       >
         <Badge>{ROLE_LABELS[agent.role]}</Badge>
         {horsAnnuaire && (

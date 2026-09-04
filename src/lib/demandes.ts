@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 import { getGeneralSettings, urlEspaceAgent } from "./settings";
 import { creerParticipantHorsAnnuaire } from "./comptes";
-import { prenomDe } from "./constants";
+import { nomPourSalutation } from "./constants";
 import { envoyerMail } from "./mail";
 import { audit } from "./audit";
 
@@ -138,6 +138,11 @@ async function prevenirLeService(demandeId: string): Promise<void> {
 export async function validerDemande(
   demandeId: string,
   gestionnaire: { id: string; displayName: string },
+  // Rattachement choisi par le gestionnaire au moment de valider. Le service
+  // déclaré par le demandeur est un texte libre — « Dsi » ne se raccorde pas à
+  // « DSI » — et la fréquentation par direction se répartirait sur autant de
+  // lignes que d'orthographes. Absent : on retombe sur ce qui a été déclaré.
+  rattachement: { direction?: string | null; service?: string | null } = {},
 ): Promise<{ ok: boolean; message: string }> {
   const demande = await prisma.demandeAcces.findUnique({ where: { id: demandeId } });
   if (!demande) return { ok: false, message: "Demande introuvable." };
@@ -177,7 +182,8 @@ export async function validerDemande(
   const user = await creerParticipantHorsAnnuaire({
     nom: demande.nom,
     email: demande.email,
-    service: demande.service,
+    direction: rattachement.direction?.trim() || null,
+    service: rattachement.service?.trim() || demande.service,
   });
 
   await prisma.demandeAcces.update({
@@ -217,7 +223,7 @@ async function annoncerAcces(userId: string): Promise<void> {
     user.email,
     `Votre accès à ${g.appName} est ouvert`,
     [
-      `Bonjour ${prenomDe(user.displayName)},`,
+      `Bonjour ${nomPourSalutation(user.displayName)},`,
       `Le service des sports a validé votre demande : vous pouvez désormais consulter les activités et vous y inscrire.`,
       base
         ? `Pour vous connecter, rendez-vous sur ${base}/acces et indiquez cette adresse e-mail : vous recevrez un lien de connexion. Aucun mot de passe ne vous sera demandé.`

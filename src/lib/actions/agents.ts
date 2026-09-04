@@ -13,7 +13,7 @@ import {
   type Candidat,
 } from "@/lib/comptes";
 import { inscrireDirectement } from "@/lib/inscriptions";
-import { desactiverCompte } from "@/lib/departs";
+import { anonymiserCompte, desactiverCompte } from "@/lib/departs";
 import { requireUser } from "@/lib/session";
 import { erreur, succes, type ActionState } from "./types";
 import { getLdapSettings } from "@/lib/settings";
@@ -720,4 +720,48 @@ export async function reactiverAgent(userId: string): Promise<void> {
   await audit("COMPTE_ACTIVE", { userId: admin.id, cible: cible.login });
   revalidatePath(`/agents/${userId}`);
   revalidatePath("/agents");
+}
+
+/**
+ * Efface l'identité d'un agent. Réservé à l'ADMIN : c'est irréversible.
+ *
+ * Le nom est redemandé en toutes lettres. Ce n'est pas une formalité : sur une
+ * liste d'agents, la ligne d'à côté ressemble à celle qu'on visait, et il n'y a
+ * pas de retour arrière — les inscriptions et les présences restent, mais plus
+ * rien ne dit à qui elles appartenaient.
+ */
+export async function anonymiserAgent(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("ADMIN");
+  const userId = String(formData.get("userId") ?? "");
+  if (userId === admin.id) {
+    return erreur("Vous ne pouvez pas supprimer votre propre identité.");
+  }
+
+  const cible = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { displayName: true, anonymiseAt: true },
+  });
+  if (!cible) return erreur("Agent introuvable.");
+  if (cible.anonymiseAt) return erreur("Cette identité a déjà été supprimée.");
+
+  const saisi = String(formData.get("confirmation") ?? "").trim();
+  if (saisi.toLowerCase() !== cible.displayName.trim().toLowerCase()) {
+    return erreur(
+      `Pour confirmer, recopiez le nom exactement : ${cible.displayName}.`,
+    );
+  }
+
+  const res = await anonymiserCompte(userId, admin.displayName);
+  if (!res.applique) return erreur("Suppression impossible.");
+
+  revalidatePath(`/agents/${userId}`);
+  revalidatePath("/agents");
+  revalidatePath("/statistiques");
+  revalidatePath("/parametres/utilisateurs");
+  return succes(
+    `Identité de ${res.nom} supprimée. Ses inscriptions et ses présences restent comptées dans les statistiques, sans nom.`,
+  );
 }

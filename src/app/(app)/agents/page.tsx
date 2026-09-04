@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { mentionCompte } from "@/lib/comptes";
 import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { Badge, Card, EmptyState, Input, PageHeader, btnSecondary } from "@/components/ui";
@@ -107,7 +108,7 @@ export default async function AgentsPage({
                       )}
                     </p>
                     <p className="truncate text-xs text-slate-400">
-                      {[a.login, a.service ?? a.direction, a.email]
+                      {[mentionCompte(a.login), a.service ?? a.direction, a.email]
                         .filter(Boolean)
                         .join(" · ")}
                     </p>

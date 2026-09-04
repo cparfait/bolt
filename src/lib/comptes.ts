@@ -212,3 +212,53 @@ export async function chercherComptes(
     source: "compte" as const,
   }));
 }
+
+/**
+ * Directions et services tels qu'ils existent dans l'annuaire.
+ *
+ * Servent de suggestions là où un rattachement se saisit à la main — validation
+ * d'une demande d'accès, création d'un participant hors annuaire. Sans elles,
+ * chacun écrit « Dsi », « DSI » ou « Direction des systèmes d'information », et
+ * la fréquentation par direction se répartit sur trois lignes qui désignent le
+ * même service. Le champ reste libre : un vacataire peut relever d'un organisme
+ * qui n'existe dans aucun annuaire.
+ */
+export async function rattachementsConnus(): Promise<{
+  directions: string[];
+  services: string[];
+}> {
+  const [directions, services] = await Promise.all([
+    prisma.adAccount.findMany({
+      where: { direction: { not: null }, enabled: true },
+      select: { direction: true },
+      distinct: ["direction"],
+      orderBy: { direction: "asc" },
+    }),
+    prisma.adAccount.findMany({
+      where: { service: { not: null }, enabled: true },
+      select: { service: true },
+      distinct: ["service"],
+      orderBy: { service: "asc" },
+    }),
+  ]);
+  return {
+    directions: directions.map((d) => d.direction!).filter(Boolean),
+    services: services.map((s) => s.service!).filter(Boolean),
+  };
+}
+
+/**
+ * Ce qu'on affiche à la place de l'identifiant, dans les listes et les fiches.
+ *
+ * Le sAMAccountName d'un compte d'annuaire sert : c'est ainsi que le service des
+ * sports et la DSI désignent une personne. Celui d'un compte créé à la main —
+ * « no_ad.parfait.chloe » — n'est qu'un détail d'implémentation.
+ *
+ * Il est remplacé par « adresse perso », qui dit la seule chose utile à cet
+ * endroit : cette personne n'a pas de compte de domaine, et l'adresse affichée
+ * à côté est la sienne, pas celle de l'annuaire. Sans cette mention, on
+ * s'étonne de voir une adresse Gmail dans une liste d'agents.
+ */
+export function mentionCompte(login: string): string {
+  return estCreeALaMain(login) ? "adresse perso" : login;
+}

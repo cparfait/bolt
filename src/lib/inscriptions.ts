@@ -4,7 +4,7 @@ import { getGeneralSettings } from "./settings";
 import { audit } from "./audit";
 import { isoDate } from "./dates";
 import { adresseDeContact } from "./comptes";
-import { prenomDe } from "./constants";
+import { nomPourSalutation } from "./constants";
 import { envoyerMail } from "./mail";
 
 /**
@@ -296,7 +296,7 @@ export async function accuserReception(
       adresse,
       contenu.objet,
       [
-        `Bonjour ${prenomDe(user.displayName)},`,
+        `Bonjour ${nomPourSalutation(user.displayName)},`,
         ...contenu.corps,
         g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
       ].join("\n\n"),
@@ -556,7 +556,7 @@ export async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
       adresse,
       `Une place s'est libérée en ${promu.creneau.activite.nom}`,
       [
-        `Bonjour ${prenomDe(promu.user.displayName)},`,
+        `Bonjour ${nomPourSalutation(promu.user.displayName)},`,
         `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}). Votre inscription est confirmée.`,
         g.contactEmail
           ? `Si vous ne souhaitez plus participer, prévenez le service des sports : ${g.contactEmail}.`

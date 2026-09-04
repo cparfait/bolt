@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { mentionCompte } from "@/lib/comptes";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { suggererAgents, type Suggestion } from "@/lib/actions/agents";
@@ -134,7 +135,7 @@ export function RechercheRapide() {
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">{s.nom}</span>
                       <span className="block truncate text-xs text-slate-400">
-                        {[s.login, s.detail].filter(Boolean).join(" · ")}
+                        {[mentionCompte(s.login), s.detail].filter(Boolean).join(" · ")}
                       </span>
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-slate-400">

@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Role } from "@prisma/client";
 import { prisma } from "./db";
 import { adresseDeContact } from "./comptes";
-import { prenomDe } from "./constants";
+import { nomPourSalutation } from "./constants";
 import { getGeneralSettings, urlEspaceAgent } from "./settings";
 import { envoyerMail } from "./mail";
 import { audit } from "./audit";
@@ -162,8 +162,8 @@ export async function envoyerLienConnexion(
     adresseDeContact(user)!,
     `Votre lien de connexion à ${g.appName}`,
     [
-      `Bonjour ${prenomDe(user.displayName)},`,
-      `Voici votre lien de connexion aux activités sportives. Il est valable ${VALIDITE_MINUTES} minutes et ne fonctionne qu'une seule fois.`,
+      `Bonjour ${nomPourSalutation(user.displayName)},`,
+      `Voici votre lien de connexion aux activités sportives. Il est valable ${VALIDITE_MINUTES} minutes et ne sert qu'une fois — ensuite vous restez connecté sur cet appareil, sans avoir à le redemander.`,
       lien,
       `Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : aucun accès n'a été ouvert.`,
     ].join("\n\n"),

@@ -46,6 +46,11 @@ model User {
   service      String?
   createdAt    DateTime @default(now())
   lastLoginAt  DateTime?
+  // Identité effacée à la demande de la personne ou au terme de la
+  // conservation. La ligne subsiste : ses inscriptions et ses présences sont en
+  // CASCADE, et les supprimer ferait mentir rétroactivement la fréquentation
+  // des saisons passées. Voir `anonymiserCompte` (src/lib/departs.ts).
+  anonymiseAt  DateTime?
 
   coach          Coach?
   inscriptions   Inscription[]

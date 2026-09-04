@@ -3,7 +3,7 @@ import { adresseDeContact } from "./comptes";
 import { envoyerMail } from "./mail";
 import { getGeneralSettings, getSetting, setSetting } from "./settings";
 import { aujourdhui, fmtDateLongue } from "./dates";
-import { prenomDe } from "./constants";
+import { nomPourSalutation } from "./constants";
 import { audit } from "./audit";
 
 /**
@@ -86,7 +86,7 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
         adresse,
         `Rappel — ${s.creneau.activite.nom} ${fmtDateLongue(s.date)}`,
         [
-          `Bonjour ${prenomDe(i.user.displayName)},`,
+          `Bonjour ${nomPourSalutation(i.user.displayName)},`,
           `Petit rappel : votre séance de ${s.creneau.activite.nom} a lieu ${fmtDateLongue(s.date)} de ${s.creneau.heureDebut} à ${s.creneau.heureFin}${s.creneau.lieu ? `, ${s.creneau.lieu}` : ""}.`,
           `Un empêchement ? Prévenez le service des sports : votre place profitera à un collègue en liste d'attente.`,
           g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,

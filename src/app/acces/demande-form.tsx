@@ -26,19 +26,25 @@ export function DemandeLienForm() {
   );
 
   if (state?.inconnue) {
+    // L'explication passe en `intro` du formulaire, et non à côté : elle doit
+    // disparaître avec lui quand la demande est transmise, sinon « vous n'avez
+    // pas encore d'accès » resterait affiché au-dessus de l'accusé de réception.
     return (
-      <div className="space-y-4">
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-sm font-semibold text-slate-700">
-            Vous n&apos;avez pas encore d&apos;accès
-          </p>
-          <p className="mt-1 text-sm text-slate-500">
-            Cette adresse n&apos;est pas enregistrée. Dites-nous qui vous êtes :
-            le service des sports ouvrira votre accès et vous préviendra.
-          </p>
-        </div>
-        <DemandeAccesForm email={state.email ?? ""} />
-      </div>
+      <DemandeAccesForm
+        email={state.email ?? ""}
+        intro={
+          <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+            <p className="text-sm font-semibold text-slate-700">
+              Vous n&apos;avez pas encore d&apos;accès
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Cette adresse n&apos;est pas enregistrée. Dites-nous qui vous êtes :
+              le service des sports validera votre demande et vous recevrez un
+              message dès que votre accès sera ouvert.
+            </p>
+          </div>
+        }
+      />
     );
   }
 

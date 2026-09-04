@@ -1,0 +1,11 @@
+-- Suppression de l'identité d'un agent, sans perdre sa fréquentation.
+--
+-- Supprimer la ligne User effacerait ses inscriptions et ses présences : les
+-- deux relations sont en CASCADE. La saison écoulée perdrait ses participants
+-- un par un, et le bilan de fréquentation — la raison d'être de l'application —
+-- se mettrait à mentir rétroactivement.
+--
+-- On efface donc ce qui identifie la personne et on garde la ligne, qui ne
+-- porte plus qu'un rattachement direction/service et ses liens vers les
+-- séances. Cette date dit que c'est fait, et quand.
+ALTER TABLE "User" ADD COLUMN "anonymiseAt" TIMESTAMP(3);

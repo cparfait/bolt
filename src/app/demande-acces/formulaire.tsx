@@ -1,12 +1,21 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, type ReactNode } from "react";
 import { deposerDemandeAction } from "@/lib/actions/demandes";
 import { Alert, Field, Input, Textarea, btnPrimary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/actions/types";
 
-export function DemandeAccesForm({ email = "" }: { email?: string }) {
+export function DemandeAccesForm({
+  email = "",
+  intro,
+}: {
+  email?: string;
+  // Rendu au-dessus du formulaire, et seulement tant qu'il est affiché : une
+  // fois la demande transmise, « vous n'avez pas encore d'accès » resterait à
+  // l'écran au-dessus de l'accusé de réception, à contredire ce qu'il annonce.
+  intro?: ReactNode;
+}) {
   const [state, action] = useActionState<ActionState, FormData>(
     deposerDemandeAction,
     null,
@@ -20,12 +29,18 @@ export function DemandeAccesForm({ email = "" }: { email?: string }) {
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
         <p className="text-sm font-semibold text-emerald-800">Demande transmise</p>
         <p className="mt-1 text-sm text-emerald-700">{state.success}</p>
+        <p className="mt-2 text-sm text-emerald-700">
+          Vous pourrez vous inscrire aux activités dès que le service des sports
+          aura validé votre accès.
+        </p>
       </div>
     );
   }
 
   return (
-    <form
+    <>
+      {intro}
+      <form
       action={action}
       className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
@@ -42,7 +57,11 @@ export function DemandeAccesForm({ email = "" }: { email?: string }) {
         </label>
       </div>
 
-      <Field label="Vos nom et prénom" required>
+      {/* Prénom d'abord, et l'exemple le montre : c'est ce qui est saisi ici
+          qui ouvrira les courriels de la personne, et rien ne permet ensuite de
+          deviner l'ordre — « Parfait Chloé » et « Chloé Parfait » sont
+          indiscernables pour la machine. */}
+      <Field label="Votre prénom et votre nom" required>
         <Input name="nom" autoComplete="name" placeholder="Camille Martin" autoFocus required />
       </Field>
 
@@ -81,9 +100,11 @@ export function DemandeAccesForm({ email = "" }: { email?: string }) {
       </SubmitButton>
 
       <p className="text-xs text-slate-400">
-        Aucun compte n&apos;est créé à cette étape : votre demande est examinée par
-        le service des sports.
+        Aucun compte n&apos;est créé à cette étape. Le service des sports examine
+        votre demande, et vous recevrez un message dès qu&apos;il l&apos;aura
+        validée. Vous pourrez alors consulter les activités et vous y inscrire.
       </p>
-    </form>
+      </form>
+    </>
   );
 }

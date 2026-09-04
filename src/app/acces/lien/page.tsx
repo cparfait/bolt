@@ -1,4 +1,6 @@
 import { Dumbbell } from "lucide-react";
+import { redirect } from "next/navigation";
+import { currentUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
 import { TitreConnexion, btnPrimary } from "@/components/ui";
 import { activerLienAction } from "@/lib/actions/auth";
@@ -29,6 +31,13 @@ export default async function LienPage({
 }: {
   searchParams: Promise<{ token?: string }>;
 }) {
+  // Déjà connecté : on ne propose pas de consommer un jeton pour rien. C'est le
+  // cas de l'agent qui rouvre le courriel après coup — sa session vaut 12
+  // heures, elle lui suffit. Sans ce raccourci, il cliquait sur « Me
+  // connecter », le jeton était mort, et l'écran d'erreur le renvoyait ici même
+  // : le lien avait l'air de marcher à l'infini.
+  if (await currentUser()) redirect("/mes-activites");
+
   const g = await getGeneralSettings();
   const { token } = await searchParams;
 
@@ -62,8 +71,8 @@ export default async function LienPage({
         >
           <input type="hidden" name="token" value={token ?? ""} />
           <p className="text-sm text-slate-600">
-            Vous êtes à un clic de votre espace. Ce lien ne fonctionne
-            qu&apos;une fois.
+            Vous êtes à un clic de votre espace. Ce lien ne sert qu&apos;une
+            fois — ensuite vous restez connecté sur cet appareil.
           </p>
           <SubmitButton
             className={`${btnPrimary} w-full justify-center`}
