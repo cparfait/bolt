@@ -1,0 +1,7 @@
+# Interdire l'indexation ne protège rien : un robot hostile ignore ce fichier,
+# et le cloisonnement reste assuré par le reverse proxy. Cela évite seulement
+# que la feuille d'émargement et l'espace agent remontent dans un moteur de
+# recherche — et cela donne au proxy autre chose qu'un 403 à répondre sur une
+# requête parfaitement banale, ce qui évite de nourrir les scénarios CrowdSec.
+User-agent: *
+Disallow: /

@@ -36,6 +36,9 @@ const PUBLIC_PREFIXES = [
   "/icones",
   "/_next",
   "/favicon.ico",
+  // Servi depuis public/ : le proxy le relaie plutôt que de répondre 403 à une
+  // requête que tout robot légitime émet en arrivant.
+  "/robots.txt",
   "/api/health",
 ];
 
