@@ -213,7 +213,7 @@ async function annoncerAcces(userId: string): Promise<void> {
   const g = await getGeneralSettings();
   const base = urlEspaceAgent(g);
 
-  await envoyerMail(
+  const envoi = await envoyerMail(
     user.email,
     `Votre accès à ${g.appName} est ouvert`,
     [
@@ -227,7 +227,10 @@ async function annoncerAcces(userId: string): Promise<void> {
       .filter(Boolean)
       .join("\n\n"),
   );
-  await audit("ACCES_ANNONCE", { userId: user.id });
+  await audit(envoi.ok ? "ACCES_ANNONCE" : "ACCES_ANNONCE_ECHEC", {
+    userId: user.id,
+    details: envoi.ok ? undefined : envoi.message,
+  });
 }
 
 /**

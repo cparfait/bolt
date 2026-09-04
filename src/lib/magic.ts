@@ -125,7 +125,7 @@ export async function envoyerLienConnexion(
   // lien reçu par courriel devient une impasse.
   const lien = `${base}/acces/lien?token=${token}`;
 
-  await envoyerMail(
+  const envoi = await envoyerMail(
     adresseDeContact(user)!,
     `Votre lien de connexion à ${g.appName}`,
     [
@@ -135,7 +135,15 @@ export async function envoyerLienConnexion(
       `Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : aucun accès n'a été ouvert.`,
     ].join("\n\n"),
   );
-  await audit("LIEN_MAGIQUE_ENVOYE", { userId: user.id });
+  // Le résultat de l'envoi, et pas seulement l'intention. L'agent qui ne reçoit
+  // rien appelle le service des sports, qui ouvre le journal : y lire
+  // « ENVOYE » alors que le SMTP a refusé envoie chercher la panne du côté de
+  // la messagerie de l'agent, c'est-à-dire nulle part. C'est la seule trace
+  // qu'on ait de ce parcours — elle doit dire ce qui s'est réellement passé.
+  await audit(envoi.ok ? "LIEN_MAGIQUE_ENVOYE" : "LIEN_MAGIQUE_ECHEC", {
+    userId: user.id,
+    details: envoi.ok ? undefined : envoi.message,
+  });
 }
 
 /** Consomme un jeton et renvoie l'utilisateur, ou null si invalide/expiré. */
