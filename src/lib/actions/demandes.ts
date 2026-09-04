@@ -30,6 +30,23 @@ import { erreur, succes, type ActionState } from "./types";
 
 const PLAFOND_HORAIRE = 40;
 
+/**
+ * Dépôts autorisés par heure et par adresse IP.
+ *
+ * Deux valeurs, parce que la même IP ne dit pas la même chose des deux côtés.
+ * Depuis Internet, une machine qui dépose quatre demandes en une heure n'a
+ * aucune raison légitime de le faire. Depuis le réseau, c'est le cas normal
+ * d'un poste partagé — l'accueil, le gardiennage, ou le service des sports qui
+ * accompagne des vacataires à la rentrée. Ils sortent tous sous la même
+ * adresse, et le compteur les prendrait pour un robot.
+ *
+ * On ne supprime pas la limite à l'intérieur pour autant : un poste compromis
+ * reste un poste. On la desserre au niveau de ce qu'une file d'attente peut
+ * absorber sans devenir illisible.
+ */
+const PAR_IP_EXTERNE = 3;
+const PAR_IP_INTERNE = 20;
+
 // Le message est le même quoi qu'il arrive : adresse inconnue, adresse déjà
 // titulaire d'un compte, demande déjà déposée. Ce formulaire est publié sur
 // Internet ; en dire plus permettrait de vérifier qui travaille dans la
@@ -67,7 +84,9 @@ export async function deposerDemandeAction(
 
   const ip = clientIp(await headers());
 
-  if (!estInterne(ip) && !rateLimit("demande-acces:global", PLAFOND_HORAIRE, 3600).ok) {
+  const interne = estInterne(ip);
+
+  if (!interne && !rateLimit("demande-acces:global", PLAFOND_HORAIRE, 3600).ok) {
     await audit("DEMANDE_ACCES_PLAFOND", { cible: email });
     await alerterSecurite(
       "demande-acces",
@@ -76,7 +95,8 @@ export async function deposerDemandeAction(
     );
     return erreur("Trop de demandes en cours. Réessayez dans quelques minutes.");
   }
-  if (!rateLimit(`demande-acces-ip:${ip}`, 3, 3600).ok) {
+  const parIp = interne ? PAR_IP_INTERNE : PAR_IP_EXTERNE;
+  if (!rateLimit(`demande-acces-ip:${ip}`, parIp, 3600).ok) {
     return erreur("Trop de demandes depuis cet accès. Réessayez plus tard.");
   }
 
