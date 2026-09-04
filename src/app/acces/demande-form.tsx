@@ -24,7 +24,7 @@ export function DemandeLienForm() {
           professionnelle les envoyait saisir celle qui n'ouvre rien. */}
       <Field
         label="Votre adresse e-mail"
-        hint="Celle que connaît le service des sports."
+        hint="Celle à laquelle le service des sports vous écrit."
         required
       >
         <Input
@@ -41,8 +41,13 @@ export function DemandeLienForm() {
         className={`${btnPrimary} w-full justify-center`}
         pendingLabel="Envoi…"
       >
-        Recevoir mon lien de connexion
+        Recevoir mon lien
       </SubmitButton>
+
+      <p className="text-xs text-slate-400">
+        Vous recevez un lien valable 30 minutes. Aucun mot de passe ne vous est
+        demandé.
+      </p>
     </form>
   );
 }

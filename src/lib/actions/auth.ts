@@ -160,8 +160,11 @@ export async function demanderLienAction(
   // Internet, seul un compte AGENT reçoit un lien.
   await envoyerLienConnexion(email, { externe: !estInterne(ip) });
   return {
+    // Formulation volontairement conditionnelle : identique que l'adresse soit
+    // connue ou non. Cette page est publiée sur Internet, elle ne doit pas
+    // permettre de vérifier qui travaille dans la collectivité.
     success:
-      "Si cette adresse correspond à un agent de la collectivité, un lien de connexion vient d'être envoyé. Il est valable 30 minutes.",
+      "Si cette adresse est enregistrée, le lien vient de partir. Regardez votre messagerie — il est valable 30 minutes.",
   };
 }
 
