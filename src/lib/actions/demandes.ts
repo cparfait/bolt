@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { clientIp, estInterne } from "@/lib/net";
 import { rateLimit } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
+import { alerterSecurite } from "@/lib/alertes";
 import { deposerDemande, refuserDemande, validerDemande } from "@/lib/demandes";
 import { requireUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
@@ -68,6 +69,11 @@ export async function deposerDemandeAction(
 
   if (!estInterne(ip) && !rateLimit("demande-acces:global", PLAFOND_HORAIRE, 3600).ok) {
     await audit("DEMANDE_ACCES_PLAFOND", { cible: email });
+    await alerterSecurite(
+      "demande-acces",
+      "le plafond des demandes d'accès a été atteint",
+      `Plus de ${PLAFOND_HORAIRE} demandes d'accès ont été déposées depuis Internet en une heure. Les suivantes sont refusées jusqu'à la fin de l'heure en cours.\n\nUn dépôt automatisé est plus probable qu'une rentrée chargée : l'écran « Demandes d'accès » affiche l'adresse IP de chaque dépôt, une même adresse répétée trahit un robot.`,
+    );
     return erreur("Trop de demandes en cours. Réessayez dans quelques minutes.");
   }
   if (!rateLimit(`demande-acces-ip:${ip}`, 3, 3600).ok) {

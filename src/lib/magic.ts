@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import type { Role } from "@prisma/client";
 import { prisma } from "./db";
 import { adresseDeContact } from "./comptes";
 import { prenomDe } from "./constants";
@@ -20,11 +21,36 @@ import { audit } from "./audit";
 const VALIDITE_MINUTES = 30;
 
 /**
+ * Depuis Internet, seul un compte AGENT peut ouvrir une session.
+ *
+ * Le cloisonnement du proxy porte sur les CHEMINS, et une action serveur n'est
+ * pas liée au chemin qui l'affiche : elle est adressée par un identifiant
+ * global (voir le commentaire de `estInterne`, src/lib/net.ts). Une session de
+ * gestionnaire obtenue depuis l'extérieur permettrait donc d'appeler les
+ * actions du back-office depuis un chemin publié, alors même que les écrans
+ * correspondants restent injoignables. Bloquer les PAGES ne suffit pas : il
+ * faut empêcher la session privilégiée de naître.
+ *
+ * D'où cette règle, appliquée à l'envoi ET à la consommation du lien — un lien
+ * demandé depuis le réseau pourrait sinon être ouvert depuis l'extérieur.
+ *
+ * COACH en fait partie : le rôle donne accès au planning, donc à des écrans de
+ * gestion. Les animateurs prestataires, eux, ne passent pas par ce mécanisme
+ * mais par leur jeton et leur PIN — rien ne change pour eux.
+ */
+export function autoriseDepuisInternet(role: Role): boolean {
+  return role === "AGENT";
+}
+
+/**
  * Envoie un lien de connexion. Renvoie toujours le même message, que l'adresse
  * soit connue ou non : l'écran de connexion ne doit pas permettre de savoir qui
  * travaille dans la collectivité.
  */
-export async function envoyerLienConnexion(emailBrut: string): Promise<void> {
+export async function envoyerLienConnexion(
+  emailBrut: string,
+  options: { externe: boolean },
+): Promise<void> {
   const email = emailBrut.trim().toLowerCase();
   if (!email.includes("@")) return;
 
@@ -68,6 +94,16 @@ export async function envoyerLienConnexion(emailBrut: string): Promise<void> {
     });
   }
 
+  // Un gestionnaire qui demande son lien depuis Internet ne reçoit rien : sa
+  // session ouvrirait le back-office par le biais des actions serveur. Le
+  // silence est volontaire — l'appelant renvoie le même message à tout le
+  // monde, et dire « votre compte ne peut pas se connecter ainsi » désignerait
+  // les comptes privilégiés à qui les cherche.
+  if (options.externe && !autoriseDepuisInternet(user.role)) {
+    await audit("LIEN_MAGIQUE_REFUS_ROLE", { userId: user.id, cible: email });
+    return;
+  }
+
   // Les liens précédents deviennent caducs : un seul lien valide à la fois.
   await prisma.magicToken.updateMany({
     where: { userId: user.id, usedAt: null },
@@ -103,7 +139,7 @@ export async function envoyerLienConnexion(emailBrut: string): Promise<void> {
 }
 
 /** Consomme un jeton et renvoie l'utilisateur, ou null si invalide/expiré. */
-export async function consommerLien(token: string) {
+export async function consommerLien(token: string, options: { externe: boolean }) {
   if (!token) return null;
   const row = await prisma.magicToken.findUnique({
     where: { token },
@@ -111,6 +147,15 @@ export async function consommerLien(token: string) {
   });
   if (!row || row.usedAt || row.expiresAt < new Date()) return null;
   if (!row.user.active) return null;
+
+  // Second passage de la même règle qu'à l'envoi : un lien demandé depuis le
+  // réseau, puis ouvert depuis l'extérieur, n'ouvre pas de session privilégiée.
+  // Le jeton n'est PAS consommé — le gestionnaire pourra s'en servir en
+  // arrivant au bureau, plutôt que de le brûler en le lisant dans le train.
+  if (options.externe && !autoriseDepuisInternet(row.user.role)) {
+    await audit("LIEN_MAGIQUE_REFUS_ROLE", { userId: row.userId });
+    return null;
+  }
 
   // Marquage à usage unique : la mise à jour conditionnelle empêche deux
   // requêtes simultanées de consommer le même jeton.

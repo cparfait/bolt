@@ -6,8 +6,9 @@ import { authenticate, ensureBootstrapAdmin, resoudreIdentifiant } from "@/lib/a
 import { getSession } from "@/lib/session";
 import { rateLimit } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
+import { alerterSecurite } from "@/lib/alertes";
 import { clientIp, estInterne } from "@/lib/net";
-import { envoyerLienConnexion } from "@/lib/magic";
+import { consommerLien, envoyerLienConnexion } from "@/lib/magic";
 import { getGeneralSettings } from "@/lib/settings";
 import type { ActionState } from "./types";
 
@@ -141,6 +142,11 @@ export async function demanderLienAction(
   // le plafond a servi, donc qu'on vous attaque.
   if (!estInterne(ip) && !rateLimit("magic:global", PLAFOND_HORAIRE, 3600).ok) {
     await audit("LIEN_MAGIQUE_PLAFOND", { cible: email });
+    await alerterSecurite(
+      "magic",
+      "le plafond d'envoi des liens de connexion a été atteint",
+      `Plus de ${PLAFOND_HORAIRE} liens de connexion ont été demandés depuis Internet en une heure. Les envois suivants sont refusés jusqu'à la fin de l'heure en cours.\n\nCe plafond protège la réputation d'expéditeur du domaine de la collectivité : sans lui, une source distribuée ferait partir des milliers de courriels sous votre nom. Les agents sur le réseau ou en VPN continuent de recevoir leur lien normalement.`,
+    );
     return { error: "Trop de demandes en cours. Réessayez dans quelques minutes." };
   }
 
@@ -150,11 +156,38 @@ export async function demanderLienAction(
     }
   }
 
-  await envoyerLienConnexion(email);
+  // `externe` commande la règle de rôle de `envoyerLienConnexion` : depuis
+  // Internet, seul un compte AGENT reçoit un lien.
+  await envoyerLienConnexion(email, { externe: !estInterne(ip) });
   return {
     success:
       "Si cette adresse correspond à un agent de la collectivité, un lien de connexion vient d'être envoyé. Il est valable 30 minutes.",
   };
+}
+
+/**
+ * Consomme le lien de connexion et ouvre la session.
+ *
+ * Servie par un POST depuis `/acces/lien`, et non plus par l'ouverture de
+ * l'URL : les robots qui inspectent le courrier suivent les liens, ils ne
+ * soumettent pas les formulaires. Voir le commentaire de cette page.
+ *
+ * Les redirections sont relatives : l'agent reste sur l'hôte par lequel il est
+ * arrivé. C'est ce qui retire d'ici le piège que l'ancien gestionnaire de route
+ * devait désamorcer à la main — reconstruire une URL absolue derrière une
+ * chaîne de proxys, et se tromper d'hôte.
+ */
+export async function activerLienAction(formData: FormData): Promise<void> {
+  const token = String(formData.get("token") ?? "");
+  const ip = clientIp(await headers());
+
+  const user = await consommerLien(token, { externe: !estInterne(ip) });
+  if (!user) redirect("/acces?erreur=lien");
+
+  const session = await getSession();
+  session.userId = user.id;
+  await session.save();
+  redirect("/mes-activites");
 }
 
 export async function logoutAction(): Promise<void> {
