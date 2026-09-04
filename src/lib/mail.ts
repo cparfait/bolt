@@ -38,7 +38,7 @@ export async function envoyerMail(
       from: smtp.from,
       to,
       subject,
-      text: corps,
+      text: sansNotation(corps),
       html: gabarit(subject, corps, logo, g.appName, g.appDescription, g.orgName),
       attachments: logo
         ? [
@@ -198,13 +198,51 @@ export function avecLiens(texteEchappe: string): string {
 }
 
 /**
+ * Appel à l'action, écrit « [Libellé](https://…) » dans le corps du message.
+ *
+ * Un lien nu au milieu d'un paragraphe se recopie mal, se coupe en deux à
+ * l'affichage, et ne dit pas ce qu'il fait. Seul sur sa ligne, il devient un
+ * bouton ; à l'intérieur d'une phrase, un simple lien porté par son libellé.
+ *
+ * La notation est reprise du markdown pour une raison pratique : la version
+ * texte brut du message, que reçoivent les clients qui n'affichent pas le HTML,
+ * reste lisible une fois transformée en « Libellé : https://… ».
+ */
+const ACTION = /^\[([^\]]{1,60})\]\((https?:\/\/[^\s)]+)\)$/;
+const ACTION_GLOBAL = /\[([^\]]{1,60})\]\((https?:\/\/[^\s)]+)\)/g;
+
+/**
+ * Bouton d'appel à l'action.
+ *
+ * En TABLEAU et non en `div` : Outlook rend le message avec le moteur de Word,
+ * qui ignore `padding` sur une balise `a` — le bouton s'y réduirait à un texte
+ * coloré. La couleur de fond est portée par l'attribut `bgcolor` autant que par
+ * le CSS, pour la même raison. `border-radius` est simplement ignoré là-bas :
+ * le bouton y est carré, ce qui n'a jamais empêché personne de cliquer.
+ */
+function bouton(libelle: string, url: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px"><tr><td bgcolor="${VERT}" style="border-radius:8px"><a href="${url}" style="display:inline-block;padding:13px 26px;font-family:${POLICE};font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px">${libelle}</a></td></tr></table>`;
+}
+
+/**
+ * Version texte brut : « [Libellé](url) » redevient « Libellé : url ».
+ *
+ * Le message est envoyé en deux parties, HTML et texte. Laisser la notation
+ * telle quelle dans la seconde donnerait des crochets et des parenthèses à
+ * quelqu'un qui, précisément, ne voit pas les boutons.
+ */
+export function sansNotation(corps: string): string {
+  return corps.replace(ACTION_GLOBAL, (_, libelle, url) => `${libelle} : ${url}`);
+}
+
+/**
  * Texte d'aperçu, affiché par la messagerie à côté de l'objet dans la liste
  * des messages. Sans lui, toutes les lignes se ressemblent : « Bonjour
  * Christophe, » n'apprend rien. On saute donc la salutation pour prendre la
  * première phrase utile.
  */
 export function apercu(corps: string): string {
-  const paragraphes = corps.split(/\n{2,}/).map((p) => p.trim());
+  const paragraphes = sansNotation(corps).split(/\n{2,}/).map((p) => p.trim());
   const utile = paragraphes.find((p) => p && !/^bonjour\b/i.test(p)) ?? paragraphes[0] ?? "";
   const plat = utile.replace(/\s+/g, " ");
   return plat.length > 140 ? `${plat.slice(0, 139)}…` : plat;
@@ -234,10 +272,18 @@ function gabarit(
   const paragraphes = corps
     .split(/\n{2,}/)
     .filter((p) => p.trim())
-    .map(
-      (p) =>
-        `<p style="margin:0 0 16px;font-family:${POLICE};font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#334155">${avecLiens(echapper(p.trim()).replace(/\n/g, "<br>"))}</p>`,
-    )
+    .map((p) => {
+      const seul = p.trim().match(ACTION);
+      if (seul) return bouton(echapper(seul[1]), echapper(seul[2]));
+      const enHtml = echapper(p.trim())
+        // Les actions au fil du texte redeviennent des liens ordinaires, portés
+        // par leur libellé : c'est plus court à lire qu'une URL entière.
+        .replace(ACTION_GLOBAL, (_, libelle, url) =>
+          `<a href="${url}" style="color:${VERT};text-decoration:underline">${libelle}</a>`,
+        )
+        .replace(/\n/g, "<br>");
+      return `<p style="margin:0 0 16px;font-family:${POLICE};font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#334155">${avecLiens(enHtml)}</p>`;
+    })
     .join("");
 
   // Les attributs `width`/`height` d'abord — seul bornage qu'Outlook respecte —,
@@ -328,7 +374,8 @@ export async function corpsLienAnimateur(
   const lignes = [
     `Bonjour ${prenom},`,
     `Voici votre accès personnel pour pointer la présence des agents à vos séances. Il fonctionne depuis n'importe quel téléphone, sans installation et sans compte.`,
-    `Lien : ${lien}\nCode à 6 chiffres : ${pin}`,
+    `[Ouvrir ma feuille d'émargement](${lien})`,
+    `Votre code à 6 chiffres : ${pin}`,
     `Le code vous est demandé à la première ouverture, puis une fois toutes les 8 heures. Conservez ces informations : le code ne peut pas être réaffiché, seulement régénéré.`,
   ];
   if (expiration) {

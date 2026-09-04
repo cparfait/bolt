@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { apercu, avecLiens, echapper } from "../src/lib/mail";
+import { apercu, avecLiens, echapper, sansNotation } from "../src/lib/mail";
 
 /**
  * Gabarit des courriels.
@@ -68,5 +68,35 @@ describe("apercu", () => {
 
   it("ne casse pas sur un corps vide", () => {
     assert.equal(apercu(""), "");
+  });
+});
+
+describe("boutons d'action", () => {
+  it("transforme la notation en « libellé : adresse » pour le texte brut", () => {
+    // La version texte du message est celle que reçoivent les clients qui
+    // n'affichent pas le HTML : y laisser des crochets donnerait la notation
+    // brute à ceux-là mêmes qui ne voient pas les boutons.
+    assert.equal(
+      sansNotation("[Me connecter](https://exemple.fr/x)"),
+      "Me connecter : https://exemple.fr/x",
+    );
+  });
+
+  it("traite plusieurs actions dans le même corps", () => {
+    assert.equal(
+      sansNotation("[A](https://a.fr) et [B](https://b.fr)"),
+      "A : https://a.fr et B : https://b.fr",
+    );
+  });
+
+  it("laisse un lien nu tel quel", () => {
+    assert.equal(sansNotation("Voir https://exemple.fr"), "Voir https://exemple.fr");
+  });
+
+  it("l'aperçu ne montre jamais la notation", () => {
+    // L'aperçu s'affiche dans la liste des messages : c'est le pire endroit où
+    // laisser fuir une syntaxe interne.
+    const vu = apercu("Bonjour Chloé,\n\n[Me connecter](https://exemple.fr/x)");
+    assert.equal(vu, "Me connecter : https://exemple.fr/x");
   });
 });

@@ -163,8 +163,8 @@ export async function envoyerLienConnexion(
     `Votre lien de connexion à ${g.appName}`,
     [
       `Bonjour ${nomPourSalutation(user.displayName)},`,
-      `Voici votre lien de connexion aux activités sportives. Il est valable ${VALIDITE_MINUTES} minutes et ne sert qu'une fois — ensuite vous restez connecté sur cet appareil, sans avoir à le redemander.`,
-      lien,
+      `Voici votre accès aux activités sportives. Il est valable ${VALIDITE_MINUTES} minutes et ne sert qu'une fois — ensuite vous restez connecté sur cet appareil, sans avoir à le redemander.`,
+      `[Me connecter](${lien})`,
       `Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : aucun accès n'a été ouvert.`,
     ].join("\n\n"),
   );

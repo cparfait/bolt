@@ -119,7 +119,9 @@ async function prevenirLeService(demandeId: string): Promise<void> {
         .filter(Boolean)
         .join("\n"),
       `Aucun compte n'a été créé. Rien ne part vers cette adresse tant que vous n'avez pas validé la demande.`,
-      base ? `Traiter la demande : ${base}/agents/demandes` : `À traiter dans ${g.appName}, écran « Demandes d'accès ».`,
+      base
+        ? `[Traiter la demande](${base}/agents/demandes)`
+        : `À traiter dans ${g.appName}, écran « Demandes d'accès ».`,
       enAttente > 1 ? `${enAttente} demandes attendent une décision.` : null,
     ]
       .filter(Boolean)
@@ -225,9 +227,8 @@ async function annoncerAcces(userId: string): Promise<void> {
     [
       `Bonjour ${nomPourSalutation(user.displayName)},`,
       `Le service des sports a validé votre demande : vous pouvez désormais consulter les activités et vous y inscrire.`,
-      base
-        ? `Pour vous connecter, rendez-vous sur ${base}/acces et indiquez cette adresse e-mail : vous recevrez un lien de connexion. Aucun mot de passe ne vous sera demandé.`
-        : `Pour vous connecter, indiquez cette adresse e-mail sur la page d'accès : vous recevrez un lien de connexion. Aucun mot de passe ne vous sera demandé.`,
+      `Pour vous connecter, indiquez cette adresse e-mail : vous recevrez un lien. Aucun mot de passe ne vous sera demandé.`,
+      base ? `[Accéder aux activités](${base}/acces)` : null,
       g.contactEmail ? `Une question ? Écrivez au service des sports : ${g.contactEmail}` : null,
     ]
       .filter(Boolean)
