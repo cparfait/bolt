@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { prisma } from "./db";
 import { adresseDeContact } from "./comptes";
 import { prenomDe } from "./constants";
-import { getGeneralSettings } from "./settings";
+import { getGeneralSettings, urlEspaceAgent } from "./settings";
 import { envoyerMail } from "./mail";
 import { audit } from "./audit";
 
@@ -83,7 +83,7 @@ export async function envoyerLienConnexion(emailBrut: string): Promise<void> {
     },
   });
 
-  const base = (g.appUrl || process.env.BOLT_PUBLIC_URL || "").replace(/\/+$/, "");
+  const base = urlEspaceAgent(g);
   // Doit pointer sur le gestionnaire de route qui consomme le jeton
   // (src/app/acces/lien/route.ts) : toute autre adresse renvoie un 404, et le
   // lien reçu par courriel devient une impasse.

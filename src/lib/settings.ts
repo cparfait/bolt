@@ -57,6 +57,13 @@ export type GeneralSettings = {
   // et un miroir d'annuaire synchronisé : seules les adresses connues de l'AD
   // reçoivent un lien.
   lienMagiqueActif: boolean;
+  // Formulaire public de demande d'accès, pour les personnes absentes de
+  // l'annuaire. Une demande ne crée ni compte ni session : elle attend la
+  // validation du service des sports. Sans ce formulaire, ces personnes n'ont
+  // d'autre recours que d'écrire au service ; avec, la demande est tracée et
+  // se valide d'un clic. Nécessite la connexion par lien, seul moyen de
+  // connexion d'un compte hors annuaire.
+  demandeAccesActive: boolean;
   // Rappel envoyé aux inscrits la veille de leur séance. Nécessite le SMTP.
   rappelsActifs: boolean;
   rappelHeuresAvant: number; // fenêtre d'anticipation, en heures
@@ -85,6 +92,7 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   validationRequise: true,
   absencesAvantRelance: 3,
   lienMagiqueActif: false,
+  demandeAccesActive: false,
   rappelsActifs: false,
   rappelHeuresAvant: 24,
   // 14 mois : la durée annoncée sur la fiche d'inscription papier.
@@ -133,4 +141,26 @@ export async function getIdentiteApp(): Promise<{ nom: string; description: stri
   } catch {
     return { nom: DEFAULT_GENERAL.appName, description: DEFAULT_GENERAL.appDescription };
   }
+}
+
+/**
+ * Adresse de base des liens envoyés aux agents (lien de connexion, courriel
+ * d'activation d'un accès).
+ *
+ * `appUrl` porte le nom du back-office, qui n'est publié ni au DNS public ni
+ * sur le proxy en DMZ. Tant que l'espace agent restait interne, c'était la
+ * bonne adresse. Publié sur Internet, ce même lien devient une impasse pour
+ * exactement la population qu'il vise : l'agent de terrain qui lit son courriel
+ * depuis chez lui obtient un nom qui ne résout pas.
+ *
+ * Quand PUBLIC_AGENT_ACCESS=1, l'espace agent est servi par le vhost public —
+ * le même que la feuille d'émargement. On reprend donc `pointageUrl`, avec
+ * `appUrl` en repli pour un déploiement qui n'aurait qu'un seul nom.
+ */
+export function urlEspaceAgent(g: GeneralSettings): string {
+  const base =
+    process.env.PUBLIC_AGENT_ACCESS === "1"
+      ? g.pointageUrl || g.appUrl
+      : g.appUrl;
+  return (base || process.env.BOLT_PUBLIC_URL || "").replace(/\/+$/, "");
 }

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { consommerLien } from "@/lib/magic";
 import { getSession } from "@/lib/session";
-import { getGeneralSettings } from "@/lib/settings";
+import { getGeneralSettings, urlEspaceAgent } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
   const g = await getGeneralSettings();
-  const base = g.appUrl || request.url;
+  const base = urlEspaceAgent(g) || request.url;
 
   const token = request.nextUrl.searchParams.get("token") ?? "";
   const user = await consommerLien(token);
