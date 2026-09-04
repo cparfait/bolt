@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
+import { reduireLogo } from "@/lib/logo";
 import { ldapSearchGroups, ldapTest } from "@/lib/ldap";
 import { synchroniserAnnuaire as synchroniserAnnuaireDepuisAd } from "@/lib/annuaire";
 import { desactiverCompte } from "@/lib/departs";
@@ -45,7 +46,12 @@ async function lireLogo(
   if (formData.get("supprimerLogo") === "1") return { logo: "" };
 
   const fichier = formData.get("logo");
-  if (!(fichier instanceof File) || fichier.size === 0) return { logo: actuel };
+  // Aucun nouveau fichier : on repasse quand même l'existant par la réduction.
+  // Les logos téléversés avant elle sont ainsi allégés au premier
+  // enregistrement des paramètres, sans qu'il faille les retéléverser.
+  if (!(fichier instanceof File) || fichier.size === 0) {
+    return { logo: await reduireLogo(actuel) };
+  }
 
   if (!LOGO_TYPES_ACCEPTES.includes(fichier.type)) {
     return { logo: actuel, erreur: "Le logo doit être une image PNG, JPEG, WebP ou SVG." };
@@ -55,7 +61,9 @@ async function lireLogo(
   }
 
   const octets = Buffer.from(await fichier.arrayBuffer());
-  return { logo: `data:${fichier.type};base64,${octets.toString("base64")}` };
+  return {
+    logo: await reduireLogo(`data:${fichier.type};base64,${octets.toString("base64")}`),
+  };
 }
 
 /**
