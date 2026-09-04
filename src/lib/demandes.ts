@@ -1,5 +1,6 @@
 import { prisma } from "./db";
-import { getGeneralSettings, urlEspaceAgent } from "./settings";
+import { FREQUENCES_AVIS, type FrequenceAvis } from "./frequences";
+import { getGeneralSettings, getSetting, setSetting, urlEspaceAgent } from "./settings";
 import { creerParticipantHorsAnnuaire } from "./comptes";
 import { nomPourSalutation } from "./constants";
 import { envoyerMail } from "./mail";
@@ -21,8 +22,6 @@ import { audit } from "./audit";
 
 /** Une seule demande en attente par adresse : on n'empile pas la même personne. */
 export type DepotResultat = "enregistree" | "deja" | "ignoree";
-
-const NOTIF_MAX_PAR_HEURE = 20;
 
 /**
  * Enregistre une demande d'accès.
@@ -63,7 +62,7 @@ export async function deposerDemande(donnees: {
   });
   if (enCours) return "deja";
 
-  const demande = await prisma.demandeAcces.create({
+  await prisma.demandeAcces.create({
     data: {
       nom: donnees.nom,
       email,
@@ -74,59 +73,100 @@ export async function deposerDemande(donnees: {
   });
 
   await audit("DEMANDE_ACCES_DEPOSEE", { cible: donnees.nom, details: email });
-  await prevenirLeService(demande.id);
+  // Aucun avis immédiat : c'est `declencherAvisDemandesSiBesoin` qui prévient
+  // le service, au rythme qu'il a choisi. Un courriel par dépôt devenait du
+  // bruit dès la rentrée.
   return "enregistree";
 }
 
 /**
- * Prévient le service des sports qu'une demande attend.
+ * Avis périodique : « des demandes attendent une décision ».
  *
- * Le courriel part vers `contactEmail`, une adresse FIXE et interne : le
- * formulaire ne permet donc pas de faire écrire la collectivité à une adresse
- * choisie par le demandeur. Reste un risque de saturation de cette boîte-là, si
- * quelqu'un dépose des demandes en série. D'où un plafond horaire : au-delà, la
- * demande est quand même enregistrée — elle apparaîtra dans le back-office —
- * mais l'avis n'est pas envoyé. Perdre un avis coûte un délai ; noyer la boîte
- * du service coûte tous les avis suivants.
+ * Un courriel par dépôt paraissait la bonne idée. Il l'est tant qu'il y a deux
+ * demandes par mois ; à la rentrée, il devient du bruit — et le bruit finit
+ * dans une règle de tri, ce qui coûte plus cher que de l'avoir manqué.
+ *
+ * Trois choix tiennent ce mécanisme :
+ *
+ *  • **rien ne part si la file est vide.** Ce n'est pas un rapport périodique,
+ *    c'est un rappel de ce qui attend. Un créneau sans demande ne consomme donc
+ *    pas son tour : la première demande déposée après lui déclenchera le
+ *    suivant, sans attendre un cycle de plus ;
+ *  • **le créneau, pas l'horloge.** On repère le dernier créneau passé et on
+ *    vérifie qu'il n'a pas déjà servi. L'ordonnanceur bat toutes les cinq
+ *    minutes, et une comparaison d'horaires exacte raterait le créneau à chaque
+ *    redémarrage tombé au mauvais moment ;
+ *  • **le verrou est en base.** Deux instances de l'application n'enverraient
+ *    pas l'avis en double, et un redéploiement ne le rejoue pas.
  */
-async function prevenirLeService(demandeId: string): Promise<void> {
-  const g = await getGeneralSettings();
-  if (!g.contactEmail) return;
+const CLE_DERNIER_AVIS = "demandes:dernierAvis";
 
-  const { rateLimit } = await import("./rate-limit");
-  if (!rateLimit("demande-acces:notif", NOTIF_MAX_PAR_HEURE, 3600).ok) {
-    await audit("DEMANDE_ACCES_PLAFOND", { details: demandeId });
-    return;
-  }
+/**
+ * Identifiant du dernier créneau d'envoi échu, ou null s'il n'y en a pas eu
+ * aujourd'hui. Exporté pour être testable : c'est toute la logique de rythme,
+ * et elle est invisible à la relecture.
+ */
+export function creneauEchu(
+  maintenant: Date,
+  frequence: FrequenceAvis,
+): string | null {
+  const { heures, jour } = FREQUENCES_AVIS[frequence];
+  if (jour !== null && maintenant.getDay() !== jour) return null;
 
-  const demande = await prisma.demandeAcces.findUnique({ where: { id: demandeId } });
-  if (!demande) return;
+  const passees = heures.filter((h) => maintenant.getHours() >= h);
+  if (passees.length === 0) return null;
 
-  const enAttente = await prisma.demandeAcces.count({ where: { statut: "EN_ATTENTE" } });
-  const base = (g.appUrl || "").replace(/\/+$/, "");
+  const h = passees[passees.length - 1];
+  const jourIso = `${maintenant.getFullYear()}-${String(maintenant.getMonth() + 1).padStart(2, "0")}-${String(maintenant.getDate()).padStart(2, "0")}`;
+  return `${jourIso}#${String(h).padStart(2, "0")}`;
+}
 
-  await envoyerMail(
-    g.contactEmail,
-    `Demande d'accès à ${g.appName} : ${demande.nom}`,
-    [
-      `Une personne absente de l'annuaire demande un accès à ${g.appName}.`,
+/** Appelé par l'ordonnanceur. Silencieux : un avis raté ne casse rien. */
+export async function declencherAvisDemandesSiBesoin(): Promise<void> {
+  try {
+    const enAttente = await compterDemandesEnAttente();
+    // File vide : on ne consomme même pas le créneau. La prochaine demande
+    // déposée sera signalée au créneau suivant, pas dans deux jours.
+    if (enAttente === 0) return;
+
+    const g = await getGeneralSettings();
+    if (!g.contactEmail) return;
+
+    const creneau = creneauEchu(new Date(), g.frequenceAvisDemandes);
+    if (!creneau) return;
+    if ((await getSetting<string>(CLE_DERNIER_AVIS)) === creneau) return;
+
+    // Verrou posé AVANT l'envoi : deux battements simultanés n'enverraient
+    // qu'un avis. Au pire, un avis est perdu — jamais doublé.
+    await setSetting(CLE_DERNIER_AVIS, creneau);
+
+    const demandes = await prisma.demandeAcces.findMany({
+      where: { statut: "EN_ATTENTE" },
+      orderBy: { createdAt: "asc" },
+      take: 15,
+    });
+    const base = (g.appUrl || "").replace(/\/+$/, "");
+
+    await envoyerMail(
+      g.contactEmail,
+      `${g.appName} — ${enAttente} demande${enAttente > 1 ? "s" : ""} d'accès à traiter`,
       [
-        `Nom : ${demande.nom}`,
-        `Adresse : ${demande.email}`,
-        demande.service ? `Service ou organisme : ${demande.service}` : null,
-        demande.message ? `Précisions : ${demande.message}` : null,
+        enAttente === 1
+          ? `Une personne absente de l'annuaire attend un accès à ${g.appName}.`
+          : `${enAttente} personnes absentes de l'annuaire attendent un accès à ${g.appName}.`,
+        demandes
+          .map((d) => `— ${d.nom} (${d.email})${d.service ? ` · ${d.service}` : ""}`)
+          .join("\n") + (enAttente > demandes.length ? `\n— … et ${enAttente - demandes.length} autre(s)` : ""),
+        `Aucun compte n'est créé, et rien ne part vers ces adresses tant que vous n'avez pas validé.`,
+        base ? `[Traiter les demandes](${base}/agents/demandes)` : null,
       ]
         .filter(Boolean)
-        .join("\n"),
-      `Aucun compte n'a été créé. Rien ne part vers cette adresse tant que vous n'avez pas validé la demande.`,
-      base
-        ? `[Traiter la demande](${base}/agents/demandes)`
-        : `À traiter dans ${g.appName}, écran « Demandes d'accès ».`,
-      enAttente > 1 ? `${enAttente} demandes attendent une décision.` : null,
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
-  );
+        .join("\n\n"),
+    );
+    await audit("AVIS_DEMANDES_ENVOYE", { details: `${enAttente} en attente` });
+  } catch {
+    // Le battement suivant réessaiera.
+  }
 }
 
 /**

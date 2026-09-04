@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { reduireLogo } from "@/lib/logo";
+import { FREQUENCES_AVIS, type FrequenceAvis } from "@/lib/frequences";
 import { ldapSearchGroups, ldapTest } from "@/lib/ldap";
 import { synchroniserAnnuaire as synchroniserAnnuaireDepuisAd } from "@/lib/annuaire";
 import { desactiverCompte } from "@/lib/departs";
@@ -248,6 +249,9 @@ export async function enregistrerGeneral(
     lienMagiqueActif: formData.get("lienMagiqueActif") === "on",
     demandeAccesActive: formData.get("demandeAccesActive") === "on",
     domaineAgents: texte(formData, "domaineAgents").replace(/^@/, "").toLowerCase(),
+    frequenceAvisDemandes: (texte(formData, "frequenceAvisDemandes") in FREQUENCES_AVIS
+      ? texte(formData, "frequenceAvisDemandes")
+      : actuel.frequenceAvisDemandes) as FrequenceAvis,
     rappelsActifs: formData.get("rappelsActifs") === "on",
     rappelHeuresAvant: Math.min(
       168,

@@ -1,15 +1,15 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { CalendarX2, Undo2, UserCheck, UserMinus, UserPlus } from "lucide-react";
+import { CalendarX2, Trash2, Undo2, UserCheck, UserMinus, UserPlus } from "lucide-react";
 import { inscrireAgentAction } from "@/lib/actions/inscriptions";
-import { desactiverAgent, reactiverAgent } from "@/lib/actions/agents";
+import { anonymiserAgent, desactiverAgent, reactiverAgent } from "@/lib/actions/agents";
 import {
   annulerAbsencePourAgent,
   declarerAbsencePourAgent,
 } from "@/lib/actions/absences";
 import type { ActionState } from "@/lib/actions/types";
-import { Alert, Field, Input, Select, btnSecondary } from "@/components/ui";
+import { Alert, Field, Input, Select, btnDanger, btnSecondary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 
 /**
@@ -245,5 +245,66 @@ export function ReactiverAgent({ userId }: { userId: string }) {
         <UserCheck className="h-4 w-4" /> Réactiver ce compte
       </button>
     </div>
+  );
+}
+
+/**
+ * Suppression définitive de l'identité. Réservée à l'ADMIN.
+ *
+ * Le nom est redemandé en toutes lettres, et le bouton n'apparaît qu'après un
+ * premier clic. Sur une fiche, la ligne d'à côté ressemble à celle qu'on visait,
+ * et il n'y a pas de retour arrière : les inscriptions et les présences restent
+ * — c'est tout l'objet — mais plus rien ne dira à qui elles appartenaient.
+ */
+export function SupprimerIdentite({
+  userId,
+  nom,
+}: {
+  userId: string;
+  nom: string;
+}) {
+  const [state, action] = useActionState<ActionState, FormData>(
+    anonymiserAgent,
+    null,
+  );
+  const [ouvert, setOuvert] = useState(false);
+
+  if (state?.success) return <Alert state={state} />;
+
+  if (!ouvert) {
+    return (
+      <>
+        <Alert state={state} />
+        <p className="mb-3 text-sm text-slate-600">
+          Efface le nom, l&apos;identifiant et les adresses. Ses inscriptions et
+          ses présences restent comptées dans les statistiques, sans nom —
+          supprimer la ligne entière ferait mentir rétroactivement la
+          fréquentation des saisons passées.
+        </p>
+        <button type="button" onClick={() => setOuvert(true)} className={btnSecondary}>
+          <Trash2 className="h-4 w-4" /> Supprimer l&apos;identité
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <form action={action} className="space-y-3">
+      <Alert state={state} />
+      <input type="hidden" name="userId" value={userId} />
+      <p className="text-sm text-slate-600">
+        Cette action est <strong>irréversible</strong>. Pour confirmer, recopiez
+        le nom&nbsp;:
+      </p>
+      <Input name="confirmation" placeholder={nom} autoFocus autoComplete="off" />
+      <div className="flex flex-wrap gap-2">
+        <SubmitButton className={btnDanger} pendingLabel="Suppression…">
+          Supprimer définitivement
+        </SubmitButton>
+        <button type="button" className={btnSecondary} onClick={() => setOuvert(false)}>
+          Annuler
+        </button>
+      </div>
+    </form>
   );
 }

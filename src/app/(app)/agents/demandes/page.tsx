@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
+import { rattachementsConnus } from "@/lib/comptes";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { DemandeAccesActions } from "@/components/demande-acces-actions";
 import { DemandesMenage } from "@/components/demandes-menage";
@@ -35,6 +36,7 @@ export default async function DemandesAccesPage() {
   ]);
 
   const refusees = await prisma.demandeAcces.count({ where: { statut: "REFUSEE" } });
+  const { directions, services } = await rattachementsConnus();
 
   return (
     <>
@@ -100,7 +102,13 @@ export default async function DemandesAccesPage() {
               )}
 
               <div className="mt-4">
-                <DemandeAccesActions id={d.id} nom={d.nom} />
+                <DemandeAccesActions
+                  id={d.id}
+                  nom={d.nom}
+                  serviceDeclare={d.service}
+                  directions={directions}
+                  services={services}
+                />
               </div>
             </Card>
           ))}

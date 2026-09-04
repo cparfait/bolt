@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Check, X } from "lucide-react";
 import { refuserDemandeAction, validerDemandeAction } from "@/lib/actions/demandes";
-import { Alert, Input, btnDanger, btnPrimary, btnSecondary } from "@/components/ui";
+import { Alert, Field, Input, btnDanger, btnPrimary, btnSecondary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/actions/types";
 
@@ -18,9 +18,16 @@ import type { ActionState } from "@/lib/actions/types";
 export function DemandeAccesActions({
   id,
   nom,
+  serviceDeclare,
+  directions,
+  services,
 }: {
   id: string;
   nom: string;
+  /** Ce que la personne a tapé, proposé tel quel — à corriger si besoin. */
+  serviceDeclare: string | null;
+  directions: string[];
+  services: string[];
 }) {
   const [valider, actionValider] = useActionState<ActionState, FormData>(
     validerDemandeAction,
@@ -63,9 +70,10 @@ export function DemandeAccesActions({
           </div>
         </form>
       ) : (
-        <div className="flex flex-wrap gap-2">
+        <div className="space-y-3">
           <form
             action={actionValider}
+            className="space-y-3"
             onSubmit={(e) => {
               if (
                 !window.confirm(
@@ -77,6 +85,40 @@ export function DemandeAccesActions({
             }}
           >
             <input type="hidden" name="id" value={id} />
+
+            {/* Le rattachement se choisit ICI, et pas plus tard sur la fiche.
+                Ce que la personne a tapé est un texte libre — « Dsi » ne se
+                raccorde pas à « DSI », et la fréquentation par direction se
+                répartirait sur autant de lignes que d'orthographes. Les
+                suggestions viennent de l'annuaire ; le champ reste libre, un
+                vacataire pouvant relever d'un organisme qui n'y figure pas. */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Direction" hint="Suggestions issues de l'annuaire">
+                <Input name="direction" list={`dir-${id}`} autoComplete="off" />
+                <datalist id={`dir-${id}`}>
+                  {directions.map((d) => (
+                    <option key={d} value={d} />
+                  ))}
+                </datalist>
+              </Field>
+              <Field
+                label="Service"
+                hint={serviceDeclare ? `Déclaré : « ${serviceDeclare} »` : "Facultatif"}
+              >
+                <Input
+                  name="service"
+                  list={`srv-${id}`}
+                  defaultValue={serviceDeclare ?? ""}
+                  autoComplete="off"
+                />
+                <datalist id={`srv-${id}`}>
+                  {services.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+              </Field>
+            </div>
+
             <SubmitButton className={btnPrimary} pendingLabel="Création…">
               <Check className="h-4 w-4" />
               Valider l&apos;accès

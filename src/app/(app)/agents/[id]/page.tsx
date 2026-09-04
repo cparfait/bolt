@@ -22,6 +22,7 @@ import {
   InscrireDepuisFiche,
   ReactiverAgent,
   RetirerAbsence,
+  SupprimerIdentite,
 } from "@/components/fiche-agent-actions";
 import { compterInscriptionsVivantes } from "@/lib/departs";
 import {
@@ -41,7 +42,7 @@ export default async function FicheAgent({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ fusion?: string }>;
 }) {
-  await requireUser("GESTIONNAIRE");
+  const utilisateur = await requireUser("GESTIONNAIRE");
   const { id } = await params;
   const { fusion } = await searchParams;
   const saison = await saisonCourante();
@@ -144,6 +145,8 @@ export default async function FicheAgent({
   // pour l'adresse, mais ils n'ont pas vocation à rejoindre l'Active Directory.
   // Classement : l'ancien préfixe « ext. » compte aussi.
   const horsAnnuaire = estCreeALaMain(agent.login);
+  // La suppression d'identité est irréversible : elle reste à la DSI.
+  const estAdmin = utilisateur.role === "ADMIN";
   // Droit d'écrire l'adresse de contact : liste blanche stricte, parce qu'elle
   // commande l'envoi du lien de connexion — voir modifierEmailAgent.
   const adresseModifiable = estHorsAnnuaire(agent.login);
@@ -276,6 +279,28 @@ export default async function FicheAgent({
           )}
         </Panneau>
       </div>
+
+      {/* Suppression de l'identité : après le départ, parce qu'elle vient après
+          dans la vie du compte, et réservée à l'ADMIN. Une fiche déjà anonymisée
+          n'affiche rien — il n'y a plus d'identité à effacer. */}
+      {estAdmin && !agent.anonymiseAt && (
+        <div className="mb-6">
+          <Panneau
+            titre="Supprimer l'identité"
+            sousTitre="À la demande de la personne, ou au terme de la conservation"
+          >
+            <SupprimerIdentite userId={agent.id} nom={agent.displayName} />
+          </Panneau>
+        </div>
+      )}
+
+      {agent.anonymiseAt && (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm text-slate-500">
+          Identité supprimée le {fmtDate(agent.anonymiseAt)}. Les inscriptions et
+          les présences ci-dessous restent comptées dans les statistiques, sans
+          nom.
+        </div>
+      )}
 
       {absencesAVenir.length > 0 && (
         <Card

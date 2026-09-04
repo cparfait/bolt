@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import type { FrequenceAvis } from "./frequences";
 
 export type LdapSettings = {
   enabled?: boolean; // interrupteur ; absent/true = actif
@@ -70,6 +71,17 @@ export type GeneralSettings = {
   // se valide d'un clic. Nécessite la connexion par lien, seul moyen de
   // connexion d'un compte hors annuaire.
   demandeAccesActive: boolean;
+  /**
+   * Rythme des avis envoyés au service des sports quand des demandes attendent.
+   *
+   * Un courriel par dépôt paraissait la bonne idée : il l'est tant qu'il y a
+   * deux demandes par mois, et il devient du bruit à la rentrée — un bruit
+   * qu'on finit par filtrer, ce qui coûte plus cher que de l'avoir manqué.
+   *
+   * Aucun avis ne part si la file est vide : ce n'est pas un rapport
+   * périodique, c'est un rappel de ce qui attend.
+   */
+  frequenceAvisDemandes: FrequenceAvis;
   // Domaine de messagerie de la collectivité (« chatillon92.fr »).
   //
   // Sert à trancher, sur l'écran d'accès, entre « votre lien est parti » et
@@ -109,6 +121,7 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   absencesAvantRelance: 3,
   lienMagiqueActif: false,
   demandeAccesActive: false,
+  frequenceAvisDemandes: "QUATRE_JOUR",
   domaineAgents: "",
   rappelsActifs: false,
   rappelHeuresAvant: 24,

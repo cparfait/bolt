@@ -1,6 +1,7 @@
 import { declencherRappelsSiBesoin } from "./rappels";
 import { declencherPurgeSiBesoin } from "./purge";
 import { declencherSyncSiBesoin } from "./annuaire";
+import { declencherAvisDemandesSiBesoin } from "./demandes";
 
 /**
  * Ordonnanceur interne au conteneur.
@@ -63,6 +64,7 @@ async function battement(): Promise<void> {
     declencherRappelsSiBesoin,
     declencherPurgeSiBesoin,
     () => declencherSyncSiBesoin("ordonnanceur"),
+    declencherAvisDemandesSiBesoin,
   ]) {
     try {
       await tache();

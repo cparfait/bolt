@@ -10,9 +10,10 @@ import {
   testerLdap,
 } from "@/lib/actions/parametres";
 import type { ActionState } from "@/lib/actions/types";
-import { Alert, Field, Input, btnPrimary, btnSecondary } from "@/components/ui";
+import { Alert, Field, Input, Select, btnPrimary, btnSecondary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { ChampGroupe } from "@/components/champ-groupe";
+import { FREQUENCES_AVIS } from "@/lib/frequences";
 import type { GeneralSettings, LdapSettings, SmtpSettings } from "@/lib/settings";
 
 export function LdapForm({ cfg }: { cfg: LdapSettings | null }) {
@@ -495,6 +496,20 @@ export function GeneralForm({
           defaultValue={cfg.domaineAgents}
           placeholder="collectivite.fr"
         />
+      </Field>
+
+      <Field
+        label="Avis au service quand des demandes attendent"
+        hint="Aucun message n'est envoyé si la file est vide : ce n'est pas un rapport périodique, c'est un rappel de ce qui attend une décision. Envoyé à l'adresse de contact ci-dessus, sur les heures de bureau."
+      >
+        <Select name="frequenceAvisDemandes" defaultValue={cfg.frequenceAvisDemandes}>
+          {Object.entries(FREQUENCES_AVIS).map(([cle, f]) => (
+            <option key={cle} value={cle}>
+              {f.label} ({f.heures.map((h) => `${h} h`).join(", ")}
+              {f.jour !== null ? ", le lundi" : ""})
+            </option>
+          ))}
+        </Select>
       </Field>
 
       <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm">

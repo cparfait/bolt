@@ -8,52 +8,83 @@ import { Badge, Card, EmptyState, Input, PageHeader, btnSecondary } from "@/comp
 import { ROLE_LABELS } from "@/lib/constants";
 
 /**
- * Recherche d'agents, atterrissage de la barre du tableau de bord.
+ * Annuaire des comptes, et atterrissage de la barre du tableau de bord.
  *
- * Ne couvre que les comptes Bolt : chercher un agent revient à consulter sa
- * fréquentation, ce qui n'a de sens que s'il a un historique. La recherche
- * dans l'annuaire, elle, sert à *inscrire* quelqu'un — c'est un autre besoin,
- * traité sur la page des inscriptions.
+ * L'écran ne servait qu'à chercher : sans terme de recherche, il n'affichait
+ * rien. On ne pouvait donc pas répondre à « qui a un compte ? », « combien de
+ * comptes fermés traînent ? », ni retrouver quelqu'un dont on ne sait plus
+ * écrire le nom — précisément les questions qu'on se pose devant une liste.
+ *
+ * Ne couvre que les comptes Bolt : consulter un agent revient à consulter sa
+ * fréquentation, ce qui n'a de sens que s'il a un historique. La recherche dans
+ * l'annuaire Active Directory, elle, sert à *inscrire* quelqu'un — c'est un
+ * autre besoin, traité sur la page des inscriptions.
  */
+
+/** Filtres proposés, dans l'ordre où on les consulte. */
+const FILTRES = {
+  actifs: { label: "Actifs", where: { active: true, anonymiseAt: null } },
+  fermes: { label: "Accès fermés", where: { active: false, anonymiseAt: null } },
+  supprimes: { label: "Identités supprimées", where: { anonymiseAt: { not: null } } },
+  tous: { label: "Tous", where: {} },
+} as const;
+
+type Filtre = keyof typeof FILTRES;
+
+/** Au-delà, la liste cesse d'être lisible : c'est la recherche qui prend le relais. */
+const PLAFOND = 200;
 export default async function AgentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; f?: string }>;
 }) {
   await requireUser("GESTIONNAIRE");
-  const { q } = await searchParams;
+  const { q, f } = await searchParams;
   const terme = (q ?? "").trim();
+  const filtre: Filtre = f && f in FILTRES ? (f as Filtre) : "actifs";
   const saison = await saisonCourante();
 
-  const agents =
-    terme.length >= 2
-      ? await prisma.user.findMany({
-          where: {
-            OR: [
-              { displayName: { contains: terme, mode: "insensitive" } },
-              { login: { contains: terme, mode: "insensitive" } },
-              { email: { contains: terme, mode: "insensitive" } },
-              { service: { contains: terme, mode: "insensitive" } },
-              { direction: { contains: terme, mode: "insensitive" } },
-            ],
+  // La recherche porte sur TOUS les comptes, filtre compris : chercher
+  // quelqu'un dont on ne sait plus s'il est encore là ne doit pas renvoyer
+  // « aucun résultat » parce qu'on se trouvait sur le mauvais onglet.
+  const where = terme.length >= 2
+    ? {
+        OR: [
+          { displayName: { contains: terme, mode: "insensitive" as const } },
+          { login: { contains: terme, mode: "insensitive" as const } },
+          { email: { contains: terme, mode: "insensitive" as const } },
+          { service: { contains: terme, mode: "insensitive" as const } },
+          { direction: { contains: terme, mode: "insensitive" as const } },
+        ],
+      }
+    : FILTRES[filtre].where;
+
+  const [agents, total, compteurs] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      orderBy: { displayName: "asc" },
+      take: PLAFOND,
+      include: {
+        _count: {
+          select: {
+            inscriptions: { where: { statut: "VALIDEE" } },
+            presences: { where: { etat: "PRESENT" } },
           },
-          orderBy: { displayName: "asc" },
-          take: 50,
-          include: {
-            _count: {
-              select: {
-                inscriptions: { where: { statut: "VALIDEE" } },
-                presences: { where: { etat: "PRESENT" } },
-              },
-            },
-          },
-        })
-      : [];
+        },
+      },
+    }),
+    prisma.user.count({ where }),
+    Promise.all(
+      (Object.keys(FILTRES) as Filtre[]).map((cle) =>
+        prisma.user.count({ where: FILTRES[cle].where }),
+      ),
+    ),
+  ]);
 
   return (
     <>
       <PageHeader
-        title="Rechercher un agent"
+        title="Annuaire des agents"
         subtitle={
           saison
             ? `Inscriptions et assiduité — saison ${saison.nom}`
@@ -79,18 +110,56 @@ export default async function AgentsPage({
         </form>
       </Card>
 
-      {terme.length < 2 ? (
+      {/* Onglets masqués pendant une recherche : celle-ci porte volontairement
+          sur tous les comptes, et les laisser laisserait croire qu'ils la
+          restreignent. */}
+      {terme.length < 2 && (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {(Object.keys(FILTRES) as Filtre[]).map((cle, i) => (
+            <Link
+              key={cle}
+              href={cle === "actifs" ? "/agents" : `/agents?f=${cle}`}
+              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
+                filtre === cle
+                  ? "bg-brand-600 text-white"
+                  : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {FILTRES[cle].label}
+              <span
+                className={`ml-1.5 tabular-nums ${filtre === cle ? "text-brand-100" : "text-slate-400"}`}
+              >
+                {compteurs[i]}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {agents.length === 0 ? (
         <EmptyState
-          title="Saisissez au moins deux caractères"
-          hint="La recherche porte sur le nom, l'identifiant, l'adresse e-mail, le service et la direction."
-        />
-      ) : agents.length === 0 ? (
-        <EmptyState
-          title={`Aucun agent ne correspond à « ${terme} »`}
+          title={
+            terme.length >= 2
+              ? `Aucun agent ne correspond à « ${terme} »`
+              : "Aucun compte dans cette catégorie"
+          }
           hint="Un agent n'apparaît ici qu'après sa première connexion ou une inscription faite pour lui."
         />
       ) : (
-        <Card title={`${agents.length} résultat${agents.length > 1 ? "s" : ""}`}>
+        <Card
+          title={
+            terme.length >= 2
+              ? `${total} résultat${total > 1 ? "s" : ""}`
+              : `${total} compte${total > 1 ? "s" : ""}`
+          }
+          action={
+            total > agents.length ? (
+              <span className="text-xs text-slate-400">
+                {agents.length} premiers affichés — affinez par la recherche
+              </span>
+            ) : undefined
+          }
+        >
           <ul className="divide-y divide-slate-100">
             {agents.map((a) => (
               <li key={a.id}>
@@ -101,11 +170,15 @@ export default async function AgentsPage({
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
                       {a.displayName}
-                      {!a.active && (
+                      {a.anonymiseAt ? (
                         <span className="ml-2">
-                          <Badge>Désactivé</Badge>
+                          <Badge>Identité supprimée</Badge>
                         </span>
-                      )}
+                      ) : !a.active ? (
+                        <span className="ml-2">
+                          <Badge>Accès fermé</Badge>
+                        </span>
+                      ) : null}
                     </p>
                     <p className="truncate text-xs text-slate-400">
                       {[mentionCompte(a.login), a.service ?? a.direction, a.email]

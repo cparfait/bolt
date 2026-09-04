@@ -55,6 +55,13 @@ const items: Item[] = [
     groupe: "gestion",
   },
   {
+    href: "/agents",
+    label: "Agents",
+    icon: Users,
+    roles: ["ADMIN", "GESTIONNAIRE"],
+    groupe: "gestion",
+  },
+  {
     href: "/agents/demandes",
     label: "Demandes d'accès",
     icon: Inbox,
@@ -69,10 +76,11 @@ const items: Item[] = [
     roles: ["ADMIN", "GESTIONNAIRE"],
     groupe: "gestion",
   },
-  // Pas d'entrée « Agents » : on ne parcourt pas les 1 200 agents d'une
-  // collectivité, on en cherche un. La barre du tableau de bord suggère dès
-  // deux lettres et mène directement à la fiche ; /agents reste servie pour les
-  // résultats complets et les fiches individuelles.
+  // L'entrée existe depuis que /agents est un annuaire et non plus un simple
+  // écran de résultats : on n'y parcourt toujours pas 1 200 agents, mais on y
+  // répond à « combien de comptes fermés traînent ? » et on y retrouve
+  // quelqu'un dont on ne sait plus écrire le nom. La barre du tableau de bord
+  // reste le chemin le plus court quand on connaît la personne.
   {
     href: "/animateurs",
     label: "Animateurs",
@@ -146,8 +154,11 @@ function Liens({
           mixte &&
           item.groupe === "personnel" &&
           visible[index - 1]?.groupe !== "personnel";
+        const correspond = (href: string) =>
+          href === "/" ? pathname === "/" : pathname.startsWith(href);
         const active =
-          item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          correspond(item.href) &&
+          !visible.some((a) => a.href !== item.href && a.href.startsWith(item.href) && correspond(a.href));
         const Icon = item.icon;
         // Ce qui attend une décision se voit depuis n'importe quel écran :
         // sans cela, une demande d'inscription peut dormir des jours.
