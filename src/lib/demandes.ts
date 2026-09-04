@@ -269,3 +269,58 @@ export async function refuserDemande(
 export function compterDemandesEnAttente(): Promise<number> {
   return prisma.demandeAcces.count({ where: { statut: "EN_ATTENTE" } });
 }
+
+/**
+ * Refuse d'un coup toutes les demandes en attente.
+ *
+ * Le pendant du plafond horaire : celui-ci borne ce qui entre, celui-là permet
+ * d'en sortir. Sans lui, une vague de dépôts automatisés laisserait le service
+ * des sports devant des centaines de fiches à traiter une par une — la
+ * prévention tenait, la remise en état non.
+ *
+ * Refuse plutôt que supprime : la trace de ce qui est arrivé reste, et une
+ * personne dont la demande légitime aurait été emportée peut la redéposer.
+ */
+export async function refuserEnAttente(
+  motif: string,
+  gestionnaire: { id: string; displayName: string },
+): Promise<number> {
+  const res = await prisma.demandeAcces.updateMany({
+    where: { statut: "EN_ATTENTE" },
+    data: {
+      statut: "REFUSEE",
+      decidePar: gestionnaire.displayName,
+      decideAt: new Date(),
+      motif: motif.trim() || "Refus groupé",
+    },
+  });
+  if (res.count > 0) {
+    await audit("DEMANDES_ACCES_REFUS_GROUPE", {
+      userId: gestionnaire.id,
+      details: `${res.count} demande(s)`,
+    });
+  }
+  return res.count;
+}
+
+/**
+ * Supprime définitivement les demandes refusées.
+ *
+ * Les validées, elles, ne sont jamais supprimées à la main : elles documentent
+ * la création d'un compte, et c'est ce qu'on ressort quand on se demande d'où
+ * vient telle personne dans la liste. Elles partent avec la purge, à leur
+ * échéance.
+ */
+export async function supprimerRefusees(gestionnaire: {
+  id: string;
+  displayName: string;
+}): Promise<number> {
+  const res = await prisma.demandeAcces.deleteMany({ where: { statut: "REFUSEE" } });
+  if (res.count > 0) {
+    await audit("DEMANDES_ACCES_SUPPRIMEES", {
+      userId: gestionnaire.id,
+      details: `${res.count} demande(s) refusée(s)`,
+    });
+  }
+  return res.count;
+}

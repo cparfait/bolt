@@ -112,7 +112,11 @@ export default async function AccesPage({
               </>
             ) : null}
             .
-            {g.demandeAccesActive ? (
+            {/* Le lien n'apparaît que si aucun code de campagne n'est exigé :
+                l'afficher avec le code reviendrait à publier ce code sur la
+                page même qu'il sert à protéger. Avec un code, c'est le service
+                des sports qui distribue l'adresse complète. */}
+            {g.demandeAccesActive && !g.demandeAccesCode ? (
               <>
                 {" "}
                 Vous pouvez aussi{" "}

@@ -72,6 +72,11 @@ services:
       # publiée dans aucun cas : c'est ce qui fait qu'un mot de passe de domaine
       # volé n'ouvre rien sur cette application depuis Internet.
       # PUBLIC_AGENT_ACCESS: "1"
+      # Où renvoyer un visiteur d'Internet qui demande un chemin non publié.
+      # Vide : l'application répond un 403 expliquant qu'il faut être sur le
+      # réseau — ce qui renseigne sur ce qui existe derrière. Renseignée, elle
+      # redirige sans rien dire, comme le vhost fourre-tout du reverse proxy.
+      PUBLIC_REDIRECT_URL: ${PUBLIC_REDIRECT_URL:-}
       # Jeton facultatif pour déclencher les rappels depuis un cron externe.
       # CRON_TOKEN: ${CRON_TOKEN:-}
       TZ: Europe/Paris

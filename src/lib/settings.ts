@@ -70,6 +70,21 @@ export type GeneralSettings = {
   // se valide d'un clic. Nécessite la connexion par lien, seul moyen de
   // connexion d'un compte hors annuaire.
   demandeAccesActive: boolean;
+  // Code de campagne exigé dans l'URL du formulaire (?i=…).
+  //
+  // Le formulaire est publié : un robot qui balaie le domaine le trouve, un
+  // curieux aussi, et le service des sports trie des demandes que personne n'a
+  // sollicitées. Le code fait que la page n'existe pas sans lui — le service
+  // distribue le lien complet sur une affiche, dans un courriel, sur
+  // l'intranet.
+  //
+  // Ce n'est PAS un secret : il voyage dans une URL, il finira dans un
+  // historique et dans un journal de proxy. Il filtre la découverte fortuite et
+  // le balayage, rien de plus. Ce qui protège du reste, ce sont les compteurs
+  // et le champ leurre.
+  //
+  // Vide : le formulaire est ouvert à qui connaît son adresse.
+  demandeAccesCode: string;
   // Rappel envoyé aux inscrits la veille de leur séance. Nécessite le SMTP.
   rappelsActifs: boolean;
   rappelHeuresAvant: number; // fenêtre d'anticipation, en heures
@@ -99,6 +114,7 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   absencesAvantRelance: 3,
   lienMagiqueActif: false,
   demandeAccesActive: false,
+  demandeAccesCode: "",
   rappelsActifs: false,
   rappelHeuresAvant: 24,
   // 14 mois : la durée annoncée sur la fiche d'inscription papier.
@@ -169,4 +185,29 @@ export function urlEspaceAgent(g: GeneralSettings): string {
       ? g.pointageUrl || g.appUrl
       : g.appUrl;
   return (base || process.env.BOLT_PUBLIC_URL || "").replace(/\/+$/, "");
+}
+
+/**
+ * Le code de campagne fourni ouvre-t-il le formulaire de demande d'accès ?
+ *
+ * Vrai quand aucun code n'est configuré : le réglage est facultatif, et son
+ * absence ne doit pas fermer un formulaire que la collectivité a activé.
+ *
+ * Comparaison simple, sans précaution de temps constant : ce code n'est pas un
+ * secret. Il voyage en clair dans une URL affichée sur un mur.
+ */
+export function codeDemandeValide(
+  g: GeneralSettings,
+  fourni: string | undefined | null,
+): boolean {
+  const attendu = g.demandeAccesCode.trim();
+  if (!attendu) return true;
+  return (fourni ?? "").trim() === attendu;
+}
+
+/** Adresse complète à distribuer pour le formulaire de demande d'accès. */
+export function lienDemandeAcces(g: GeneralSettings): string {
+  const base = urlEspaceAgent(g);
+  const code = g.demandeAccesCode.trim();
+  return `${base}/demande-acces${code ? `?i=${encodeURIComponent(code)}` : ""}`;
 }

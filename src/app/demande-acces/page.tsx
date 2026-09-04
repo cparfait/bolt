@@ -1,7 +1,7 @@
 import { Dumbbell, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getGeneralSettings } from "@/lib/settings";
+import { codeDemandeValide, getGeneralSettings } from "@/lib/settings";
 import { TitreConnexion } from "@/components/ui";
 import { DemandeAccesForm } from "./formulaire";
 
@@ -16,11 +16,20 @@ export const dynamic = "force-dynamic";
  * dépose une ligne dans une file que le service des sports arbitre. Voir
  * `src/lib/demandes.ts` pour le raisonnement complet.
  */
-export default async function DemandeAccesPage() {
+export default async function DemandeAccesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ i?: string }>;
+}) {
   const g = await getGeneralSettings();
   // Désactivé, l'écran n'existe pas : mieux vaut un 404 qu'une page qui
   // explique comment demander un accès dont personne ne verra la demande.
   if (!g.demandeAccesActive) notFound();
+
+  // Code de campagne : sans lui, la page n'existe pas non plus. 404 et non 403,
+  // pour ne pas confirmer qu'il y a quelque chose à trouver ici.
+  const { i } = await searchParams;
+  if (!codeDemandeValide(g, i)) notFound();
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
@@ -61,7 +70,7 @@ export default async function DemandeAccesPage() {
           </p>
         </div>
 
-        <DemandeAccesForm />
+        <DemandeAccesForm code={i ?? ""} />
 
         <p className="mt-6 flex items-start gap-2 text-xs text-slate-400">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />

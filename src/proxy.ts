@@ -73,7 +73,32 @@ function isPublicPath(pathname: string): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+/**
+ * Réponse à une requête venue d'Internet sur un chemin qui n'y est pas publié.
+ *
+ * Par défaut, une redirection vers PUBLIC_REDIRECT_URL — le site de la
+ * collectivité. Un message expliquant qu'il faut être sur le réseau interne
+ * renseigne le visiteur sur ce qui existe derrière : qu'il y a une application,
+ * qu'elle a une partie réservée, et qu'il suffirait d'être « à l'intérieur ».
+ * C'est peu, mais c'est gratuit à ne pas donner — et c'est déjà le parti pris du
+ * vhost fourre-tout d'Apache, qui renvoie tout nom inconnu vers le site de la
+ * ville plutôt que d'afficher une erreur.
+ *
+ * 303 et non 307 : un POST refusé doit devenir un GET vers le site public, pas
+ * y être rejoué.
+ *
+ * Sans la variable, on retombe sur le message explicite — utile en interne, où
+ * la personne qui le lit est justement celle qui peut agir.
+ */
 function refus(message: string): NextResponse {
+  const cible = process.env.PUBLIC_REDIRECT_URL?.trim();
+  if (cible) {
+    try {
+      return NextResponse.redirect(new URL(cible), 303);
+    } catch {
+      // URL invalide : on ne redirige pas vers n'importe quoi, on refuse.
+    }
+  }
   return new NextResponse(message, {
     status: 403,
     headers: { "content-type": "text/plain; charset=utf-8" },

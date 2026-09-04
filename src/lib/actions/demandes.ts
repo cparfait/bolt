@@ -6,9 +6,15 @@ import { clientIp, estInterne } from "@/lib/net";
 import { rateLimit } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 import { alerterSecurite } from "@/lib/alertes";
-import { deposerDemande, refuserDemande, validerDemande } from "@/lib/demandes";
+import {
+  deposerDemande,
+  refuserDemande,
+  refuserEnAttente,
+  supprimerRefusees,
+  validerDemande,
+} from "@/lib/demandes";
 import { requireUser } from "@/lib/session";
-import { getGeneralSettings } from "@/lib/settings";
+import { codeDemandeValide, getGeneralSettings } from "@/lib/settings";
 import { erreur, succes, type ActionState } from "./types";
 
 /**
@@ -61,6 +67,13 @@ export async function deposerDemandeAction(
   const g = await getGeneralSettings();
   if (!g.demandeAccesActive) {
     return erreur("Les demandes d'accès en ligne ne sont pas activées.");
+  }
+
+  // Même contrôle que la page, et pas seulement là : une action serveur est
+  // adressée par un identifiant global, donc appelable depuis n'importe quel
+  // chemin publié — la vérification faite à l'affichage ne la couvre pas.
+  if (!codeDemandeValide(g, String(formData.get("i") ?? ""))) {
+    return erreur("Ce formulaire n'est plus disponible à cette adresse.");
   }
 
   // Champ leurre : un humain ne le voit pas, un robot le remplit. On répond
@@ -129,4 +142,34 @@ export async function refuserDemandeAction(
   revalidatePath("/agents/demandes");
   revalidatePath("/", "layout");
   return res.ok ? succes(res.message) : erreur(res.message);
+}
+
+export async function refuserEnAttenteAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const n = await refuserEnAttente(String(formData.get("motif") ?? ""), admin);
+  revalidatePath("/agents/demandes");
+  revalidatePath("/", "layout");
+  return n === 0
+    ? erreur("Aucune demande en attente.")
+    : succes(`${n} demande(s) refusée(s). Rien n'a été envoyé aux adresses concernées.`);
+}
+
+export async function supprimerRefuseesAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("ADMIN");
+  // Suppression définitive : on exige que le formulaire l'ait explicitement
+  // demandé, pour qu'une soumission égarée ne l'emporte pas au passage.
+  if (String(formData.get("confirmation") ?? "") !== "supprimer") {
+    return erreur("Confirmation manquante.");
+  }
+  const n = await supprimerRefusees(admin);
+  revalidatePath("/agents/demandes");
+  return n === 0
+    ? erreur("Aucune demande refusée à supprimer.")
+    : succes(`${n} demande(s) supprimée(s) définitivement.`);
 }

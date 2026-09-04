@@ -2,9 +2,10 @@ import { Inbox, Mail } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { getGeneralSettings } from "@/lib/settings";
+import { getGeneralSettings, lienDemandeAcces } from "@/lib/settings";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { DemandeAccesActions } from "@/components/demande-acces-actions";
+import { DemandesMenage } from "@/components/demandes-menage";
 import { fmtHorodatage } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export const dynamic = "force-dynamic";
  * si elle s'est perdue.
  */
 export default async function DemandesAccesPage() {
-  await requireUser("GESTIONNAIRE");
+  const utilisateur = await requireUser("GESTIONNAIRE");
   const g = await getGeneralSettings();
 
   const [enAttente, traitees] = await Promise.all([
@@ -33,12 +34,34 @@ export default async function DemandesAccesPage() {
     }),
   ]);
 
+  const refusees = await prisma.demandeAcces.count({ where: { statut: "REFUSEE" } });
+
   return (
     <>
       <PageHeader
         title="Demandes d'accès"
         subtitle="Personnes absentes de l'annuaire qui demandent un accès aux activités. Valider crée leur compte ; tant que vous n'avez pas tranché, elles n'ont aucun droit."
       />
+
+      {/* L'adresse à distribuer se lit ici, là où le service travaille — pas
+          seulement dans les paramètres, qu'on ouvre une fois par an. Sans le
+          code, le formulaire répond « introuvable » : c'est ce lien-là, et lui
+          seul, qui doit figurer sur l'affiche et dans le courriel d'annonce. */}
+      {g.demandeAccesActive && (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-sm font-medium text-slate-700">
+            Adresse à communiquer aux personnes hors annuaire
+          </p>
+          <p className="mt-1 font-mono text-sm break-all text-brand-700">
+            {lienDemandeAcces(g)}
+          </p>
+          <p className="mt-1.5 text-xs text-slate-400">
+            {g.demandeAccesCode
+              ? "Sans ce code, la page n'existe pas : un robot qui balaie le domaine ne la trouve pas. Changez-le à chaque saison dans Paramètres → Général."
+              : "Aucun code de campagne n'est configuré : le formulaire est ouvert à qui connaît son adresse. Un code s'ajoute dans Paramètres → Général."}
+          </p>
+        </div>
+      )}
 
       {!g.demandeAccesActive && (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5">
@@ -128,6 +151,11 @@ export default async function DemandesAccesPage() {
           </ul>
         </Card>
       )}
+      <DemandesMenage
+        enAttente={enAttente.length}
+        refusees={refusees}
+        estAdmin={utilisateur.role === "ADMIN"}
+      />
     </>
   );
 }

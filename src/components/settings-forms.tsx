@@ -486,6 +486,36 @@ export function GeneralForm({
         </span>
       </label>
 
+      <Field
+        label="Code de campagne du formulaire de demande"
+        hint="Le formulaire n'existe qu'à l'adresse qui porte ce code : sans lui, la page répond « introuvable ». Distribuez le lien complet ci-dessous sur vos affiches et dans vos courriels, et changez le code à chaque saison. Laissez vide pour un formulaire ouvert à qui connaît son adresse."
+      >
+        <Input
+          name="demandeAccesCode"
+          defaultValue={cfg.demandeAccesCode}
+          placeholder="rentree2026"
+        />
+      </Field>
+
+      {cfg.demandeAccesActive && (
+        <p className="rounded-xl bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
+          Adresse à communiquer :{" "}
+          <span className="font-medium break-all text-slate-700">
+            {`${(cfg.pointageUrl || cfg.appUrl).replace(/\/+$/, "")}/demande-acces${
+              cfg.demandeAccesCode ? `?i=${encodeURIComponent(cfg.demandeAccesCode)}` : ""
+            }`}
+          </span>
+          {cfg.demandeAccesCode ? (
+            <>
+              {" "}
+              — ce code n&apos;est pas un secret : il voyage dans une URL, il
+              finira dans un historique. Il évite qu&apos;un robot ou un visiteur
+              de passage remplisse le formulaire, rien de plus.
+            </>
+          ) : null}
+        </p>
+      )}
+
       <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm">
         <input
           type="checkbox"

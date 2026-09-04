@@ -6,7 +6,7 @@ import { Alert, Field, Input, Textarea, btnPrimary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/actions/types";
 
-export function DemandeAccesForm() {
+export function DemandeAccesForm({ code }: { code: string }) {
   const [state, action] = useActionState<ActionState, FormData>(
     deposerDemandeAction,
     null,
@@ -30,6 +30,12 @@ export function DemandeAccesForm() {
       className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <Alert state={state} />
+
+      {/* Le code voyage aussi dans le formulaire : une action serveur n'est pas
+          liée au chemin qui l'affiche, elle est adressée par un identifiant
+          global. Contrôler le code sur la seule page laisserait l'action
+          appelable depuis n'importe quel chemin publié. */}
+      <input type="hidden" name="i" value={code} />
 
       {/* Champ leurre : invisible pour un humain, rempli par les robots de
           formulaire. `aria-hidden` et `tabIndex` le retirent aussi du parcours

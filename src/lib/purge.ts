@@ -38,6 +38,20 @@ export const JOURS_CONSERVATION_JOURNAL = 365;
 /** Jetons de connexion par courriel (valables 30 minutes à l'émission). */
 export const JOURS_CONSERVATION_JETONS = 30;
 
+/**
+ * Demandes d'accès déjà tranchées.
+ *
+ * Une demande porte un nom, une adresse et une IP : des données personnelles
+ * qu'on ne garde pas parce qu'on a oublié de les effacer. Passé un trimestre,
+ * la décision est prise depuis longtemps, et le journal d'audit en conserve la
+ * trace un an (DEMANDE_ACCES_VALIDEE, DEMANDE_ACCES_REFUSEE) : la ligne
+ * elle-même n'apprend plus rien.
+ *
+ * Les demandes EN ATTENTE ne partent jamais toutes seules — quelqu'un attend
+ * derrière. C'est le refus groupé de l'écran des demandes qui les traite.
+ */
+export const JOURS_CONSERVATION_DEMANDES = 90;
+
 const CLE_VERROU = "purge:dernier";
 const INTERVALLE_MS = 24 * 60 * 60 * 1000;
 
@@ -46,6 +60,7 @@ export type ResultatPurge = {
   lignesSupprimees: number;
   jetonsSupprimes: number;
   accesAnonymises: number;
+  demandesSupprimees: number;
 };
 
 /**
@@ -57,6 +72,7 @@ export async function purger(): Promise<ResultatPurge> {
   const seuilIp = ajouterJours(maintenant, -JOURS_CONSERVATION_IP);
   const seuilJournal = ajouterJours(maintenant, -JOURS_CONSERVATION_JOURNAL);
   const seuilJetons = ajouterJours(maintenant, -JOURS_CONSERVATION_JETONS);
+  const seuilDemandes = ajouterJours(maintenant, -JOURS_CONSERVATION_DEMANDES);
 
   // Ordre volontaire : on efface d'abord les lignes périmées, puis les IP des
   // lignes qui restent. L'inverse ferait travailler la première requête sur des
@@ -81,11 +97,18 @@ export async function purger(): Promise<ResultatPurge> {
     where: { createdAt: { lt: seuilJetons } },
   });
 
+  // Sur `decideAt`, pas sur `createdAt` : une demande déposée il y a six mois et
+  // tranchée hier vient d'être traitée, elle n'a rien de périmé.
+  const demandes = await prisma.demandeAcces.deleteMany({
+    where: { statut: { not: "EN_ATTENTE" }, decideAt: { lt: seuilDemandes } },
+  });
+
   return {
     ipsEffacees: ips.count,
     lignesSupprimees: lignes.count,
     jetonsSupprimes: jetons.count,
     accesAnonymises: acces.count,
+    demandesSupprimees: demandes.count,
   };
 }
 
