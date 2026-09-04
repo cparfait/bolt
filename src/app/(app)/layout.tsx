@@ -5,6 +5,7 @@ import { logoutAction } from "@/lib/actions/auth";
 import { NavMobile, Sidebar, type Compteurs } from "@/components/nav";
 import { ROLE_LABELS } from "@/lib/constants";
 import { getGeneralSettings } from "@/lib/settings";
+import { compterDemandesEnAttente } from "@/lib/demandes";
 
 export default async function AppLayout({
   children,
@@ -20,13 +21,29 @@ export default async function AppLayout({
       where: { statut: "EN_ATTENTE", creneau: { saison: { active: true } } },
     });
     if (aValider > 0) compteurs["/inscriptions"] = aValider;
+
+    // Une demande d'accès qui dort, c'est quelqu'un qui attend sans savoir
+    // quoi : elle doit se voir depuis n'importe quel écran, comme les
+    // inscriptions à arbitrer.
+    const demandes = await compterDemandesEnAttente();
+    if (demandes > 0) compteurs["/agents/demandes"] = demandes;
   }
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar role={user.role} compteurs={compteurs} appName={g.appName} />
+      <Sidebar
+        role={user.role}
+        compteurs={compteurs}
+        demandesActives={g.demandeAccesActive}
+        appName={g.appName}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
-        <NavMobile role={user.role} compteurs={compteurs} appName={g.appName} />
+        <NavMobile
+          role={user.role}
+          compteurs={compteurs}
+          demandesActives={g.demandeAccesActive}
+          appName={g.appName}
+        />
         <header className="sticky top-0 z-10 flex h-14 items-center justify-end gap-4 border-b border-slate-200 bg-white/80 px-4 backdrop-blur lg:px-6">
           <div className="text-right">
             <p className="text-sm font-medium leading-tight">{user.displayName}</p>

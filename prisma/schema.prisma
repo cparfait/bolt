@@ -471,3 +471,43 @@ model AuditLog {
   @@index([createdAt])
   @@index([action])
 }
+
+enum DemandeAccesStatut {
+  EN_ATTENTE
+  VALIDEE
+  REFUSEE
+}
+
+// Demande d'accès déposée depuis Internet par une personne absente de
+// l'annuaire : vacataire, contrat court, agent d'un autre organisme, élu.
+//
+// Cette table est la réponse à une tension : il faut pouvoir demander un accès
+// sans compte de domaine, et il ne faut pas qu'une adresse e-mail suffise à
+// s'en créer un. Une demande n'est donc RIEN — ni compte, ni session, ni droit.
+// C'est une ligne dans une file que le service des sports valide à la main ;
+// le compte `no_ad.…` n'existe qu'après cette décision humaine.
+//
+// L'adresse saisie ne reçoit aucun courriel au dépôt : sinon le formulaire
+// redeviendrait ce que les compteurs de `demanderLienAction` empêchent — un
+// moyen de faire expédier du courrier par la collectivité à une adresse
+// arbitraire. Le seul envoi immédiat va au service des sports, à son adresse
+// fixe. Le demandeur, lui, est prévenu à la validation.
+model DemandeAcces {
+  id        String             @id @default(cuid())
+  nom       String
+  email     String
+  service   String? // service ou organisme, tel que la personne le déclare
+  message   String? // contexte libre : « vacataire piscine jusqu'en juin »
+  statut    DemandeAccesStatut @default(EN_ATTENTE)
+  ip        String? // trace d'origine, pour repérer un dépôt automatisé
+  createdAt DateTime           @default(now())
+
+  // Décision du service des sports.
+  decidePar String? // displayName du gestionnaire, conservé même s'il part
+  decideAt  DateTime?
+  motif     String? // motif du refus — interne, jamais envoyé au demandeur
+  userId    String? // compte créé à la validation
+
+  @@index([statut, createdAt])
+  @@index([email])
+}

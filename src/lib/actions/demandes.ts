@@ -1,0 +1,106 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { clientIp, estInterne } from "@/lib/net";
+import { rateLimit } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
+import { deposerDemande, refuserDemande, validerDemande } from "@/lib/demandes";
+import { requireUser } from "@/lib/session";
+import { getGeneralSettings } from "@/lib/settings";
+import { erreur, succes, type ActionState } from "./types";
+
+/**
+ * Dépôt d'une demande d'accès depuis Internet.
+ *
+ * Trois compteurs, pour trois abus distincts — même raisonnement que
+ * `demanderLienAction`, dont il faut relire le commentaire :
+ *
+ *  • par IP, pour qu'une machine ne remplisse pas la file toute seule ;
+ *  • global, sans clé d'identité, parce qu'une source distribuée fait varier
+ *    l'IP et ne remplit jamais le compteur précédent ;
+ *  • un champ leurre, invisible d'un humain, que les robots de formulaire
+ *    remplissent — le plus efficace des trois pour ce qu'il coûte.
+ *
+ * Le plafond global ne vaut que pour l'extérieur : pendant une attaque, une
+ * personne accompagnée par le service des sports depuis un poste du réseau doit
+ * continuer à pouvoir déposer sa demande.
+ */
+
+const PLAFOND_HORAIRE = 40;
+
+// Le message est le même quoi qu'il arrive : adresse inconnue, adresse déjà
+// titulaire d'un compte, demande déjà déposée. Ce formulaire est publié sur
+// Internet ; en dire plus permettrait de vérifier qui travaille dans la
+// collectivité, ce que `envoyerLienConnexion` se garde déjà de faire.
+const ACCUSE =
+  "Votre demande a bien été transmise au service des sports. Vous recevrez un message dès qu'elle aura été examinée.";
+
+export async function deposerDemandeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const g = await getGeneralSettings();
+  if (!g.demandeAccesActive) {
+    return erreur("Les demandes d'accès en ligne ne sont pas activées.");
+  }
+
+  // Champ leurre : un humain ne le voit pas, un robot le remplit. On répond
+  // comme si tout allait bien — signaler le rejet apprendrait au robot à
+  // contourner.
+  if (String(formData.get("organisme_") ?? "").trim() !== "") {
+    await audit("DEMANDE_ACCES_LEURRE");
+    return succes(ACCUSE);
+  }
+
+  const nom = String(formData.get("nom") ?? "").trim().replace(/\s+/g, " ");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const service = String(formData.get("service") ?? "").trim().slice(0, 120);
+  const message = String(formData.get("message") ?? "").trim().slice(0, 500);
+
+  if (nom.length < 2) return erreur("Indiquez votre nom et votre prénom.");
+  if (nom.length > 120) return erreur("Nom trop long.");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return erreur("Adresse e-mail invalide.");
+  }
+
+  const ip = clientIp(await headers());
+
+  if (!estInterne(ip) && !rateLimit("demande-acces:global", PLAFOND_HORAIRE, 3600).ok) {
+    await audit("DEMANDE_ACCES_PLAFOND", { cible: email });
+    return erreur("Trop de demandes en cours. Réessayez dans quelques minutes.");
+  }
+  if (!rateLimit(`demande-acces-ip:${ip}`, 3, 3600).ok) {
+    return erreur("Trop de demandes depuis cet accès. Réessayez plus tard.");
+  }
+
+  await deposerDemande({ nom, email, service, message, ip });
+  return succes(ACCUSE);
+}
+
+export async function validerDemandeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const res = await validerDemande(String(formData.get("id") ?? ""), admin);
+  revalidatePath("/agents/demandes");
+  revalidatePath("/agents");
+  revalidatePath("/", "layout");
+  return res.ok ? succes(res.message) : erreur(res.message);
+}
+
+export async function refuserDemandeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const res = await refuserDemande(
+    String(formData.get("id") ?? ""),
+    String(formData.get("motif") ?? ""),
+    admin,
+  );
+  revalidatePath("/agents/demandes");
+  revalidatePath("/", "layout");
+  return res.ok ? succes(res.message) : erreur(res.message);
+}

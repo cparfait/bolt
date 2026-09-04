@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   Dumbbell,
+  Inbox,
   LayoutDashboard,
   Settings,
   UserCheck,
@@ -27,6 +28,10 @@ type Item = {
   // Libellé employé lorsque l'utilisateur a aussi des écrans de gestion :
   // « Mes activités » y serait ambigu au milieu des outils du service.
   labelMixte?: string;
+  // Entrée qui n'a de sens que si la fonction correspondante est activée. Une
+  // collectivité qui ne publie pas le formulaire de demande d'accès n'a pas à
+  // porter une entrée de navigation vers un écran toujours vide.
+  optionnel?: "demandes";
 };
 
 // L'ordre compte : les écrans de gestion d'abord, l'espace personnel en
@@ -46,6 +51,14 @@ const items: Item[] = [
     icon: ClipboardCheck,
     roles: ["ADMIN", "GESTIONNAIRE"],
     groupe: "gestion",
+  },
+  {
+    href: "/agents/demandes",
+    label: "Demandes d'accès",
+    icon: Inbox,
+    roles: ["ADMIN", "GESTIONNAIRE"],
+    groupe: "gestion",
+    optionnel: "demandes",
   },
   {
     href: "/activites",
@@ -94,14 +107,25 @@ export type Compteurs = Record<string, number>;
 function Liens({
   role,
   compteurs,
+  demandesActives,
   onClick,
 }: {
   role: Role;
   compteurs?: Compteurs;
+  demandesActives?: boolean;
   onClick?: () => void;
 }) {
   const pathname = usePathname();
-  const visible = items.filter((i) => !i.roles || i.roles.includes(role) || role === "ADMIN");
+  const visible = items.filter(
+    (i) =>
+      (!i.roles || i.roles.includes(role) || role === "ADMIN") &&
+      // Une entrée optionnelle reste affichée tant qu'il y a des demandes à
+      // traiter, même après désactivation du formulaire : sinon la file
+      // deviendrait invisible avec ce qu'elle contient encore.
+      (i.optionnel !== "demandes" ||
+        demandesActives === true ||
+        (compteurs?.[i.href] ?? 0) > 0),
+  );
   // Le séparateur n'apparaît que si l'utilisateur a réellement les deux
   // casquettes : un agent simple ne voit qu'une liste, sans intertitre inutile.
   const mixte = visible.some((i) => i.groupe === "gestion");
@@ -157,10 +181,12 @@ function Liens({
 export function Sidebar({
   role,
   compteurs,
+  demandesActives,
   appName,
 }: {
   role: Role;
   compteurs?: Compteurs;
+  demandesActives?: boolean;
   appName: string;
 }) {
   return (
@@ -172,7 +198,7 @@ export function Sidebar({
         <span className="text-lg font-semibold tracking-tight text-brand-600">{appName}</span>
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
-        <Liens role={role} compteurs={compteurs} />
+        <Liens role={role} compteurs={compteurs} demandesActives={demandesActives} />
       </nav>
       <p className="border-t border-slate-100 p-4 text-xs text-slate-400">
         Activités sportives · QVT
@@ -185,10 +211,12 @@ export function Sidebar({
 export function NavMobile({
   role,
   compteurs,
+  demandesActives,
   appName,
 }: {
   role: Role;
   compteurs?: Compteurs;
+  demandesActives?: boolean;
   appName: string;
 }) {
   const enAttente = Object.values(compteurs ?? {}).reduce((n, v) => n + v, 0);
@@ -210,7 +238,7 @@ export function NavMobile({
         <span className="ml-auto hidden text-xs text-slate-400 group-open:inline">Fermer</span>
       </summary>
       <nav className="space-y-0.5 p-3 pt-0">
-        <Liens role={role} compteurs={compteurs} />
+        <Liens role={role} compteurs={compteurs} demandesActives={demandesActives} />
       </nav>
     </details>
   );

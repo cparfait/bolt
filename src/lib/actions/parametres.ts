@@ -238,6 +238,7 @@ export async function enregistrerGeneral(
     validationRequise: formData.get("validationRequise") === "on",
     absencesAvantRelance: Math.max(1, Number(texte(formData, "absencesAvantRelance")) || 3),
     lienMagiqueActif: formData.get("lienMagiqueActif") === "on",
+    demandeAccesActive: formData.get("demandeAccesActive") === "on",
     rappelsActifs: formData.get("rappelsActifs") === "on",
     rappelHeuresAvant: Math.min(
       168,
@@ -249,6 +250,14 @@ export async function enregistrerGeneral(
   if (cfg.lienMagiqueActif && !smtpConfigure) {
     return erreur(
       "La connexion par e-mail nécessite une messagerie configurée (Paramètres → Messagerie).",
+    );
+  }
+  // Une demande validée débouche sur un compte hors annuaire, sans mot de
+  // passe : le lien e-mail est sa seule porte. Ouvrir le formulaire sans lui,
+  // c'est créer des comptes auxquels personne ne peut se connecter.
+  if (cfg.demandeAccesActive && !cfg.lienMagiqueActif) {
+    return erreur(
+      "Le formulaire de demande d'accès nécessite la connexion des agents par lien e-mail.",
     );
   }
   if (cfg.rappelsActifs && !smtpConfigure) {

@@ -468,6 +468,27 @@ export function GeneralForm({
       <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm">
         <input
           type="checkbox"
+          name="demandeAccesActive"
+          defaultChecked={cfg.demandeAccesActive}
+          className="mt-0.5 h-4 w-4 rounded border-slate-300"
+        />
+        <span>
+          <span className="block font-medium">
+            Formulaire public de demande d&apos;accès
+          </span>
+          <span className="block text-xs text-slate-500">
+            Pour les personnes absentes de l&apos;annuaire : vacataire, contrat
+            court, agent d&apos;un autre organisme. Une demande ne crée ni compte
+            ni session et n&apos;envoie rien à l&apos;adresse saisie : elle vous est
+            signalée, et vous la validez d&apos;un clic. Suppose la connexion par
+            lien activée.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm">
+        <input
+          type="checkbox"
           name="rappelsActifs"
           defaultChecked={cfg.rappelsActifs}
           className="mt-0.5 h-4 w-4 rounded border-slate-300"

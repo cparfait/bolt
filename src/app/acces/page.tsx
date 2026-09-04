@@ -85,6 +85,49 @@ export default async function AccesPage({
           </div>
         )}
 
+        {/* Mention affichée en PERMANENCE, jamais en réponse à une adresse
+            inconnue. `envoyerLienConnexion` renvoie volontairement le même
+            message que l'adresse soit connue ou non : cette page est publiée sur
+            Internet, et un « adresse inconnue, contactez le service » en ferait
+            un moyen de vérifier qui travaille dans la collectivité. */}
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+          <p className="text-sm font-medium text-slate-700">
+            Vous n&apos;arrivez pas à vous connecter ?
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            Si vous n&apos;avez pas de compte informatique de la collectivité —
+            vacataire, contrat court, agent d&apos;un autre organisme — c&apos;est
+            le service des sports qui ouvre votre accès
+            {g.contactEmail ? (
+              <>
+                {" "}
+                (
+                <a
+                  href={`mailto:${g.contactEmail}`}
+                  className="font-medium text-brand-600 hover:underline"
+                >
+                  {g.contactEmail}
+                </a>
+                )
+              </>
+            ) : null}
+            .
+            {g.demandeAccesActive ? (
+              <>
+                {" "}
+                Vous pouvez aussi{" "}
+                <Link
+                  href="/demande-acces"
+                  className="font-medium text-brand-600 hover:underline"
+                >
+                  déposer une demande d&apos;accès
+                </Link>
+                .
+              </>
+            ) : null}
+          </p>
+        </div>
+
         <p className="mt-6 text-center text-xs text-slate-400">
           Vous avez une adresse mail pro ?{" "}
           <Link href="/connexion" className="font-medium text-brand-600 hover:underline">
