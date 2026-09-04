@@ -41,9 +41,15 @@ export type GeneralSettings = {
   appDescription: string;
   orgName: string;
   appUrl: string; // https://bolt.chatillon92.fr — utilisé dans les liens envoyés
-  // URL des liens d'émargement, quand le pointage est publié sur Internet sous
-  // un autre nom que le back-office (ex. https://boltpointage.chatillon92.fr).
-  // Vide : les liens d'émargement utilisent appUrl.
+  // Nom public de l'application, quand elle est publiée sur Internet sous un
+  // autre nom que le back-office (ex. https://chatbouge.chatillon92.fr).
+  //
+  // Le champ s'appelle encore `pointageUrl` : il ne portait au départ que les
+  // liens d'émargement. Il porte désormais aussi les liens de connexion des
+  // agents (voir `urlEspaceAgent`) — renommer la clé imposerait une migration
+  // des réglages enregistrés pour un gain purement cosmétique.
+  //
+  // Vide : tout se rabat sur appUrl, cas du déploiement à un seul nom.
   pointageUrl: string;
   // Logo affiché sur la page de connexion, en data URI (data:image/png;base64,…).
   // Vide : l'icône par défaut est utilisée.

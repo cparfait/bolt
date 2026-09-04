@@ -363,8 +363,8 @@ export function GeneralForm({
         </Field>
       </div>
       <Field
-        label="URL publique de l'application"
-        hint="Adresse de l'application pour les liens envoyés (connexion des agents, rappels)."
+        label="URL principale de l'application"
+        hint="Nom par lequel l'application est jointe depuis le réseau. Sert aux liens des courriels internes, et de repli si l'URL publique ci-dessous est vide."
       >
         {estAdmin ? (
           <Input
@@ -378,14 +378,14 @@ export function GeneralForm({
       </Field>
 
       <Field
-        label="URL de pointage"
-        hint="Adresse des liens d'émargement, si le pointage est publié sur Internet sous un autre nom. Laissez vide pour utiliser l'URL publique."
+        label="URL publique"
+        hint="Nom par lequel agents et animateurs joignent l'application depuis Internet : liens d'émargement ET liens de connexion des agents. Laissez vide si l'application n'a qu'un seul nom."
       >
         {estAdmin ? (
           <Input
             name="pointageUrl"
             defaultValue={cfg.pointageUrl}
-            placeholder="https://pointage.collectivite.fr"
+            placeholder="https://sport.collectivite.fr"
           />
         ) : (
           <ValeurReservee valeur={cfg.pointageUrl} />

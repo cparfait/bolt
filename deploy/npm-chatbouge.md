@@ -1,4 +1,4 @@
-# Nginx Proxy Manager — le maillon `boltpointage.chatillon92.fr`
+# Nginx Proxy Manager — le maillon `chatbouge.chatillon92.fr`
 
 Chaîne complète :
 
@@ -6,7 +6,7 @@ Chaîne complète :
 Internet ──443──> Apache (DMZ) ──80/tcp (pare-feu)──> NPM (LAN) ──> bolt_web:3000
 ```
 
-Apache porte le cloisonnement (`deploy/apache-emargement.conf`) : refus par défaut,
+Apache porte le cloisonnement (`deploy/apache-chatbouge.conf`) : refus par défaut,
 puis réouverture de quatre préfixes. NPM n'a donc qu'un rôle de relais — mais il
 doit être réglé correctement sur trois points, sans quoi le pointage se bloque de
 lui-même en production.
@@ -17,7 +17,7 @@ lui-même en production.
 
 | Champ | Valeur | Pourquoi |
 |---|---|---|
-| Domain Names | `boltpointage.chatillon92.fr` | Apache conserve le `Host` (`ProxyPreserveHost On`) : sans ce nom exact, NPM sert son site par défaut et les actions serveur de Next.js échouent. |
+| Domain Names | `chatbouge.chatillon92.fr` | Apache conserve le `Host` (`ProxyPreserveHost On`) : sans ce nom exact, NPM sert son site par défaut et les actions serveur de Next.js échouent. |
 | Scheme | `http` | Le conteneur écoute en clair sur 3000. |
 | Forward Hostname / IP | `bolt_web` | NPM est sur le réseau `containers-lan` ; il résout le conteneur par son nom. Aucun port à publier sur l'hôte : le `ports:` de `docker-compose.yml` reste commenté. |
 | Forward Port | `3000` | |
@@ -105,15 +105,15 @@ Le DNS interne (AD) doit connaître les deux noms, avec des cibles différentes 
 
 | Nom | DNS public | DNS interne pointe sur | Sert |
 |---|---|---|---|
-| `boltpointage.chatillon92.fr` | → IP publique de l'Apache | **Apache DMZ** | le pointage, et rien d'autre — comportement identique depuis le LAN et depuis Internet |
+| `chatbouge.chatillon92.fr` | → IP publique de l'Apache | **Apache DMZ** | le pointage, et rien d'autre — comportement identique depuis le LAN et depuis Internet |
 | `bolt.chatillon92.fr` (exemple) | **absent, volontairement** | **NPM** (443, wildcard) | le back-office des gestionnaires, depuis le LAN uniquement |
 
-Ne pas pointer `boltpointage` interne sur NPM : NPM relaie tous les chemins, et
+Ne pas pointer `chatbouge` interne sur NPM : NPM relaie tous les chemins, et
 les IP internes passent le filtre `INTERNAL_CIDRS` — le même nom servirait alors
 le pointage seul dehors et tout le back-office dedans. Un nom = un contenu.
 
 NPM portant aussi le wildcard, c'est lui qui sert le HTTPS du nom interne du
-back-office. Sur le Proxy Host `boltpointage`, en revanche, « Force SSL » doit
+back-office. Sur le Proxy Host `chatbouge`, en revanche, « Force SSL » doit
 rester désactivé : Apache y arrive en HTTP.
 
 ## 4 bis. La règle pare-feu DMZ → LAN, et pourquoi elle est contenue
@@ -128,7 +128,7 @@ pointage :
 - **tous les Proxy Hosts internes de NPM ont « Force SSL » coché** : sur le
   port 80, ils ne répondent qu'un 301 vers un 443 que le pare-feu bloque.
   Une requête au Host forgé depuis la DMZ tombe dans une impasse ;
-- `boltpointage` est le **seul** host sans Force SSL : le seul servi sur le
+- `chatbouge` est le **seul** host sans Force SSL : le seul servi sur le
   port 80, donc le seul joignable depuis la DMZ.
 
 Le port 80 de NPM devient le couloir « venant du WAN » (une seule application),
@@ -152,5 +152,5 @@ Et depuis l'extérieur, ces cinq chemins doivent tous répondre `403` — c'est
 Apache qui refuse, sans même contacter NPM :
 
 ```bash
-for p in / /connexion /parametres /api/health /inscriptions; do printf '%s ' "$p"; curl -sk -o /dev/null -w '%{http_code}\n' "https://boltpointage.chatillon92.fr$p"; done
+for p in / /connexion /parametres /api/health /inscriptions; do printf '%s ' "$p"; curl -sk -o /dev/null -w '%{http_code}\n' "https://chatbouge.chatillon92.fr$p"; done
 ```

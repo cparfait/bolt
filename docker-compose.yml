@@ -51,7 +51,7 @@ services:
       #
       # Cette variable ne suffit pas : elle n'ouvre que le filtre applicatif
       # (src/proxy.ts). Le reverse proxy doit publier les mêmes chemins — voir
-      # le bloc « Espace agent » de deploy/apache-emargement.conf. Et renseignez
+      # le bloc « Espace agent » de deploy/apache-chatbouge.conf. Et renseignez
       # BOLT_POINTAGE_URL ci-dessus : c'est sur elle que se construisent les
       # liens de connexion envoyés aux agents (src/lib/settings.ts,
       # urlEspaceAgent). Restés sur BOLT_PUBLIC_URL, ils pointeraient vers le

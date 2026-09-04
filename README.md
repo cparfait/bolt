@@ -83,9 +83,10 @@ explicite, qui demande trois gestes simultanés — aucun ne suffit seul :
 
 1. `PUBLIC_AGENT_ACCESS=1`, qui n'ouvre que le filtre applicatif de
    `src/proxy.ts` (`/acces`, `/mes-activites`, `/mentions`, `/demande-acces`) ;
-2. le bloc « Espace agent » de `deploy/apache-emargement.conf`, à décommenter :
-   sans lui, le vhost refuse ces chemins avant même de contacter l'application ;
-3. *Paramètres → Général → URL de pointage*, sur laquelle se construisent les
+2. le bloc « Espace agent » de `deploy/apache-chatbouge.conf`, reporté dans le
+   vhost : sans lui, le proxy refuse ces chemins avant même de contacter
+   l'application ;
+3. *Paramètres → Général → URL publique*, sur laquelle se construisent les
    liens envoyés aux agents (`urlEspaceAgent`, `src/lib/settings.ts`). Laissée
    vide, les liens portent le nom du back-office, absent du DNS public : une
    impasse pour l'agent qui lit son courriel de chez lui, c'est-à-dire pour
@@ -361,7 +362,7 @@ par le client : c'est cette adresse que `src/proxy.ts` compare à
 `INTERNAL_CIDRS`.
 
 Pour Apache, une configuration complète et commentée est fournie :
-[`deploy/apache-emargement.conf`](deploy/apache-emargement.conf). Elle refuse tout
+[`deploy/apache-chatbouge.conf`](deploy/apache-chatbouge.conf). Elle refuse tout
 par défaut, puis rouvre les quatre seuls préfixes nécessaires.
 
 Exemple nginx, exposition minimale (émargement seul sur Internet) :
