@@ -44,6 +44,11 @@ model User {
   // (fréquentation par direction / service) sans ressaisie.
   direction    String?
   service      String?
+  // Rattachement décidé à la main, que les règles de regroupement ne défont
+  // pas. Sans ce témoin, corriger le service d'une personne à l'écran tiendrait
+  // jusqu'à la synchronisation suivante — et la correction paraîtrait perdue
+  // sans que rien ne l'explique.
+  serviceForce Boolean  @default(false)
   createdAt    DateTime @default(now())
   lastLoginAt  DateTime?
   // Identité effacée à la demande de la personne ou au terme de la
@@ -188,26 +193,41 @@ model Lieu {
 
 // ── Services de la collectivité ────────────────────────────────────────────
 
-// Référentiel des services, saisi dans les paramètres et proposé en liste sur
-// le bon d'inscription.
+// Référentiel des services : la liste que la collectivité reconnaît.
 //
-// Il ne vaut QUE pour les personnes hors annuaire. Le rattachement d'un compte
-// AD est lu dans l'annuaire (`department` / `division`) et réécrit à chaque
-// synchronisation : le corriger ici ne tiendrait pas jusqu'au lendemain. Ce
-// référentiel comble le trou d'à côté — le vacataire qui tapait son service à
-// la main, et écrivait « Dsi » là où l'annuaire dit « DSI ». La fréquentation
-// par direction se répartissait alors sur autant de lignes que d'orthographes.
+// Elle se prépare AVANT de savoir ce que contient l'annuaire, et sert aux deux
+// bouts — proposée en liste sur le bon d'inscription, elle est aussi la cible
+// des regroupements qui rangent les libellés bruts de l'AD.
 //
-// Comme les lieux, le rattachement est stocké en clair sur le compte
-// (`User.service`) et non par clé étrangère : l'historique et les exports
-// gardent le libellé tel qu'il était. Renommer un service propage le nouveau
-// libellé aux comptes qui le portaient.
+// Le compte porte le libellé en clair (`User.service`) et non une clé
+// étrangère, comme les lieux sur les créneaux : les exports et les saisons
+// passées gardent le service tel qu'il était. Mais contrairement au lieu, ce
+// libellé est un RÉSULTAT — recalculé depuis le libellé brut et les règles en
+// vigueur (src/lib/services.ts), donc rejouable sans rien réimporter.
 model Service {
   id        String   @id @default(cuid())
   nom       String   @unique // « Services techniques », « Petite enfance »
   actif     Boolean  @default(true)
   ordre     Int      @default(0)
   createdAt DateTime @default(now())
+}
+
+// « Ce libellé-là désigne ce service-ci ».
+//
+// Un annuaire réel n'écrit pas deux fois le même service de la même façon :
+// « Crèche La Cigogne » et « Crèche Petit Poucet » relèvent de la petite
+// enfance, « CTM » désigne le centre technique municipal sans partager un
+// caractère avec lui. Aucune profondeur d'OU ni aucune règle d'écriture ne
+// rattrape ça — il faut une table de correspondance, tenue à la main mais
+// remplie par proposition (src/lib/rapprochement.ts).
+//
+// La source est la clé : un libellé ne peut désigner qu'un service.
+model RegroupementService {
+  source    String   @id // libellé brut, tel qu'il vient de l'annuaire
+  cible     String // nom d'un service du référentiel
+  createdAt DateTime @default(now())
+
+  @@index([cible])
 }
 
 // ── Activités & créneaux ───────────────────────────────────────────────────

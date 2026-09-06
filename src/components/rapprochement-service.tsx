@@ -2,73 +2,101 @@
 
 import { useActionState } from "react";
 import { ArrowRight } from "lucide-react";
-import { rattacherService } from "@/lib/actions/services";
+import { regrouperLibelle } from "@/lib/actions/services";
 import type { ActionState } from "@/lib/actions/types";
-import { Alert, Select, btnSecondary } from "@/components/ui";
+import type { Confiance, Suggestion } from "@/lib/rapprochement";
+import { Alert, Badge, Select, btnSecondary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { pluriel } from "@/lib/constants";
 
 /**
- * Rattachement d'un libellé orphelin à un service du référentiel.
+ * Une ligne d'inventaire : un libellé brut, ce qu'il pèse, et le service que le
+ * moteur propose d'y rattacher.
  *
- * Une ligne par libellé, avec ce qu'il coûte : le nombre de personnes qu'il
- * concerne. Sans ce chiffre, on ne sait pas si on répare une coquille isolée ou
- * la moitié d'une direction, et le ménage se fait dans le désordre.
+ * Le niveau de confiance est affiché, jamais masqué derrière un simple choix
+ * pré-rempli : une suggestion fausse présentée comme sûre fait basculer trente
+ * agents dans le mauvais service, et personne ne le remarque avant le bilan de
+ * fin de saison. Le motif est écrit à côté — « sigle de … », « mots en
+ * commun : … » — pour que la décision se prenne sans deviner.
  */
+
+const ALLURE: Record<Confiance, { libelle: string; classe: string }> = {
+  sure: {
+    libelle: "sûre",
+    classe: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  },
+  probable: {
+    libelle: "probable",
+    classe: "bg-amber-50 text-amber-700 ring-amber-600/20",
+  },
+  incertaine: {
+    libelle: "incertaine",
+    classe: "bg-slate-100 text-slate-600 ring-slate-500/20",
+  },
+  aucune: { libelle: "", classe: "" },
+};
+
 export function RapprochementService({
-  libelle,
-  horsAnnuaire,
-  annuaire,
+  suggestion,
   services,
 }: {
-  libelle: string;
-  horsAnnuaire: number;
-  annuaire: number;
+  suggestion: Suggestion;
   services: string[];
 }) {
   const [state, action] = useActionState<ActionState, FormData>(
-    rattacherService,
+    regrouperLibelle,
     null,
   );
+  const { libelle, horsAnnuaire, annuaire, confiance, proposition, motif, ambigu } =
+    suggestion;
+  const effectif = horsAnnuaire + annuaire;
+  const allure = ALLURE[confiance];
 
   return (
     <li className="py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium">{libelle}</p>
+          <p className="flex flex-wrap items-center gap-2 font-medium">
+            {libelle}
+            {confiance !== "aucune" && (
+              <Badge color={allure.classe}>{allure.libelle}</Badge>
+            )}
+            {ambigu && <Badge>ambigu</Badge>}
+          </p>
           <p className="mt-0.5 text-xs text-slate-400">
-            {horsAnnuaire > 0 &&
-              `${horsAnnuaire} ${pluriel(horsAnnuaire, "personne hors annuaire", "personnes hors annuaire")}`}
-            {horsAnnuaire > 0 && annuaire > 0 && " · "}
-            {annuaire > 0 &&
-              `${annuaire} ${pluriel(annuaire, "compte d'annuaire", "comptes d'annuaire")}`}
+            {effectif} {pluriel(effectif, "personne", "personnes")}
+            {horsAnnuaire > 0 && annuaire > 0
+              ? ` · dont ${annuaire} de l'annuaire`
+              : annuaire > 0
+                ? " · de l'annuaire"
+                : " · hors annuaire"}
+            {motif ? ` · ${motif}` : ""}
           </p>
         </div>
 
-        {horsAnnuaire > 0 ? (
-          <form action={action} className="flex flex-wrap items-center gap-2">
-            <input type="hidden" name="ancien" value={libelle} />
-            <ArrowRight className="h-4 w-4 shrink-0 text-slate-300" />
-            <Select name="vers" defaultValue="" className="w-auto" required>
-              <option value="">Rattacher à…</option>
-              {services.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-            <SubmitButton className={btnSecondary} pendingLabel="…">
-              Rattacher
-            </SubmitButton>
-          </form>
-        ) : (
-          // Un libellé porté uniquement par des comptes d'annuaire ne se corrige
-          // pas ici : la synchronisation le réécrirait. Le dire vaut mieux que
-          // d'offrir un bouton qui défait son propre effet pendant la nuit.
-          <p className="text-xs text-slate-500">
-            À reprendre dans l&apos;Active Directory (<code>department</code>)
-          </p>
-        )}
+        <form action={action} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="source" value={libelle} />
+          <ArrowRight className="h-4 w-4 shrink-0 text-slate-300" />
+          {/* La proposition est pré-sélectionnée mais jamais appliquée seule :
+              c'est un gain de clics, pas une décision prise à la place du
+              service des sports. */}
+          <Select
+            name="vers"
+            defaultValue={proposition ?? ""}
+            className="w-auto"
+            required
+          >
+            <option value="">Rattacher à…</option>
+            {services.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+          <SubmitButton className={btnSecondary} pendingLabel="…">
+            Rattacher
+          </SubmitButton>
+        </form>
       </div>
       <div className="mt-2">
         <Alert state={state} />

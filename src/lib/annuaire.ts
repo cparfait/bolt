@@ -2,6 +2,7 @@ import { prisma } from "./db";
 import { ldapFetchAccounts } from "./ldap";
 import { getLdapSettings, getSetting, setSetting, type LdapSettings } from "./settings";
 import { adosseALAnnuaire, desactiverCompte } from "./departs";
+import { reglesDeRegroupement, resoudreService, servicesProposes } from "./services";
 import { audit } from "./audit";
 
 /**
@@ -120,15 +121,35 @@ export async function synchroniserAnnuaire(
   const connus = new Map(
     (
       await prisma.user.findMany({
-        select: { id: true, login: true, direction: true, service: true },
+        select: {
+          id: true,
+          login: true,
+          direction: true,
+          service: true,
+          serviceForce: true,
+        },
       })
     ).map((u) => [u.login.toLowerCase(), u]),
   );
+
+  // Le service affiché est un RÉSULTAT : le libellé brut de l'annuaire passé au
+  // travers des regroupements en vigueur (src/lib/services.ts). C'est ce qui
+  // rend le rapprochement rejouable — corriger une règle suffit, sans
+  // réimporter quoi que ce soit —, et c'est pour la même raison qu'il se
+  // recalcule ici plutôt que d'être recopié tel quel.
+  const [regles, referentiel] = await Promise.all([
+    reglesDeRegroupement(),
+    servicesProposes(),
+  ]);
+
   for (const c of comptes) {
     const u = connus.get(c.samAccountName.toLowerCase());
     if (!u) continue;
     const direction = c.direction ?? undefined;
-    const service = c.service ?? undefined;
+    // Rattachement décidé à la main : une règle ne défait pas une décision.
+    const service = u.serviceForce
+      ? undefined
+      : (resoudreService(c.service, regles, referentiel) ?? undefined);
     const inchange =
       (direction === undefined || direction === u.direction) &&
       (service === undefined || service === u.service);

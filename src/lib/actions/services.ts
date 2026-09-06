@@ -3,26 +3,44 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { PREFIXE_HORS_ANNUAIRE, rattachementsConnus } from "@/lib/comptes";
-import { serviceDuReferentiel } from "@/lib/services";
+import { rattachementsConnus } from "@/lib/comptes";
+import {
+  analyserCollage,
+  appliquerRegroupements,
+  cleComparaison,
+  normaliser,
+  serviceDuReferentiel,
+  servicesProposes,
+} from "@/lib/services";
+import { inventaireLibelles, rapprocher } from "@/lib/rapprochement";
 import { audit } from "@/lib/audit";
 import { erreur, succes, type ActionState } from "./types";
 
 /**
- * Référentiel des services de la collectivité.
+ * Référentiel des services et regroupement des libellés.
  *
- * Même parti que les lieux (src/lib/actions/lieux.ts) : les comptes portent le
- * libellé en clair et non une clé étrangère, pour que l'historique et les
- * exports gardent le service tel qu'il était. La contrepartie est traitée ici —
- * renommer un service propage le nouveau libellé aux comptes qui le portaient.
+ * Toute écriture se termine par `appliquerRegroupements` : le service affiché
+ * sur un compte est un résultat, pas une saisie. Changer le référentiel ou une
+ * règle sans recalculer laisserait l'écran dire une chose et la base une autre
+ * — jusqu'à la synchronisation suivante, qui remettrait tout d'aplomb sans
+ * qu'on comprenne pourquoi.
  */
+async function recalculer(): Promise<number> {
+  const touches = await appliquerRegroupements();
+  revalidatePath("/parametres/services");
+  revalidatePath("/agents");
+  revalidatePath("/agents/demandes");
+  revalidatePath("/statistiques");
+  return touches;
+}
+
 export async function enregistrerService(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const user = await requireUser("GESTIONNAIRE");
   const id = String(formData.get("id") ?? "");
-  const nom = String(formData.get("nom") ?? "").trim().replace(/\s+/g, " ");
+  const nom = normaliser(String(formData.get("nom") ?? ""));
   if (nom.length < 2) return erreur("Indiquez le nom du service.");
   if (nom.length > 120) return erreur("Nom trop long.");
 
@@ -32,23 +50,27 @@ export async function enregistrerService(
       if (!avant) return erreur("Service introuvable.");
       await prisma.service.update({ where: { id }, data: { nom } });
       if (avant.nom !== nom) {
-        // Les demandes encore en attente suivent aussi : le libellé qu'elles
-        // portent est proposé tel quel au gestionnaire qui les validera, et
-        // rattacherait la personne à un service qui n'existe plus.
-        const [comptes, demandes] = await Promise.all([
-          prisma.user.updateMany({
-            where: { service: avant.nom },
-            data: { service: nom },
+        // Les règles pointent sur un NOM : les laisser en arrière ferait
+        // disparaître le service qu'elles visent, et les libellés regroupés
+        // retomberaient un par un dans l'inventaire.
+        const [regles, demandes] = await Promise.all([
+          prisma.regroupementService.updateMany({
+            where: { cible: avant.nom },
+            data: { cible: nom },
           }),
           prisma.demandeAcces.updateMany({
             where: { service: avant.nom, statut: "EN_ATTENTE" },
             data: { service: nom },
           }),
         ]);
+        await prisma.user.updateMany({
+          where: { service: avant.nom },
+          data: { service: nom },
+        });
         await audit("SERVICE_RENOMME", {
           userId: user.id,
           cible: `${avant.nom} → ${nom}`,
-          details: `${comptes.count} compte(s), ${demandes.count} demande(s) mis à jour`,
+          details: `${regles.count} règle(s), ${demandes.count} demande(s)`,
         });
       } else {
         await audit("SERVICE_MODIFIE", { userId: user.id, cible: nom });
@@ -62,9 +84,53 @@ export async function enregistrerService(
     return erreur("Un service porte déjà ce nom.");
   }
 
-  revalidatePath("/parametres/services");
-  revalidatePath("/agents/demandes");
+  await recalculer();
   return succes(`Service « ${nom} » enregistré.`);
+}
+
+/**
+ * Ajout en masse par collage.
+ *
+ * Saisir quarante services un par un est le genre de tâche qu'on ne finit pas :
+ * la liste existe déjà dans un organigramme, elle doit pouvoir entrer d'un seul
+ * geste. Les doublons de graphie sont écartés au passage — « Petite Enfance »
+ * collé sous « Petite enfance » ne crée pas une seconde ligne.
+ */
+export async function collerServices(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser("GESTIONNAIRE");
+  const noms = analyserCollage(String(formData.get("texte") ?? ""));
+  if (noms.length === 0) return erreur("Rien à ajouter : collez une liste de services.");
+
+  const existants = await prisma.service.findMany({ select: { nom: true } });
+  const vues = new Set(existants.map((s) => cleComparaison(s.nom)));
+  const nouveaux: string[] = [];
+  for (const nom of noms) {
+    const cle = cleComparaison(nom);
+    if (!cle || nom.length < 2 || nom.length > 120 || vues.has(cle)) continue;
+    vues.add(cle);
+    nouveaux.push(nom);
+  }
+  if (nouveaux.length === 0) {
+    return erreur("Tous ces services figurent déjà dans la liste.");
+  }
+
+  const depart = await prisma.service.count();
+  await prisma.service.createMany({
+    data: nouveaux.map((nom, i) => ({ nom, ordre: depart + i })),
+    skipDuplicates: true,
+  });
+  await audit("SERVICES_COLLES", {
+    userId: user.id,
+    details: `${nouveaux.length} service(s)`,
+  });
+
+  const touches = await recalculer();
+  return succes(
+    `${nouveaux.length} service(s) ajouté(s). ${touches} compte(s) rattaché(s) au passage.`,
+  );
 }
 
 export async function basculerService(id: string): Promise<void> {
@@ -76,8 +142,7 @@ export async function basculerService(id: string): Promise<void> {
     userId: user.id,
     cible: service.nom,
   });
-  revalidatePath("/parametres/services");
-  revalidatePath("/agents/demandes");
+  await recalculer();
 }
 
 /**
@@ -91,10 +156,10 @@ export async function supprimerService(id: string): Promise<void> {
   if (!service) return;
   const utilise = await prisma.user.count({ where: { service: service.nom } });
   if (utilise > 0) return;
+  await prisma.regroupementService.deleteMany({ where: { cible: service.nom } });
   await prisma.service.delete({ where: { id } });
   await audit("SERVICE_SUPPRIME", { userId: user.id, cible: service.nom });
-  revalidatePath("/parametres/services");
-  revalidatePath("/agents/demandes");
+  await recalculer();
 }
 
 /**
@@ -108,8 +173,8 @@ export async function supprimerService(id: string): Promise<void> {
  * et un import répété ne crée pas de doublon.
  */
 // Sans paramètre : l'import ne lit rien du formulaire. Le bouton lui en passe
-// deux (état précédent, données) comme à toute action de `useActionState` ;
-// les ignorer dans la signature vaut mieux que de les nommer pour rien.
+// deux, comme à toute action de `useActionState` ; les ignorer dans la
+// signature vaut mieux que de les nommer pour rien.
 export async function importerServicesAnnuaire(): Promise<ActionState> {
   const user = await requireUser("GESTIONNAIRE");
   const { services } = await rattachementsConnus();
@@ -120,10 +185,15 @@ export async function importerServicesAnnuaire(): Promise<ActionState> {
   }
 
   const existants = await prisma.service.findMany({ select: { nom: true } });
-  const connus = new Set(existants.map((s) => s.nom.toLowerCase()));
-  const nouveaux = services
-    .map((s) => s.trim().replace(/\s+/g, " "))
-    .filter((s) => s.length >= 2 && !connus.has(s.toLowerCase()));
+  const connus = new Set(existants.map((s) => cleComparaison(s.nom)));
+  const nouveaux: string[] = [];
+  for (const brut of services) {
+    const nom = normaliser(brut);
+    const cle = cleComparaison(nom);
+    if (nom.length < 2 || !cle || connus.has(cle)) continue;
+    connus.add(cle);
+    nouveaux.push(nom);
+  }
 
   if (nouveaux.length === 0) {
     return succes("Aucun service à ajouter : l'annuaire n'en porte pas d'autre.");
@@ -139,64 +209,105 @@ export async function importerServicesAnnuaire(): Promise<ActionState> {
     details: `${nouveaux.length} service(s) depuis l'annuaire`,
   });
 
-  revalidatePath("/parametres/services");
-  revalidatePath("/agents/demandes");
+  await recalculer();
   return succes(
     `${nouveaux.length} service(s) repris de l'annuaire. Retirez ceux qui n'ont pas à figurer sur le bon d'inscription.`,
   );
 }
 
 /**
- * Rattache un libellé orphelin à un service du référentiel.
+ * Pose une règle : ce libellé désigne ce service.
  *
- * Ne touche QUE les comptes hors annuaire. Le rattachement d'un compte AD vient
- * de l'attribut `department` et la synchronisation le réécrit : le modifier ici
- * donnerait l'illusion d'un ménage fait, défait à la nuit suivante. Ces
- * comptes-là se corrigent dans l'annuaire, et l'écran le dit.
+ * Vaut pour les comptes d'annuaire comme pour les autres. C'est toute la
+ * différence avec une correction à la main : la règle porte sur le libellé
+ * brut, donc la synchronisation suivante la rejoue au lieu de la défaire.
  */
-export async function rattacherService(
+export async function regrouperLibelle(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const user = await requireUser("GESTIONNAIRE");
-  const ancien = String(formData.get("ancien") ?? "").trim();
-  const vers = String(formData.get("vers") ?? "").trim();
-  if (!ancien) return erreur("Libellé d'origine manquant.");
+  const source = normaliser(String(formData.get("source") ?? ""));
+  const vers = normaliser(String(formData.get("vers") ?? ""));
+  if (!source) return erreur("Libellé d'origine manquant.");
   if (!vers) return erreur("Choisissez le service de destination.");
 
-  // La destination est relue dans le référentiel plutôt que reprise du
-  // formulaire : c'est son orthographe qui doit être écrite sur les comptes,
-  // faute de quoi le rapprochement recréerait un écart en le corrigeant.
-  const canonique = await serviceDuReferentiel(vers);
-  if (!canonique) return erreur("Ce service ne figure pas dans le référentiel.");
+  // La cible est relue dans le référentiel plutôt que reprise du formulaire :
+  // c'est son orthographe qui doit être écrite, faute de quoi le rapprochement
+  // recréerait un écart en le corrigeant.
+  const cible = await serviceDuReferentiel(vers);
+  if (!cible) return erreur("Ce service ne figure pas dans le référentiel.");
 
-  const [comptes, demandes] = await Promise.all([
-    prisma.user.updateMany({
-      where: { service: ancien, login: { startsWith: PREFIXE_HORS_ANNUAIRE } },
-      data: { service: canonique },
-    }),
-    prisma.demandeAcces.updateMany({
-      where: { service: ancien, statut: "EN_ATTENTE" },
-      data: { service: canonique },
-    }),
+  await prisma.regroupementService.upsert({
+    where: { source },
+    update: { cible },
+    create: { source, cible },
+  });
+  await audit("SERVICE_REGROUPE", {
+    userId: user.id,
+    cible: `${source} → ${cible}`,
+  });
+
+  const touches = await recalculer();
+  return succes(
+    `« ${source} » rattaché à « ${cible} » — ${touches} compte(s) mis à jour.`,
+  );
+}
+
+/** Retire une règle : le libellé brut reprend sa place dans l'inventaire. */
+export async function retirerRegroupement(source: string): Promise<void> {
+  const user = await requireUser("GESTIONNAIRE");
+  const regle = await prisma.regroupementService.findUnique({ where: { source } });
+  if (!regle) return;
+  await prisma.regroupementService.delete({ where: { source } });
+  await audit("SERVICE_REGROUPEMENT_RETIRE", {
+    userId: user.id,
+    cible: `${source} → ${regle.cible}`,
+  });
+  await recalculer();
+}
+
+/**
+ * Applique d'un coup les rapprochements que le moteur juge sûrs.
+ *
+ * Seulement ceux-là : une proposition « probable » demande un regard, et
+ * trente agents basculés dans le mauvais service ne se remarquent qu'au bilan
+ * de fin de saison. Le reste de la liste reste à trancher à la main, ce qui est
+ * précisément le travail que cet écran rend faisable.
+ */
+export async function appliquerRapprochementsSurs(): Promise<ActionState> {
+  const user = await requireUser("GESTIONNAIRE");
+  const [libelles, referentiel] = await Promise.all([
+    inventaireLibelles(),
+    servicesProposes(),
   ]);
+  if (referentiel.length === 0) {
+    return erreur("Déclarez d'abord des services : il n'y a rien à quoi rattacher.");
+  }
 
-  if (comptes.count === 0 && demandes.count === 0) {
+  const surs = rapprocher(libelles, referentiel).filter(
+    (s) => s.confiance === "sure" && s.proposition,
+  );
+  if (surs.length === 0) {
     return erreur(
-      `Rien à rattacher : « ${ancien} » n'est plus porté que par des comptes de l'annuaire, à corriger dans l'AD.`,
+      "Aucun rapprochement sûr à appliquer. Les propositions restantes demandent une décision.",
     );
   }
 
-  await audit("SERVICE_RAPPROCHE", {
+  for (const s of surs) {
+    await prisma.regroupementService.upsert({
+      where: { source: s.libelle },
+      update: { cible: s.proposition! },
+      create: { source: s.libelle, cible: s.proposition! },
+    });
+  }
+  await audit("SERVICES_RAPPROCHES", {
     userId: user.id,
-    cible: `${ancien} → ${canonique}`,
-    details: `${comptes.count} compte(s), ${demandes.count} demande(s)`,
+    details: `${surs.length} règle(s) sûre(s)`,
   });
 
-  revalidatePath("/parametres/services");
-  revalidatePath("/agents");
-  revalidatePath("/agents/demandes");
+  const touches = await recalculer();
   return succes(
-    `${comptes.count} compte(s) rattaché(s) à « ${canonique} ».`,
+    `${surs.length} libellé(s) rattaché(s), ${touches} compte(s) mis à jour.`,
   );
 }

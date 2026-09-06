@@ -1,24 +1,35 @@
 import Link from "next/link";
-import { Building2, Power, Trash2 } from "lucide-react";
+import { Building2, Power, Trash2, Unlink } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
-import { basculerService, supprimerService } from "@/lib/actions/services";
+import {
+  basculerService,
+  retirerRegroupement,
+  supprimerService,
+} from "@/lib/actions/services";
 import { Badge, Card, EmptyState } from "@/components/ui";
 import { Panneau } from "@/components/panneau";
 import { BoutonAction } from "@/components/bouton-action";
-import { ImportServicesAnnuaire, ServiceForm } from "@/components/service-form";
+import {
+  AppliquerRapprochements,
+  CollageServices,
+  ImportServicesAnnuaire,
+  ServiceForm,
+} from "@/components/service-form";
 import { RapprochementService } from "@/components/rapprochement-service";
-import { ecartsDeRattachement } from "@/lib/rapprochement";
+import { inventaireLibelles, rapprocher } from "@/lib/rapprochement";
 import { pluriel } from "@/lib/constants";
 
+export const dynamic = "force-dynamic";
+
 /**
- * Référentiel des services de la collectivité.
+ * Référentiel des services, et rapprochement des libellés d'annuaire.
  *
- * Il alimente le bon d'inscription — la liste que voit une personne absente de
- * l'annuaire — et les suggestions du gestionnaire au moment de valider sa
- * demande. Il ne touche pas au rattachement des comptes d'annuaire, lu dans
- * l'AD et réécrit à chaque synchronisation.
+ * Trois blocs, dans l'ordre où on s'en sert : la liste que la collectivité
+ * reconnaît, les libellés qui n'y entrent pas encore, et les regroupements déjà
+ * posés. Le second est le seul qui demande du travail — et c'est pour le rendre
+ * faisable que le moteur y propose une cible avec son niveau de confiance.
  */
 export default async function ParametresServices({
   searchParams,
@@ -29,14 +40,20 @@ export default async function ParametresServices({
   const { service: enEdition } = await searchParams;
   const g = await getGeneralSettings();
 
-  const services = await prisma.service.findMany({
-    orderBy: [{ actif: "desc" }, { ordre: "asc" }, { nom: "asc" }],
-  });
-  const ecarts = await ecartsDeRattachement();
-  const proposables = services.filter((s) => s.actif).map((s) => s.nom);
+  const [services, regroupements, libelles] = await Promise.all([
+    prisma.service.findMany({
+      orderBy: [{ actif: "desc" }, { ordre: "asc" }, { nom: "asc" }],
+    }),
+    prisma.regroupementService.findMany({ orderBy: [{ cible: "asc" }, { source: "asc" }] }),
+    inventaireLibelles(),
+  ]);
 
-  // Nombre de comptes rattachés à chaque libellé : dit ce qui sert réellement,
-  // et conditionne la suppression.
+  const proposables = services.filter((s) => s.actif).map((s) => s.nom);
+  const suggestions = rapprocher(libelles, proposables);
+  const surs = suggestions.filter((s) => s.confiance === "sure").length;
+
+  // Effectif par service : dit ce qui sert réellement, et conditionne la
+  // suppression.
   const comptes = await prisma.user.groupBy({ by: ["service"], _count: true });
   const usages = new Map(
     comptes.filter((c) => c.service).map((c) => [c.service as string, c._count]),
@@ -54,6 +71,7 @@ export default async function ParametresServices({
           <ul className="divide-y divide-slate-100">
             {services.map((s) => {
               const utilise = usages.get(s.nom) ?? 0;
+              const agreges = regroupements.filter((r) => r.cible === s.nom).length;
               return (
                 <li key={s.id} className="py-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -65,8 +83,10 @@ export default async function ParametresServices({
                       </p>
                       <p className="mt-0.5 text-xs text-slate-400">
                         {utilise > 0
-                          ? `${utilise} ${pluriel(utilise, "personne rattachée", "personnes rattachées")}`
-                          : "personne rattachée"}
+                          ? `${utilise} ${pluriel(utilise, "personne", "personnes")}`
+                          : "personne"}
+                        {agreges > 0 &&
+                          ` · ${agreges} ${pluriel(agreges, "libellé regroupé", "libellés regroupés")}`}
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -97,7 +117,11 @@ export default async function ParametresServices({
                       {utilise === 0 && (
                         <BoutonAction
                           action={supprimerService.bind(null, s.id)}
-                          confirmation={`Supprimer définitivement « ${s.nom} » ?`}
+                          confirmation={`Supprimer définitivement « ${s.nom} » ?${
+                            agreges > 0
+                              ? ` Les ${agreges} regroupement(s) qui le visent seront retirés.`
+                              : ""
+                          }`}
                           className="rounded-lg border border-slate-200 px-2 py-1.5 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
                           title="Supprimer"
                         >
@@ -116,7 +140,8 @@ export default async function ParametresServices({
                       {utilise > 0 && (
                         <p className="mt-3 text-xs text-slate-500">
                           Renommer ce service met à jour les {utilise}{" "}
-                          {pluriel(utilise, "personne", "personnes")} qui le portent.
+                          {pluriel(utilise, "personne", "personnes")} qui le portent,
+                          et les regroupements qui le visent.
                         </p>
                       )}
                     </div>
@@ -128,30 +153,18 @@ export default async function ParametresServices({
         )}
       </Card>
 
-      <Panneau
-        titre="Ajouter un service"
-        sousTitre="Direction, service, organisme rattaché…"
-        ouvert={services.length === 0}
-      >
-        <ServiceForm />
-      </Panneau>
-
-      <Card title="Reprendre l'existant">
-        <ImportServicesAnnuaire />
-      </Card>
-
-      {/* Le rapprochement, sans quoi la liste fermée ne règle que l'avenir : les
-          comptes déjà créés portent ce qui a été tapé avant, et ce sont eux qui
-          font diverger la fréquentation par direction. */}
-      {ecarts.length > 0 && (
+      {/* Le rapprochement. Fermer la liste ne règle que l'avenir : les comptes
+          déjà là portent ce que l'annuaire dit, et ce sont eux qui font diverger
+          la fréquentation par service. */}
+      {suggestions.length > 0 && (
         <Card
-          title={`Rattachements à reprendre (${ecarts.length})`}
+          title={`Libellés à rattacher (${suggestions.length})`}
           className="border-amber-200"
         >
           <p className="mb-3 text-sm text-slate-500">
-            Ces libellés sont portés par des comptes mais ne figurent pas dans le
-            référentiel. Tant qu&apos;ils subsistent, la fréquentation par
-            service se répartit sur autant de lignes que d&apos;orthographes.
+            Ces libellés sont portés par des comptes sans figurer au référentiel.
+            Le rattachement porte sur le libellé lui-même, pas sur les personnes :
+            la synchronisation de l&apos;annuaire le rejoue au lieu de le défaire.
           </p>
           {proposables.length === 0 ? (
             <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">
@@ -159,35 +172,76 @@ export default async function ParametresServices({
               quoi les rattacher.
             </p>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {ecarts.map((e) => (
-                <RapprochementService
-                  key={e.libelle}
-                  libelle={e.libelle}
-                  horsAnnuaire={e.horsAnnuaire}
-                  annuaire={e.annuaire}
-                  services={proposables}
-                />
-              ))}
-            </ul>
+            <>
+              <AppliquerRapprochements surs={surs} />
+              <ul className="divide-y divide-slate-100">
+                {suggestions.map((s) => (
+                  <RapprochementService
+                    key={s.libelle}
+                    suggestion={s}
+                    services={proposables}
+                  />
+                ))}
+              </ul>
+            </>
           )}
         </Card>
       )}
+
+      {regroupements.length > 0 && (
+        <Card title={`Regroupements en vigueur (${regroupements.length})`}>
+          <ul className="divide-y divide-slate-100 text-sm">
+            {regroupements.map((r) => (
+              <li key={r.source} className="flex flex-wrap items-center gap-2 py-2.5">
+                <span className="text-slate-500">{r.source}</span>
+                <span className="text-slate-300">→</span>
+                <span className="font-medium">{r.cible}</span>
+                <BoutonAction
+                  action={retirerRegroupement.bind(null, r.source)}
+                  className="ml-auto rounded-lg border border-slate-200 px-2 py-1.5 text-slate-500 transition hover:bg-slate-50"
+                  title="Retirer ce regroupement"
+                >
+                  <Unlink className="h-3.5 w-3.5" />
+                </BoutonAction>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <Panneau
+        titre="Ajouter des services"
+        sousTitre="Un par un, ou par collage d'une liste"
+        ouvert={services.length === 0}
+      >
+        <div className="space-y-6">
+          <ServiceForm />
+          <div className="border-t border-slate-100 pt-6">
+            <CollageServices />
+          </div>
+          <div className="border-t border-slate-100 pt-6">
+            <ImportServicesAnnuaire />
+          </div>
+        </div>
+      </Panneau>
 
       <div className="space-y-2 text-xs text-slate-500">
         <p>
           Cette liste est proposée sur le bon d&apos;inscription, à la personne
           qui demande un accès sans figurer dans l&apos;annuaire
-          {g.demandeAccesActive ? "" : " — formulaire actuellement désactivé dans Paramètres → Général"}
+          {g.demandeAccesActive
+            ? ""
+            : " — formulaire actuellement désactivé dans Paramètres → Général"}
           . Un service retiré n&apos;y est plus proposé, mais reste affiché sur
           les fiches qui le portent. La suppression définitive n&apos;est
           possible que si plus personne n&apos;y est rattaché.
         </p>
         <p>
-          Le rattachement des comptes de l&apos;annuaire ne se règle pas ici : il
-          est lu dans l&apos;Active Directory (<code>department</code> et{" "}
-          <code>division</code>) et réécrit à chaque synchronisation. Le corriger
-          dans Bolt ne tiendrait pas jusqu&apos;au lendemain.
+          Le service affiché sur une fiche est un résultat : le libellé brut de
+          l&apos;annuaire (<code>department</code>), passé au travers des
+          regroupements ci-dessus. Corriger une règle suffit donc à corriger
+          tout le monde, et rien n&apos;est perdu — le libellé d&apos;origine
+          reste dans le miroir de l&apos;annuaire.
         </p>
       </div>
     </div>

@@ -1,52 +1,243 @@
 import { prisma } from "./db";
 import { PREFIXE_HORS_ANNUAIRE } from "./comptes";
-import { servicesProposes } from "./services";
+import { cleComparaison, servicesProposes } from "./services";
 
 /**
- * Rapprochement des rattachements existants avec le référentiel.
+ * Rapprochement d'un libellé d'annuaire avec un service du référentiel.
  *
- * Poser une liste fermée sur le bon d'inscription ne règle que l'avenir. Les
- * comptes déjà créés portent ce qui a été tapé avant — « Dsi », « D.S.I »,
- * « service info » — et ce sont eux qui font diverger la fréquentation par
- * direction. Cet écran les rassemble et permet de les rattacher d'un geste.
+ * L'égalité stricte ne suffit pas : les deux listes sont écrites par des
+ * personnes différentes, à des années d'intervalle. « CTM » et « Centre
+ * technique municipal » désignent le même service sans partager un caractère,
+ * « Jeunesse » et « Service jeunesse » ne diffèrent que d'un mot vide de sens.
  *
- * La distinction essentielle est celle du compte : hors annuaire ou pas.
+ * On combine donc plusieurs indices, chacun répondant à un cas observé :
  *
- *  • **Hors annuaire** (`no_ad.…`) : le service est saisi dans Bolt, il n'a pas
- *    d'autre source. Le corriger ici le corrige pour de bon.
- *  • **Annuaire** : le service vient de l'attribut `department` et la
- *    synchronisation le réécrit (src/lib/annuaire.ts). Le corriger dans Bolt
- *    tiendrait jusqu'à la nuit suivante. On l'affiche quand même — c'est une
- *    information utile, qui dit à la DSI ce qu'il y a à reprendre dans l'AD —
- *    mais on ne propose pas de le rattacher, ce qui serait mentir sur l'effet.
+ *   sigle            CTM               → Centre technique municipal
+ *   inclusion        Jeunesse          → Service jeunesse
+ *   mots partagés    Marchés publics   → Achats et commande publique (faible)
+ *
+ * Chaque proposition sort avec un niveau de confiance : une suggestion fausse
+ * présentée comme sûre coûte plus cher que pas de suggestion du tout — elle
+ * fait basculer trente agents dans le mauvais service, et personne ne le
+ * remarque avant le bilan de fin de saison.
  */
 
-export type Ecart = {
-  /** Libellé porté par les comptes, absent du référentiel. */
+// Mots trop fréquents pour distinguer deux services : les compter ferait
+// ressembler « Service jeunesse » à « Service technique ».
+const MOTS_VIDES = new Set([
+  "de", "du", "des", "la", "le", "les", "et", "a", "au", "aux", "en", "d", "l",
+  "service", "services", "direction", "pole", "poles", "son", "sa", "ses",
+  "avec", "pour", "sur", "par",
+]);
+
+const mots = (texte: string) => cleComparaison(texte).split(" ").filter(Boolean);
+const motsUtiles = (texte: string) => mots(texte).filter((m) => !MOTS_VIDES.has(m));
+
+/** Initiales des mots significatifs : « Centre technique municipal » → ctm */
+function sigle(texte: string): string {
+  const m = motsUtiles(texte);
+  return m.length >= 2 ? m.map((x) => x[0]).join("") : "";
+}
+
+/**
+ * Pondère chaque mot par sa rareté dans le référentiel : « urbaine » vaut plus
+ * que « générale », qui revient partout.
+ */
+function poids(referentiel: string[]): (mot: string) => number {
+  const frequence = new Map<string, number>();
+  for (const r of referentiel) {
+    for (const m of new Set(motsUtiles(r))) {
+      frequence.set(m, (frequence.get(m) ?? 0) + 1);
+    }
+  }
+  const total = referentiel.length || 1;
+  return (mot) => Math.log(1 + total / (1 + (frequence.get(mot) ?? 0)));
+}
+
+/** Distance de Levenshtein bornée, pour rattraper une faute de frappe. */
+function proche(a: string, b: string, tolerance = 2): boolean {
+  if (Math.abs(a.length - b.length) > tolerance) return false;
+  const d = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let precedent = d[0];
+    d[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tampon = d[j];
+      d[j] = Math.min(d[j] + 1, d[j - 1] + 1, precedent + (a[i - 1] === b[j - 1] ? 0 : 1));
+      precedent = tampon;
+    }
+  }
+  return d[b.length] <= tolerance;
+}
+
+export type Score = { score: number; motif: string | null };
+
+/**
+ * Score de 0 à 100 entre un libellé et un service.
+ * Les règles sont ordonnées de la plus sûre à la plus fragile.
+ */
+export function scorer(
+  libelle: string,
+  service: string,
+  peser: (mot: string) => number,
+): Score {
+  const cl = cleComparaison(libelle);
+  const cs = cleComparaison(service);
+  if (!cl || !cs) return { score: 0, motif: null };
+
+  if (cl === cs) return { score: 100, motif: "libellés identiques" };
+
+  // « Jeunesse » dans « Service jeunesse », ou l'inverse
+  if (cl.startsWith(`${cs} `) || cl.endsWith(` ${cs}`) || cl.includes(` ${cs} `)) {
+    return { score: 92, motif: `« ${service} » est contenu dans le libellé` };
+  }
+  if (cs.startsWith(`${cl} `) || cs.endsWith(` ${cl}`) || cs.includes(` ${cl} `)) {
+    return { score: 88, motif: `le libellé est contenu dans « ${service} »` };
+  }
+
+  // Sigle : CTM → Centre technique municipal
+  const s = sigle(service);
+  if (s && s.length >= 2 && cl.replace(/ /g, "") === s) {
+    return { score: 90, motif: `sigle de « ${service} »` };
+  }
+  const sl = sigle(libelle);
+  if (sl && sl.length >= 2 && cs.replace(/ /g, "") === sl) {
+    return { score: 86, motif: `« ${service} » est le sigle du libellé` };
+  }
+
+  const ml = motsUtiles(libelle);
+  const ms = motsUtiles(service);
+  if (!ml.length || !ms.length) return { score: 0, motif: null };
+
+  // Mots partagés, pondérés par leur rareté
+  const ensembleS = new Set(ms);
+  let commun = 0;
+  let totalL = 0;
+  const partages: string[] = [];
+  for (const m of new Set(ml)) {
+    const p = peser(m);
+    totalL += p;
+    if (ensembleS.has(m)) {
+      commun += p;
+      partages.push(m);
+      continue;
+    }
+    // Faute de frappe ou variante : « administation » / « administration »
+    const voisin = ms.find((x) => x.length > 5 && proche(m, x));
+    if (voisin) {
+      commun += p * 0.85;
+      partages.push(m);
+    }
+  }
+  if (!commun) return { score: 0, motif: null };
+
+  const totalS = ms.reduce((n, m) => n + peser(m), 0);
+  // Moyenne harmonique : un libellé long qui partage un mot avec un service
+  // court ne doit pas obtenir un score élevé.
+  const couvertureL = commun / totalL;
+  const couvertureS = commun / totalS;
+  const harmonique = (2 * couvertureL * couvertureS) / (couvertureL + couvertureS);
+
+  return {
+    score: Math.round(harmonique * 80),
+    motif: `mots en commun : ${partages.join(", ")}`,
+  };
+}
+
+export type Confiance = "sure" | "probable" | "incertaine" | "aucune";
+
+export type Suggestion = {
   libelle: string;
-  /** Comptes hors annuaire : rattachables ici. */
+  /** Comptes hors annuaire portant ce libellé : rattachables ici. */
   horsAnnuaire: number;
-  /** Comptes d'annuaire : à reprendre dans l'AD, pas dans Bolt. */
+  /** Comptes d'annuaire : leur libellé vient de l'AD, la règle les suivra. */
   annuaire: number;
+  confiance: Confiance;
+  ambigu: boolean;
+  proposition: string | null;
+  motif: string | null;
+  score: number;
+  candidats: { service: string; score: number; motif: string | null }[];
 };
 
+export type Libelle = { libelle: string; horsAnnuaire: number; annuaire: number };
+
 /**
- * Libellés portés par au moins un compte et absents du référentiel actif.
+ * Propose, pour chaque libellé, les meilleurs services du référentiel.
  *
- * La comparaison est insensible à la casse : « DSI » présent au référentiel ne
- * doit pas faire ressortir « dsi » comme un écart à traiter — c'est le même
- * service, et le rattacher n'y changerait rien de visible. Ce qu'on cherche,
- * ce sont les libellés qui n'existent nulle part dans la liste.
+ * Les seuils sont volontairement prudents : mieux vaut ne rien proposer que de
+ * faire basculer trente agents dans le mauvais service.
  */
-export async function ecartsDeRattachement(): Promise<Ecart[]> {
-  const [referentiel, comptes] = await Promise.all([
+export function rapprocher(
+  libelles: Libelle[],
+  referentiel: string[],
+  { maximum = 3 }: { maximum?: number } = {},
+): Suggestion[] {
+  const peser = poids(referentiel);
+
+  return libelles.map((l) => {
+    const candidats = referentiel
+      .map((service) => ({ service, ...scorer(l.libelle, service, peser) }))
+      .filter((c) => c.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maximum);
+
+    const meilleur = candidats[0] ?? null;
+    const second = candidats[1] ?? null;
+
+    // Un écart faible entre les deux premiers signale une ambiguïté réelle :
+    // « Maison des arts » hésite entre plusieurs « Maison des … ».
+    const ambigu = Boolean(meilleur && second && meilleur.score - second.score < 8);
+
+    let confiance: Confiance = "aucune";
+    if (meilleur) {
+      if (meilleur.score >= 85 && !ambigu) confiance = "sure";
+      else if (meilleur.score >= 60) confiance = "probable";
+      else if (meilleur.score >= 35) confiance = "incertaine";
+    }
+
+    return {
+      libelle: l.libelle,
+      horsAnnuaire: l.horsAnnuaire,
+      annuaire: l.annuaire,
+      confiance,
+      ambigu,
+      proposition: confiance === "aucune" ? null : meilleur!.service,
+      motif: meilleur?.motif ?? null,
+      score: meilleur?.score ?? 0,
+      candidats,
+    };
+  });
+}
+
+/**
+ * Inventaire des libellés bruts en usage et absents du référentiel.
+ *
+ * Le libellé BRUT, et non le service affiché : c'est lui que les règles
+ * prennent en entrée, et c'est sur lui que le rapprochement doit porter pour
+ * rester rejouable. Pour un compte d'annuaire il vient du miroir
+ * (`AdAccount.service`), pour les autres du compte lui-même.
+ */
+export async function inventaireLibelles(): Promise<Libelle[]> {
+  const [referentiel, comptes, miroir] = await Promise.all([
     servicesProposes(),
     prisma.user.findMany({
-      where: { service: { not: null }, active: true },
+      where: { active: true, serviceForce: false },
       select: { login: true, service: true },
     }),
+    prisma.adAccount.findMany({ select: { samAccountName: true, service: true } }),
   ]);
-  return regrouperEcarts(comptes, referentiel);
+
+  const brutParLogin = new Map(
+    miroir.map((m) => [m.samAccountName.toLowerCase(), m.service]),
+  );
+  return regrouperLibelles(
+    comptes.map((c) => ({
+      login: c.login,
+      brut: brutParLogin.get(c.login.toLowerCase()) ?? c.service,
+    })),
+    referentiel,
+  );
 }
 
 /**
@@ -54,27 +245,21 @@ export async function ecartsDeRattachement(): Promise<Ecart[]> {
  * C'est toute la logique de cet écran, et elle est invisible à la relecture :
  * on ne voit pas, en lisant, que « DSI » et « dsi » doivent compter pour un.
  */
-export function regrouperEcarts(
-  comptes: { login: string; service: string | null }[],
+export function regrouperLibelles(
+  comptes: { login: string; brut: string | null }[],
   referentiel: string[],
-): Ecart[] {
-  const connus = new Set(referentiel.map((s) => s.toLowerCase()));
-  const parLibelle = new Map<string, Ecart>();
+): Libelle[] {
+  const connus = new Set(referentiel.map(cleComparaison));
+  const parLibelle = new Map<string, Libelle>();
 
   for (const c of comptes) {
-    const libelle = (c.service ?? "").trim();
-    if (!libelle || connus.has(libelle.toLowerCase())) continue;
-    const courant = parLibelle.get(libelle.toLowerCase()) ?? {
-      libelle,
-      horsAnnuaire: 0,
-      annuaire: 0,
-    };
-    if (c.login.toLowerCase().startsWith(PREFIXE_HORS_ANNUAIRE)) {
-      courant.horsAnnuaire += 1;
-    } else {
-      courant.annuaire += 1;
-    }
-    parLibelle.set(libelle.toLowerCase(), courant);
+    const libelle = (c.brut ?? "").trim();
+    const cle = cleComparaison(libelle);
+    if (!cle || connus.has(cle)) continue;
+    const courant = parLibelle.get(cle) ?? { libelle, horsAnnuaire: 0, annuaire: 0 };
+    if (c.login.toLowerCase().startsWith(PREFIXE_HORS_ANNUAIRE)) courant.horsAnnuaire += 1;
+    else courant.annuaire += 1;
+    parLibelle.set(cle, courant);
   }
 
   // Les plus nombreux d'abord : c'est là que le rapprochement rapporte le plus.
