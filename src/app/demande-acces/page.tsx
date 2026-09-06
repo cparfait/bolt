@@ -2,6 +2,7 @@ import { Dumbbell, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getGeneralSettings } from "@/lib/settings";
+import { servicesProposes } from "@/lib/services";
 import { TitreConnexion } from "@/components/ui";
 import { DemandeAccesForm } from "./formulaire";
 
@@ -21,6 +22,8 @@ export default async function DemandeAccesPage() {
   // Désactivé, l'écran n'existe pas : mieux vaut un 404 qu'une page qui
   // explique comment demander un accès dont personne ne verra la demande.
   if (!g.demandeAccesActive) notFound();
+
+  const services = await servicesProposes();
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
@@ -61,7 +64,7 @@ export default async function DemandeAccesPage() {
           </p>
         </div>
 
-        <DemandeAccesForm />
+        <DemandeAccesForm services={services} />
 
         <p className="mt-6 flex items-start gap-2 text-xs text-slate-400">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />

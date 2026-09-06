@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
 import { rattachementsConnus } from "@/lib/comptes";
+import { servicesProposes } from "@/lib/services";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { DemandeAccesActions } from "@/components/demande-acces-actions";
 import { DemandesMenage } from "@/components/demandes-menage";
@@ -36,7 +37,15 @@ export default async function DemandesAccesPage() {
   ]);
 
   const refusees = await prisma.demandeAcces.count({ where: { statut: "REFUSEE" } });
-  const { directions, services } = await rattachementsConnus();
+  const { directions, services: servicesAnnuaire } = await rattachementsConnus();
+
+  // Le référentiel prime sur l'annuaire quand il est rempli : c'est la liste que
+  // la personne a vue sur le bon d'inscription, et proposer autre chose ici
+  // rouvrirait par la fenêtre les orthographes que la liste fermée écarte.
+  // Vide, on retombe sur ce que porte l'annuaire — mieux vaut une suggestion
+  // approximative que pas de suggestion du tout.
+  const referentiel = await servicesProposes();
+  const services = referentiel.length > 0 ? referentiel : servicesAnnuaire;
 
   return (
     <>

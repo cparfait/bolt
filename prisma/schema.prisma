@@ -186,6 +186,30 @@ model Lieu {
   createdAt DateTime @default(now())
 }
 
+// ── Services de la collectivité ────────────────────────────────────────────
+
+// Référentiel des services, saisi dans les paramètres et proposé en liste sur
+// le bon d'inscription.
+//
+// Il ne vaut QUE pour les personnes hors annuaire. Le rattachement d'un compte
+// AD est lu dans l'annuaire (`department` / `division`) et réécrit à chaque
+// synchronisation : le corriger ici ne tiendrait pas jusqu'au lendemain. Ce
+// référentiel comble le trou d'à côté — le vacataire qui tapait son service à
+// la main, et écrivait « Dsi » là où l'annuaire dit « DSI ». La fréquentation
+// par direction se répartissait alors sur autant de lignes que d'orthographes.
+//
+// Comme les lieux, le rattachement est stocké en clair sur le compte
+// (`User.service`) et non par clé étrangère : l'historique et les exports
+// gardent le libellé tel qu'il était. Renommer un service propage le nouveau
+// libellé aux comptes qui le portaient.
+model Service {
+  id        String   @id @default(cuid())
+  nom       String   @unique // « Services techniques », « Petite enfance »
+  actif     Boolean  @default(true)
+  ordre     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 // ── Activités & créneaux ───────────────────────────────────────────────────
 
 model Activite {

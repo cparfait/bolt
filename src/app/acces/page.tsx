@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
+import { servicesProposes } from "@/lib/services";
 import { clientIp, estInterne } from "@/lib/net";
 import { TitreConnexion } from "@/components/ui";
 import { DemandeLienForm } from "./demande-form";
@@ -34,6 +35,11 @@ export default async function AccesPage({
   // Windows » y offrirait un lien mort, et surtout ferait chercher un mot de
   // passe là où il n'en faut pas. La proposition n'a de sens que sur le réseau.
   const interne = estInterne(clientIp(await headers()));
+
+  // Chargés ici et non dans le formulaire : celui-ci est un composant client, et
+  // la liste doit être prête si l'adresse saisie se révèle inconnue — le bon
+  // d'inscription apparaît alors sans nouvel aller-retour.
+  const services = g.demandeAccesActive ? await servicesProposes() : [];
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
@@ -72,7 +78,7 @@ export default async function AccesPage({
         )}
 
         {g.lienMagiqueActif ? (
-          <DemandeLienForm />
+          <DemandeLienForm services={services} />
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
             <p className="text-sm text-slate-600">

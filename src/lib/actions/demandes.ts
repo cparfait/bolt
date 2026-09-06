@@ -15,6 +15,7 @@ import {
 } from "@/lib/demandes";
 import { requireUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
+import { serviceDuReferentiel, servicesProposes } from "@/lib/services";
 import { erreur, succes, type ActionState } from "./types";
 
 /**
@@ -79,13 +80,29 @@ export async function deposerDemandeAction(
 
   const nom = String(formData.get("nom") ?? "").trim().replace(/\s+/g, " ");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const service = String(formData.get("service") ?? "").trim().slice(0, 120);
+  const saisi = String(formData.get("service") ?? "").trim().slice(0, 120);
   const message = String(formData.get("message") ?? "").trim().slice(0, 500);
 
   if (nom.length < 2) return erreur("Indiquez votre nom et votre prénom.");
   if (nom.length > 120) return erreur("Nom trop long.");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return erreur("Adresse e-mail invalide.");
+  }
+
+  // Le service est vérifié contre le référentiel, et le libellé enregistré est
+  // le sien : la valeur d'un `<select>` se falsifie aussi facilement que celle
+  // d'un champ libre, et « dsi » réintroduirait la ligne parasite que la liste
+  // fermée existe pour éviter. Référentiel vide, la saisie reste libre — sans
+  // quoi activer le formulaire avant d'avoir rempli la liste rendrait toute
+  // demande impossible.
+  const referentiel = await servicesProposes();
+  let service = saisi;
+  if (referentiel.length > 0 && saisi) {
+    const canonique = await serviceDuReferentiel(saisi);
+    if (!canonique) {
+      return erreur("Choisissez votre service dans la liste, ou laissez-le vide.");
+    }
+    service = canonique;
   }
 
   const ip = clientIp(await headers());

@@ -2,19 +2,26 @@
 
 import { useActionState, type ReactNode } from "react";
 import { deposerDemandeAction } from "@/lib/actions/demandes";
-import { Alert, Field, Input, Textarea, btnPrimary } from "@/components/ui";
+import { Alert, Field, Input, Select, Textarea, btnPrimary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/actions/types";
 
 export function DemandeAccesForm({
   email = "",
   intro,
+  services = [],
 }: {
   email?: string;
   // Rendu au-dessus du formulaire, et seulement tant qu'il est affiché : une
   // fois la demande transmise, « vous n'avez pas encore d'accès » resterait à
   // l'écran au-dessus de l'accusé de réception, à contredire ce qu'il annonce.
   intro?: ReactNode;
+  /**
+   * Référentiel des services (Paramètres → Services). Vide, le champ reste
+   * libre : une liste déroulante sans option n'est pas une simplification, c'est
+   * une impasse.
+   */
+  services?: string[];
 }) {
   const [state, action] = useActionState<ActionState, FormData>(
     deposerDemandeAction,
@@ -81,11 +88,34 @@ export function DemandeAccesForm({
         />
       </Field>
 
+      {/* Liste fermée dès que le référentiel est rempli. Le champ libre laissait
+          « Dsi » à côté de « DSI », et la fréquentation par direction se
+          répartissait sur autant de lignes que d'orthographes.
+
+          Il reste facultatif : quelqu'un qui ne se reconnaît dans aucune ligne
+          — un organisme extérieur, un rattachement en cours de changement — doit
+          pouvoir déposer sa demande sans se ranger de force sous une étiquette
+          fausse. Le gestionnaire tranchera en validant, où le champ est libre. */}
       <Field
-        label="Votre service ou votre organisme"
-        hint="Facultatif, mais cela évite un aller-retour."
+        label="Votre service"
+        hint={
+          services.length > 0
+            ? "Facultatif. Vous ne trouvez pas le vôtre ? Laissez vide et précisez-le ci-dessous."
+            : "Facultatif, mais cela évite un aller-retour."
+        }
       >
-        <Input name="service" placeholder="Piscine municipale, association…" />
+        {services.length > 0 ? (
+          <Select name="service" defaultValue="">
+            <option value="">— Non précisé —</option>
+            {services.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Input name="service" placeholder="Piscine municipale, association…" />
+        )}
       </Field>
 
       <Field

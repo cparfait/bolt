@@ -19,7 +19,7 @@ import { DemandeAccesForm } from "@/app/demande-acces/formulaire";
  * une adresse que n'importe qui vient de taper ferait de cet écran un moyen de
  * faire écrire la collectivité à des tiers.
  */
-export function DemandeLienForm() {
+export function DemandeLienForm({ services = [] }: { services?: string[] }) {
   const [state, action] = useActionState<AccesState, FormData>(
     demanderLienAction,
     null,
@@ -32,6 +32,7 @@ export function DemandeLienForm() {
     return (
       <DemandeAccesForm
         email={state.email ?? ""}
+        services={services}
         intro={
           <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
             <p className="text-sm font-semibold text-slate-700">
