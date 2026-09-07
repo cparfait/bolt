@@ -13,7 +13,7 @@ import { Panneau } from "@/components/panneau";
 import { BoutonAction } from "@/components/bouton-action";
 import {
   AppliquerRapprochements,
-  ChargerReferentiel,
+  ImportParametrage,
   CollageServices,
   ImportServicesAnnuaire,
   ServiceForm,
@@ -21,8 +21,6 @@ import {
 import { RapprochementService } from "@/components/rapprochement-service";
 import { inventaireLibelles, rapprocher } from "@/lib/rapprochement";
 import { pluriel } from "@/lib/constants";
-import { SERVICES_OFFICIELS } from "@/lib/referentiel-services";
-import { cleComparaison } from "@/lib/services";
 
 export const dynamic = "force-dynamic";
 
@@ -52,12 +50,7 @@ export default async function ParametresServices({
   ]);
 
   const proposables = services.filter((s) => s.actif).map((s) => s.nom);
-  // Le référentiel officiel est-il posé ? Tant que non, le panneau d'ajout
-  // s'ouvre dessus : c'est le premier geste à faire.
-  const actifs = new Set(proposables.map(cleComparaison));
-  const officielPose =
-    SERVICES_OFFICIELS.every((n) => actifs.has(cleComparaison(n))) &&
-    actifs.size === SERVICES_OFFICIELS.length;
+
   const suggestions = rapprocher(libelles, proposables);
   const surs = suggestions.filter((s) => s.confiance === "sure").length;
 
@@ -228,11 +221,11 @@ export default async function ParametresServices({
 
       <Panneau
         titre="Ajouter des services"
-        sousTitre="Le référentiel officiel, un par un, ou par collage d'une liste"
-        ouvert={!officielPose}
+        sousTitre="Par import d'un paramétrage, un par un, ou par collage d'une liste"
+        ouvert={services.length === 0}
       >
         <div className="space-y-6">
-          <ChargerReferentiel total={SERVICES_OFFICIELS.length} />
+          <ImportParametrage />
           <div className="border-t border-slate-100 pt-6">
             <ServiceForm />
           </div>

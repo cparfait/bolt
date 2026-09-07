@@ -1,10 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { Building2, ClipboardPaste, DownloadCloud, Landmark, Wand2 } from "lucide-react";
+import { Building2, ClipboardPaste, DownloadCloud, FileJson, Upload, Wand2 } from "lucide-react";
 import {
   appliquerRapprochementsSurs,
-  chargerReferentielOfficiel,
+  importerParametrage,
   collerServices,
   enregistrerService,
   importerServicesAnnuaire,
@@ -137,32 +137,50 @@ export function AppliquerRapprochements({ surs }: { surs: number }) {
 }
 
 /**
- * Le référentiel officiel, d'un geste.
+ * Import et export du paramétrage, au format de cybermois.
  *
- * La liste vit dans le code (src/lib/referentiel-services.ts) parce qu'elle est
- * une donnée de la collectivité, pas de cette application : c'est elle dont
- * tous les outils doivent parler. Le bouton la pose, aligne les graphies,
- * retire de la liste proposée ce qui n'en fait pas partie, et laisse au
- * rapprochement le soin de rattacher les libellés de l'annuaire.
+ * C'est le fichier qui fait que tous les outils de la collectivité parlent
+ * des mêmes services : on l'exporte de l'un, on l'importe dans l'autre. Rien
+ * n'est figé dans le code — le référentiel et les règles restent modifiables
+ * ici, et le fichier n'est qu'un moyen de transport.
  */
-export function ChargerReferentiel({ total }: { total: number }) {
+export function ImportParametrage() {
   const [state, action] = useActionState<ActionState, FormData>(
-    chargerReferentielOfficiel,
+    importerParametrage,
     null,
   );
   return (
     <form action={action} className="space-y-3">
       <Alert state={state} />
-      <SubmitButton className={btnPrimary} pendingLabel="Chargement…">
-        <Landmark className="h-4 w-4" />
-        Poser le référentiel officiel ({total} services)
-      </SubmitButton>
+      <Field
+        label="Fichier de paramétrage"
+        hint="Le JSON exporté par cybermois (npm run parametrage -- exporter) ou par Bolt : référentiel et regroupements."
+      >
+        <Input name="fichier" type="file" accept=".json,application/json" required />
+      </Field>
+      <label className="flex items-start gap-2 text-sm text-slate-600">
+        <input type="checkbox" name="remplacer" defaultChecked className="mt-1" />
+        <span>
+          Remplacer : retirer de la liste proposée les services absents du
+          fichier, et retirer les regroupements qu&apos;il ne mentionne pas.
+          Décoché, le fichier complète l&apos;existant.
+        </span>
+      </label>
+      <div className="flex flex-wrap items-center gap-3">
+        <SubmitButton className={btnPrimary} pendingLabel="Import…">
+          <Upload className="h-4 w-4" /> Importer le paramétrage
+        </SubmitButton>
+        <a
+          href="/parametres/services/export"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-brand-600"
+        >
+          <FileJson className="h-4 w-4" /> Exporter le paramétrage courant
+        </a>
+      </div>
       <p className="text-xs text-slate-500">
-        La liste des services de la collectivité, celle dont tous les outils
-        parlent. Les services déjà présents sont alignés sur son orthographe,
-        les autres sont retirés de la liste proposée sans être supprimés, et
-        les regroupements établis dans cybermois sont repris. Relançable sans
-        risque.
+        Les services déjà présents sont alignés sur l&apos;orthographe du
+        fichier, et les comptes suivent. Rien n&apos;est supprimé : un service
+        retiré reste sur les fiches qui le portent.
       </p>
     </form>
   );

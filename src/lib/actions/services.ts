@@ -13,7 +13,7 @@ import {
   servicesProposes,
 } from "@/lib/services";
 import { inventaireLibelles, rapprocher } from "@/lib/rapprochement";
-import { REGROUPEMENTS_INITIAUX, SERVICES_OFFICIELS } from "@/lib/referentiel-services";
+import { lireParametrage, type Parametrage } from "@/lib/parametrage";
 import { audit } from "@/lib/audit";
 import { erreur, succes, type ActionState } from "./types";
 
@@ -314,74 +314,126 @@ export async function appliquerRapprochementsSurs(): Promise<ActionState> {
 }
 
 /**
- * Pose le référentiel officiel de la collectivité (src/lib/referentiel-services.ts).
+ * Import d'un fichier de paramétrage (src/lib/parametrage.ts) — le même
+ * format que cybermois, dans les deux sens.
  *
- * Trois gestes, dans cet ordre :
- *  1. chaque service officiel est créé, ou — s'il existe déjà à la graphie
- *     près — aligné sur l'orthographe officielle, avec la même propagation
- *     qu'un renommage : comptes, règles, demandes en attente ;
- *  2. tout autre service du référentiel est RETIRÉ de la liste proposée, pas
- *     supprimé : un import d'annuaire a pu en créer cent, portés par des
- *     fiches, et ce sont eux que le rapprochement va maintenant rattacher ;
- *  3. les regroupements de départ sont posés s'ils n'existent pas encore.
+ * Le référentiel du fichier est posé dans son ordre : un service absent est
+ * créé, un service présent à la graphie près est aligné sur l'orthographe du
+ * fichier avec la propagation d'un renommage. Les règles du fichier sont
+ * posées, et corrigent une règle existante sur la même source.
  *
- * Relançable : une seconde exécution ne change rien qu'elle n'ait déjà fait.
+ * « Remplacer » décide du sort de ce que le fichier ne mentionne pas : les
+ * services sont retirés de la liste proposée — jamais supprimés, des fiches
+ * les portent — et les règles retirées. Sans, le fichier complète l'existant.
  */
-export async function chargerReferentielOfficiel(): Promise<ActionState> {
+export async function importerParametrage(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const user = await requireUser("GESTIONNAIRE");
+  const fichier = formData.get("fichier");
+  if (!(fichier instanceof File) || fichier.size === 0) {
+    return erreur("Choisissez un fichier de paramétrage (.json).");
+  }
+  if (fichier.size > 2_000_000) return erreur("Fichier trop volumineux.");
+  const remplacer = formData.get("remplacer") === "on";
+
+  let p: Parametrage;
+  try {
+    p = lireParametrage(await fichier.text());
+  } catch (e) {
+    return erreur(e instanceof Error ? e.message : "Fichier illisible.");
+  }
+
   const existants = await prisma.service.findMany();
   const parCle = new Map(existants.map((s) => [cleComparaison(s.nom), s]));
-
   let crees = 0;
   let renommes = 0;
-  const officiels = new Set<string>();
-  for (const [ordre, nom] of SERVICES_OFFICIELS.entries()) {
-    const cle = cleComparaison(nom);
-    officiels.add(cle);
+  const mentionnes = new Set<string>();
+  for (const [ordre, ligne] of p.referentiel.entries()) {
+    const cle = cleComparaison(ligne.nom);
+    mentionnes.add(cle);
     const existant = parCle.get(cle);
     if (!existant) {
-      await prisma.service.create({ data: { nom, ordre, actif: true } });
+      await prisma.service.create({ data: { nom: ligne.nom, ordre, actif: ligne.actif } });
       crees++;
       continue;
     }
-    await prisma.service.update({ where: { id: existant.id }, data: { nom, ordre, actif: true } });
-    if (existant.nom !== nom) {
+    await prisma.service.update({
+      where: { id: existant.id },
+      data: { nom: ligne.nom, ordre, actif: ligne.actif },
+    });
+    if (existant.nom !== ligne.nom) {
       await Promise.all([
         prisma.regroupementService.updateMany({
           where: { cible: existant.nom },
-          data: { cible: nom },
+          data: { cible: ligne.nom },
         }),
         prisma.demandeAcces.updateMany({
           where: { service: existant.nom, statut: "EN_ATTENTE" },
-          data: { service: nom },
+          data: { service: ligne.nom },
         }),
-        prisma.user.updateMany({ where: { service: existant.nom }, data: { service: nom } }),
+        prisma.user.updateMany({ where: { service: existant.nom }, data: { service: ligne.nom } }),
       ]);
       renommes++;
     }
   }
 
-  const retires = await prisma.service.updateMany({
-    where: { actif: true, id: { in: existants.filter((s) => !officiels.has(cleComparaison(s.nom))).map((s) => s.id) } },
-    data: { actif: false },
-  });
-
-  const regles = await prisma.regroupementService.findMany({ select: { source: true } });
-  const sources = new Set(regles.map((r) => cleComparaison(r.source)));
-  const nouvelles = REGROUPEMENTS_INITIAUX.filter((r) => !sources.has(cleComparaison(r.source)));
-  if (nouvelles.length > 0) {
-    await prisma.regroupementService.createMany({ data: nouvelles, skipDuplicates: true });
+  let retires = 0;
+  if (remplacer) {
+    const hors = existants.filter((s) => s.actif && !mentionnes.has(cleComparaison(s.nom)));
+    if (hors.length > 0) {
+      const r = await prisma.service.updateMany({
+        where: { id: { in: hors.map((s) => s.id) } },
+        data: { actif: false },
+      });
+      retires = r.count;
+    }
   }
 
-  await audit("REFERENTIEL_OFFICIEL_CHARGE", {
+  // Les règles : une source ne peut désigner qu'un service, et la source est
+  // la clé — à la graphie près, ce qui oblige à retrouver l'existante avant
+  // d'écrire.
+  const regles = await prisma.regroupementService.findMany();
+  const regleParCle = new Map(regles.map((r) => [cleComparaison(r.source), r]));
+  let posees = 0;
+  const sourcesFichier = new Set<string>();
+  for (const r of p.regroupements) {
+    const cle = cleComparaison(r.source);
+    sourcesFichier.add(cle);
+    const existante = regleParCle.get(cle);
+    if (!existante) {
+      await prisma.regroupementService.create({ data: r });
+      posees++;
+    } else if (existante.cible !== r.cible || existante.source !== r.source) {
+      await prisma.regroupementService.update({
+        where: { source: existante.source },
+        data: r,
+      });
+      posees++;
+    }
+  }
+  let reglesRetirees = 0;
+  if (remplacer) {
+    const hors = regles.filter((r) => !sourcesFichier.has(cleComparaison(r.source)));
+    if (hors.length > 0) {
+      const d = await prisma.regroupementService.deleteMany({
+        where: { source: { in: hors.map((r) => r.source) } },
+      });
+      reglesRetirees = d.count;
+    }
+  }
+
+  await audit("PARAMETRAGE_SERVICES_IMPORTE", {
     userId: user.id,
-    details: `${crees} créé(s), ${renommes} renommé(s), ${retires.count} retiré(s), ${nouvelles.length} règle(s)`,
+    cible: fichier.name,
+    details: `${crees} créé(s), ${renommes} renommé(s), ${retires} retiré(s) ; ${posees} règle(s) posée(s), ${reglesRetirees} retirée(s)${remplacer ? " (remplacement)" : ""}`,
   });
 
   const touches = await recalculer();
   return succes(
-    `Référentiel posé : ${crees} service(s) ajouté(s), ${renommes} aligné(s) sur l'orthographe officielle, ` +
-      `${retires.count} retiré(s) de la liste proposée, ${nouvelles.length} regroupement(s) posé(s). ` +
+    `Paramétrage importé : ${crees} service(s) ajouté(s), ${renommes} aligné(s) sur l'orthographe du fichier, ` +
+      `${retires} retiré(s) de la liste proposée ; ${posees} regroupement(s) posé(s), ${reglesRetirees} retiré(s). ` +
       `${touches} compte(s) rattaché(s) au passage.`,
   );
 }

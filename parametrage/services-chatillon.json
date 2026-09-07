@@ -1,0 +1,423 @@
+{
+  "version": 1,
+  "collectivite": "Ville de Châtillon",
+  "note": "Référentiel des services de la collectivité, et regroupements repris de cybermois (production, septembre 2026). S'importe dans Bolt et dans cybermois.",
+  "referentiel": [
+    {
+      "nom": "Cabinet de la Maire",
+      "actif": true
+    },
+    {
+      "nom": "Communication et Evènementiel",
+      "actif": true
+    },
+    {
+      "nom": "Prévention et Citoyenneté",
+      "actif": true
+    },
+    {
+      "nom": "Direction générale",
+      "actif": true
+    },
+    {
+      "nom": "Relations avec les habitants et Démocratie locale et Vie associative",
+      "actif": true
+    },
+    {
+      "nom": "Urbanisme et Aménagement et Foncier",
+      "actif": true
+    },
+    {
+      "nom": "Commerce et Attractivité",
+      "actif": true
+    },
+    {
+      "nom": "Direction des Systèmes d'information",
+      "actif": true
+    },
+    {
+      "nom": "Direction des Ressources Humaines",
+      "actif": true
+    },
+    {
+      "nom": "Finances",
+      "actif": true
+    },
+    {
+      "nom": "Processus internes",
+      "actif": true
+    },
+    {
+      "nom": "Déontologie, Laïcité, Gouvernance et Protection des Données",
+      "actif": true
+    },
+    {
+      "nom": "Administration et finances des Services Techniques",
+      "actif": true
+    },
+    {
+      "nom": "Direction des Services Techniques et chargées d'opérations des Services Techniques",
+      "actif": true
+    },
+    {
+      "nom": "Cadre de vie et Transition écologique",
+      "actif": true
+    },
+    {
+      "nom": "Centre Technique municipal",
+      "actif": true
+    },
+    {
+      "nom": "Achats et Commande Publique",
+      "actif": true
+    },
+    {
+      "nom": "Administration Générale -Affaires juridiques-Assurances-Courrier",
+      "actif": true
+    },
+    {
+      "nom": "Etat-Civil",
+      "actif": true
+    },
+    {
+      "nom": "Police Municipale",
+      "actif": true
+    },
+    {
+      "nom": "Education",
+      "actif": true
+    },
+    {
+      "nom": "Entretien des écoles élémentaires et bâtiments communaux",
+      "actif": true
+    },
+    {
+      "nom": "Cuisine centrale et son évolution",
+      "actif": true
+    },
+    {
+      "nom": "Service Jeunesse",
+      "actif": true
+    },
+    {
+      "nom": "Sports",
+      "actif": true
+    },
+    {
+      "nom": "Petite Enfance",
+      "actif": true
+    },
+    {
+      "nom": "Archives",
+      "actif": true
+    },
+    {
+      "nom": "Action culturelle",
+      "actif": true
+    },
+    {
+      "nom": "Ludo-Médiathèque",
+      "actif": true
+    },
+    {
+      "nom": "Maison des Arts et Maison du Patrimoine",
+      "actif": true
+    },
+    {
+      "nom": "Maison des Enfants",
+      "actif": true
+    },
+    {
+      "nom": "Maison des Seniors",
+      "actif": true
+    },
+    {
+      "nom": "Handicap",
+      "actif": true
+    },
+    {
+      "nom": "CMS",
+      "actif": true
+    },
+    {
+      "nom": "Direction et administation du CCAS et Maintien à domicile",
+      "actif": true
+    },
+    {
+      "nom": "Résidence Monfort",
+      "actif": true
+    },
+    {
+      "nom": "Logement et aides légales",
+      "actif": true
+    }
+  ],
+  "regroupements": [
+    {
+      "source": "Marchés Publics",
+      "cible": "Achats et Commande Publique"
+    },
+    {
+      "source": "Administration Générale",
+      "cible": "Administration Générale -Affaires juridiques-Assurances-Courrier"
+    },
+    {
+      "source": "Courrier",
+      "cible": "Administration Générale -Affaires juridiques-Assurances-Courrier"
+    },
+    {
+      "source": "Cabinet de Madame la Maire",
+      "cible": "Cabinet de la Maire"
+    },
+    {
+      "source": "CTM",
+      "cible": "Centre Technique municipal"
+    },
+    {
+      "source": "Animation Commerciale et Attractivité",
+      "cible": "Commerce et Attractivité"
+    },
+    {
+      "source": "Communication",
+      "cible": "Communication et Evènementiel"
+    },
+    {
+      "source": "Entretien, Restauration et Séniors",
+      "cible": "Communication et Evènementiel"
+    },
+    {
+      "source": "Espace Maison Blanche",
+      "cible": "Communication et Evènementiel"
+    },
+    {
+      "source": "Evènementiel",
+      "cible": "Communication et Evènementiel"
+    },
+    {
+      "source": "Imprimerie",
+      "cible": "Communication et Evènementiel"
+    },
+    {
+      "source": "Cuisine Centrale",
+      "cible": "Cuisine centrale et son évolution"
+    },
+    {
+      "source": "Direction Entretien et Restauration",
+      "cible": "Cuisine centrale et son évolution"
+    },
+    {
+      "source": "Ressources Humaines",
+      "cible": "Direction des Ressources Humaines"
+    },
+    {
+      "source": "Ressources Humaines Carrières",
+      "cible": "Direction des Ressources Humaines"
+    },
+    {
+      "source": "Ressources Humaines Formation",
+      "cible": "Direction des Ressources Humaines"
+    },
+    {
+      "source": "CCAS",
+      "cible": "Direction et administation du CCAS et Maintien à domicile"
+    },
+    {
+      "source": "Direction Générale des Services",
+      "cible": "Direction générale"
+    },
+    {
+      "source": "DPO",
+      "cible": "Déontologie, Laïcité, Gouvernance et Protection des Données"
+    },
+    {
+      "source": "Centre de Loisirs Arc-en-Ciel Maternelle",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs du Parc Maternelle",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Gambetta Elementaire",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Gay Lussac Maternelle",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Jean Jaures Maternelle",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Joliot Curie Elementaire",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Joliot Curie Maternelle",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Jules Verne Elementaire",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Langevin Wallon Elementaire",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Langevin Wallon Maternelle",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Marcel Doret Elementaire",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Sablons Elementaire",
+      "cible": "Education"
+    },
+    {
+      "source": "Centre de Loisirs Sablons Maternelle",
+      "cible": "Education"
+    },
+    {
+      "source": "Education - Centre de Loisirs Sablons Maternelle",
+      "cible": "Education"
+    },
+    {
+      "source": "Education --Centre de Loisirs Joliot Curie Maternelle",
+      "cible": "Education"
+    },
+    {
+      "source": "Entretien Maternelles",
+      "cible": "Education"
+    },
+    {
+      "source": "Accueils Ecoles",
+      "cible": "Entretien des écoles élémentaires et bâtiments communaux"
+    },
+    {
+      "source": "Entretien",
+      "cible": "Entretien des écoles élémentaires et bâtiments communaux"
+    },
+    {
+      "source": "Entretien Elementaires",
+      "cible": "Entretien des écoles élémentaires et bâtiments communaux"
+    },
+    {
+      "source": "Cimetière",
+      "cible": "Etat-Civil"
+    },
+    {
+      "source": "Population & Citoyenneté",
+      "cible": "Etat-Civil"
+    },
+    {
+      "source": "Population et Citoyenneté",
+      "cible": "Etat-Civil"
+    },
+    {
+      "source": "Accessibilité et Handicap",
+      "cible": "Handicap"
+    },
+    {
+      "source": "Logement",
+      "cible": "Logement et aides légales"
+    },
+    {
+      "source": "Ludothèque",
+      "cible": "Ludo-Médiathèque"
+    },
+    {
+      "source": "Médiathèque",
+      "cible": "Ludo-Médiathèque"
+    },
+    {
+      "source": "Maison des Arts",
+      "cible": "Maison des Arts et Maison du Patrimoine"
+    },
+    {
+      "source": "Maison du Patrimoine",
+      "cible": "Maison des Arts et Maison du Patrimoine"
+    },
+    {
+      "source": "Crêche Flûte Enchantée",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Crêche Ile aux Trésors",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Crêche Jardin d'Enfants",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Crêche La Cigogne",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Crêche Petit Poucet",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Crêche Petit Prince",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Crêche Pierrelais",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Crêche Sablons",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Relais Assistance Parentale",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Relais Petite Enfance",
+      "cible": "Petite Enfance"
+    },
+    {
+      "source": "Prévention et Citoyenneté - Espace Gisèle Halimi",
+      "cible": "Prévention et Citoyenneté"
+    },
+    {
+      "source": "Direction Relation avec les Habitants et Démocratie Locale",
+      "cible": "Relations avec les habitants et Démocratie locale et Vie associative"
+    },
+    {
+      "source": "Vie Associative",
+      "cible": "Relations avec les habitants et Démocratie locale et Vie associative"
+    },
+    {
+      "source": "Jeunesse",
+      "cible": "Service Jeunesse"
+    },
+    {
+      "source": "Jeunesse - BIJ",
+      "cible": "Service Jeunesse"
+    },
+    {
+      "source": "Jeunesse - Club 6-12",
+      "cible": "Service Jeunesse"
+    },
+    {
+      "source": "Jeunesse - Kid Club",
+      "cible": "Service Jeunesse"
+    },
+    {
+      "source": "Jeunesse - Le Chat",
+      "cible": "Service Jeunesse"
+    },
+    {
+      "source": "Urbanisme et Aménagement",
+      "cible": "Urbanisme et Aménagement et Foncier"
+    }
+  ],
+  "exclusionsSync": [],
+  "agents": []
+}
