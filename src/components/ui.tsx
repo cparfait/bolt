@@ -59,18 +59,18 @@ export function Logos({
         <img
           src={ville}
           alt={orgName}
-          // La largeur borne autant que la hauteur : un logo de collectivité
-          // est souvent un bandeau — blason, puis nom de la ville à côté. Un
-          // plafond de largeur trop bas le réduit à une vignette illisible,
-          // alors que la hauteur, elle, n'était pas atteinte.
-          className="max-h-24 w-auto max-w-[320px] object-contain"
+          // Aucune borne de largeur autre que celle de la colonne : un logo de
+          // collectivité est souvent un bandeau — blason, puis nom de la ville
+          // à côté —, et c'est la largeur qui décide alors de sa taille
+          // apparente. Un plafond en pixels le réduisait à une vignette
+          // illisible pendant que la hauteur, elle, n'était jamais atteinte.
+          className="max-h-28 w-auto max-w-full object-contain"
         />
       )}
       {operation && (
-        // Plus grand que celui de la ville quand les deux sont là : c'est
-        // l'opération en cours qu'on annonce, l'institution ne fait que la
-        // signer. `alt` vide : l'image est décorative, le titre juste en
-        // dessous dit déjà de quoi il s'agit.
+        // `alt` vide : l'image est décorative, le titre juste en dessous dit
+        // déjà de quoi il s'agit. Un peu plus contenu que celui de la ville,
+        // qui porte l'identité et se lit de plus loin.
         // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
         <img
           src={operation}
