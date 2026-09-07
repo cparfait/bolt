@@ -82,9 +82,17 @@ export default async function ParametresServices({
                         {!s.actif && <Badge>Retiré</Badge>}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-400">
-                        {utilise > 0
-                          ? `${utilise} ${pluriel(utilise, "personne", "personnes")}`
-                          : "personne"}
+                        {utilise > 0 ? (
+                          <Link
+                            href={`/agents?${new URLSearchParams({ f: "tous", service: s.nom })}`}
+                            className="hover:text-brand-600 hover:underline"
+                            title="Voir les personnes rattachées"
+                          >
+                            {utilise} {pluriel(utilise, "personne", "personnes")}
+                          </Link>
+                        ) : (
+                          "personne"
+                        )}
                         {agreges > 0 &&
                           ` · ${agreges} ${pluriel(agreges, "libellé regroupé", "libellés regroupés")}`}
                       </p>

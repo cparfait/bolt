@@ -13,7 +13,11 @@ import {
   mentionCompte,
 } from "@/lib/comptes";
 import { Badge, Card, EmptyState, PageHeader, Stat } from "@/components/ui";
-import { EmailAgentForm, RattacherAdForm } from "@/components/agent-identite-forms";
+import {
+  EmailAgentForm,
+  RattacherAdForm,
+  ServiceAgentForm,
+} from "@/components/agent-identite-forms";
 import { RetirerForm } from "@/components/inscription-actions";
 import { Panneau } from "@/components/panneau";
 import {
@@ -25,6 +29,7 @@ import {
   SupprimerIdentite,
 } from "@/components/fiche-agent-actions";
 import { compterInscriptionsVivantes } from "@/lib/departs";
+import { servicesProposes } from "@/lib/services";
 import {
   ETAT_COLORS,
   ETAT_COURT,
@@ -69,6 +74,8 @@ export default async function FicheAgent({
     absencesAVenir,
     creneauxSaison,
     seancesAVenir,
+    servicesReferentiel,
+    miroirAd,
   ] = await Promise.all([
     prisma.inscription.findMany({
       where: { userId: id, ...(saison ? { creneau: { saisonId: saison.id } } : {}) },
@@ -111,6 +118,12 @@ export default async function FicheAgent({
       include: { creneau: { include: { activite: true } } },
       orderBy: [{ date: "asc" }, { creneau: { heureDebut: "asc" } }],
       take: 30,
+    }),
+    servicesProposes(),
+    // Le libellé brut de l'annuaire, pour dire d'où vient le service affiché.
+    prisma.adAccount.findFirst({
+      where: { samAccountName: { equals: agent.login, mode: "insensitive" } },
+      select: { service: true },
     }),
   ]);
 
@@ -211,10 +224,29 @@ export default async function FicheAgent({
         </div>
       )}
 
-      {/* Modifiable pour les seuls participants hors annuaire. L'adresse d'un
-          compte AD vient de l'annuaire : la saisir ici permettrait de détourner
-          son lien de connexion — voir modifierEmailAgent. */}
+      {/* Le service d'abord : c'est la question qu'on se pose devant une fiche
+          (« il est de quel service ? »), et le sous-titre y répond sans ouvrir
+          le bloc. Le formulaire sert quand l'annuaire se trompe ou retarde. */}
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <Panneau
+          titre="Service"
+          sousTitre={
+            agent.service
+              ? `${agent.service}${agent.serviceForce ? " — décidé à la main" : ""}`
+              : "Aucun service connu"
+          }
+        >
+          <ServiceAgentForm
+            userId={agent.id}
+            service={agent.service}
+            force={agent.serviceForce}
+            brut={miroirAd?.service ?? null}
+            services={servicesReferentiel}
+          />
+        </Panneau>
+        {/* Modifiable pour les seuls participants hors annuaire. L'adresse d'un
+            compte AD vient de l'annuaire : la saisir ici permettrait de détourner
+            son lien de connexion — voir modifierEmailAgent. */}
         <Panneau
           titre="Adresse de contact"
           sousTitre={

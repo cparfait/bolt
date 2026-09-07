@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Search, X } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { mentionCompte } from "@/lib/comptes";
 import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { Badge, Card, EmptyState, Input, PageHeader, btnSecondary } from "@/components/ui";
-import { ROLE_LABELS } from "@/lib/constants";
+import { ROLE_LABELS, pluriel } from "@/lib/constants";
 
 /**
  * Annuaire des comptes, et atterrissage de la barre du tableau de bord.
@@ -36,12 +36,15 @@ const PLAFOND = 200;
 export default async function AgentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; f?: string }>;
+  searchParams: Promise<{ q?: string; f?: string; service?: string }>;
 }) {
   await requireUser("GESTIONNAIRE");
-  const { q, f } = await searchParams;
+  const { q, f, service } = await searchParams;
   const terme = (q ?? "").trim();
   const filtre: Filtre = f && f in FILTRES ? (f as Filtre) : "actifs";
+  // Filtre par service : « __aucun » désigne les comptes sans rattachement,
+  // ceux qu'il faut précisément aller voir pour compléter la répartition.
+  const parService = (service ?? "").trim();
   const saison = await saisonCourante();
 
   // La recherche porte sur TOUS les comptes, filtre compris : chercher
@@ -57,9 +60,16 @@ export default async function AgentsPage({
           { direction: { contains: terme, mode: "insensitive" as const } },
         ],
       }
-    : FILTRES[filtre].where;
+    : {
+        ...FILTRES[filtre].where,
+        ...(parService === "__aucun"
+          ? { service: null }
+          : parService
+            ? { service: parService }
+            : {}),
+      };
 
-  const [agents, total, compteurs] = await Promise.all([
+  const [agents, total, compteurs, services, repartition] = await Promise.all([
     prisma.user.findMany({
       where,
       orderBy: { displayName: "asc" },
@@ -79,7 +89,31 @@ export default async function AgentsPage({
         prisma.user.count({ where: FILTRES[cle].where }),
       ),
     ),
+    // Le référentiel, retirés compris : un service retiré reste porté par des
+    // fiches, et c'est justement là qu'on veut voir qui.
+    prisma.service.findMany({ orderBy: [{ actif: "desc" }, { ordre: "asc" }, { nom: "asc" }] }),
+    // Effectif par service sur la catégorie courante, pour que les compteurs
+    // répondent à la même question que la liste.
+    prisma.user.groupBy({ by: ["service"], where: FILTRES[filtre].where, _count: true }),
   ]);
+
+  const effectifs = new Map(repartition.map((r) => [r.service, r._count]));
+  const referentiel = new Set(services.map((s) => s.nom));
+  // Libellés portés par des comptes sans figurer au référentiel : ils se
+  // rattachent dans Paramètres → Services, mais on doit pouvoir voir qui.
+  const horsReferentiel = repartition
+    .filter((r) => r.service && !referentiel.has(r.service))
+    .map((r) => ({ nom: r.service as string, effectif: r._count }))
+    .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  const sansService = effectifs.get(null) ?? 0;
+  const lienAgents = (params: Record<string, string>) => {
+    const qs = new URLSearchParams(params).toString();
+    return qs ? `/agents?${qs}` : "/agents";
+  };
+  const lienService = (nom: string) =>
+    lienAgents({ ...(filtre !== "actifs" ? { f: filtre } : {}), service: nom });
+  const lienCategorie = lienAgents(filtre !== "actifs" ? { f: filtre } : {});
+  const libelleService = parService === "__aucun" ? "Sans service" : parService;
 
   return (
     <>
@@ -118,7 +152,10 @@ export default async function AgentsPage({
           {(Object.keys(FILTRES) as Filtre[]).map((cle, i) => (
             <Link
               key={cle}
-              href={cle === "actifs" ? "/agents" : `/agents?f=${cle}`}
+              href={lienAgents({
+                ...(cle !== "actifs" ? { f: cle } : {}),
+                ...(parService ? { service: parService } : {}),
+              })}
               className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
                 filtre === cle
                   ? "bg-brand-600 text-white"
@@ -136,12 +173,103 @@ export default async function AgentsPage({
         </div>
       )}
 
+      {/* Répartition par service. La liste du référentiel, avec qui s'y trouve :
+          c'est la question à laquelle l'annuaire ne répondait pas — on savait
+          chercher une personne, pas voir un service. */}
+      {terme.length < 2 && (services.length > 0 || horsReferentiel.length > 0) && (
+        <Card
+          title="Par service"
+          className="mb-4"
+          action={
+            <Link
+              href="/parametres/services"
+              className="text-xs text-slate-400 hover:text-brand-600"
+            >
+              Gérer le référentiel
+            </Link>
+          }
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {services.map((s) => {
+              const n = effectifs.get(s.nom) ?? 0;
+              const actif = parService === s.nom;
+              return (
+                <Link
+                  key={s.id}
+                  href={actif ? lienCategorie : lienService(s.nom)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
+                    actif
+                      ? "bg-brand-600 text-white"
+                      : n === 0
+                        ? "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                        : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  } ${!s.actif ? "line-through decoration-slate-300" : ""}`}
+                  title={!s.actif ? "Service retiré du référentiel" : undefined}
+                >
+                  {s.nom}
+                  <span
+                    className={`tabular-nums ${actif ? "text-brand-100" : "text-slate-400"}`}
+                  >
+                    {n}
+                  </span>
+                </Link>
+              );
+            })}
+            {horsReferentiel.map((h) => {
+              const actif = parService === h.nom;
+              return (
+                <Link
+                  key={h.nom}
+                  href={actif ? lienCategorie : lienService(h.nom)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
+                    actif
+                      ? "bg-amber-600 text-white"
+                      : "bg-amber-50 text-amber-800 hover:bg-amber-100"
+                  }`}
+                  title="Libellé hors référentiel — à rattacher dans Paramètres → Services"
+                >
+                  {h.nom}
+                  <span className={`tabular-nums ${actif ? "text-amber-100" : "text-amber-500"}`}>
+                    {h.effectif}
+                  </span>
+                </Link>
+              );
+            })}
+            {sansService > 0 && (
+              <Link
+                href={parService === "__aucun" ? lienCategorie : lienService("__aucun")}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm italic transition ${
+                  parService === "__aucun"
+                    ? "bg-slate-700 text-white"
+                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                }`}
+              >
+                Sans service
+                <span
+                  className={`tabular-nums ${parService === "__aucun" ? "text-slate-300" : "text-slate-400"}`}
+                >
+                  {sansService}
+                </span>
+              </Link>
+            )}
+          </div>
+          {horsReferentiel.length > 0 && (
+            <p className="mt-3 text-xs text-slate-400">
+              En orange, les libellés portés par des comptes sans figurer au
+              référentiel : ils se rattachent dans Paramètres → Services.
+            </p>
+          )}
+        </Card>
+      )}
+
       {agents.length === 0 ? (
         <EmptyState
           title={
             terme.length >= 2
               ? `Aucun agent ne correspond à « ${terme} »`
-              : "Aucun compte dans cette catégorie"
+              : parService
+                ? `Aucun compte ${parService === "__aucun" ? "sans service" : `dans « ${parService} »`} dans cette catégorie`
+                : "Aucun compte dans cette catégorie"
           }
           hint="Un agent n'apparaît ici qu'après sa première connexion ou une inscription faite pour lui."
         />
@@ -150,10 +278,19 @@ export default async function AgentsPage({
           title={
             terme.length >= 2
               ? `${total} résultat${total > 1 ? "s" : ""}`
-              : `${total} compte${total > 1 ? "s" : ""}`
+              : parService
+                ? `${libelleService} · ${total} ${pluriel(total, "compte", "comptes")}`
+                : `${total} compte${total > 1 ? "s" : ""}`
           }
           action={
-            total > agents.length ? (
+            parService && terme.length < 2 ? (
+              <Link
+                href={lienCategorie}
+                className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800"
+              >
+                <X className="h-3.5 w-3.5" /> Tous les services
+              </Link>
+            ) : total > agents.length ? (
               <span className="text-xs text-slate-400">
                 {agents.length} premiers affichés — affinez par la recherche
               </span>

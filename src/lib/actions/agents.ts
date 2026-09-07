@@ -18,6 +18,12 @@ import { requireUser } from "@/lib/session";
 import { erreur, succes, type ActionState } from "./types";
 import { getLdapSettings } from "@/lib/settings";
 import { ldapSearchAccounts } from "@/lib/ldap";
+import {
+  reglesDeRegroupement,
+  resoudreService,
+  serviceDuReferentiel,
+  servicesProposes,
+} from "@/lib/services";
 
 /**
  * Recherche d'agents pour les inscriptions.
@@ -764,4 +770,85 @@ export async function anonymiserAgent(
   return succes(
     `Identité de ${res.nom} supprimée. Ses inscriptions et ses présences restent comptées dans les statistiques, sans nom.`,
   );
+}
+
+/**
+ * Rattache un agent à un service du référentiel, ou rend la main aux règles.
+ *
+ * Le service affiché est d'ordinaire un résultat — le libellé de l'annuaire
+ * passé au travers des regroupements (src/lib/services.ts). Mais l'annuaire se
+ * trompe, ou retarde : une personne mutée en septembre y reste dans son ancien
+ * service jusqu'à ce que la DSI passe. D'où `serviceForce` : la décision prise
+ * ici tient jusqu'à ce qu'on la défasse, et la synchronisation ne la réécrit
+ * pas dans la nuit.
+ *
+ * Choisir « celui de l'annuaire » retire le forçage et recalcule aussitôt, pour
+ * que l'écran montre le résultat sans attendre la prochaine synchronisation.
+ */
+export async function modifierServiceAgent(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("GESTIONNAIRE");
+  const userId = String(formData.get("userId") ?? "");
+  const choix = String(formData.get("service") ?? "").trim();
+
+  const agent = await prisma.user.findUnique({ where: { id: userId } });
+  if (!agent) return erreur("Agent introuvable.");
+
+  if (choix === "__annuaire") {
+    const brut = await libelleBrut(agent.login, agent.service);
+    const [regles, referentiel] = await Promise.all([
+      reglesDeRegroupement(),
+      servicesProposes(),
+    ]);
+    const service = resoudreService(brut, regles, referentiel);
+    await prisma.user.update({
+      where: { id: agent.id },
+      data: { service, serviceForce: false },
+    });
+    await audit("AGENT_SERVICE_MODIFIE", {
+      userId: admin.id,
+      cible: agent.displayName,
+      details: service ? `repris de l'annuaire : ${service}` : "repris de l'annuaire : aucun",
+    });
+    revalidatePath(`/agents/${agent.id}`);
+    return succes(
+      service
+        ? `Service repris de l'annuaire : ${service}.`
+        : "Service repris de l'annuaire : aucun libellé connu.",
+    );
+  }
+
+  // Liste fermée, revérifiée côté serveur : la valeur d'un <select> se falsifie
+  // aussi facilement que celle d'un champ libre, et c'est l'orthographe du
+  // référentiel qui doit être enregistrée.
+  const service = choix ? await serviceDuReferentiel(choix) : null;
+  if (choix && !service) {
+    return erreur("Ce service ne figure pas au référentiel (Paramètres → Services).");
+  }
+
+  await prisma.user.update({
+    where: { id: agent.id },
+    data: { service, serviceForce: true },
+  });
+  await audit("AGENT_SERVICE_MODIFIE", {
+    userId: admin.id,
+    cible: agent.displayName,
+    details: service ?? "aucun service",
+  });
+  revalidatePath(`/agents/${agent.id}`);
+  return succes(service ? `Service enregistré : ${service}.` : "Service retiré.");
+}
+
+/**
+ * Libellé brut d'un compte : le miroir de l'annuaire pour un compte AD, le
+ * champ lui-même pour les autres — même règle que la synchronisation.
+ */
+async function libelleBrut(login: string, actuel: string | null): Promise<string | null> {
+  const miroir = await prisma.adAccount.findFirst({
+    where: { samAccountName: { equals: login, mode: "insensitive" } },
+    select: { service: true },
+  });
+  return miroir ? miroir.service : actuel;
 }

@@ -1,10 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
-import { Link2, Mail } from "lucide-react";
-import { modifierEmailAgent, rattacherCompteAd } from "@/lib/actions/agents";
+import { Building2, Link2, Mail } from "lucide-react";
+import {
+  modifierEmailAgent,
+  modifierServiceAgent,
+  rattacherCompteAd,
+} from "@/lib/actions/agents";
 import type { ActionState } from "@/lib/actions/types";
-import { Alert, Field, Input, btnSecondary } from "@/components/ui";
+import { Alert, Field, Input, Select, btnSecondary } from "@/components/ui";
 import { ChampAgent } from "@/components/champ-agent";
 import { SubmitButton } from "@/components/submit-button";
 
@@ -107,6 +111,75 @@ export function RattacherAdForm({ userId }: { userId: string }) {
         Si l&apos;agent a déjà un compte dans l&apos;application, les deux fiches sont fusionnées et
         vous arrivez sur celle qui subsiste. L&apos;opération ne se défait pas.
       </p>
+    </form>
+  );
+}
+
+/**
+ * Service de rattachement, choisi dans le référentiel.
+ *
+ * Le service affiché est d'ordinaire calculé depuis l'annuaire ; ce formulaire
+ * sert quand l'annuaire se trompe ou retarde. Le choix fait ici est FORCÉ : la
+ * synchronisation ne le réécrit pas. L'option « celui de l'annuaire » rend la
+ * main aux règles — c'est le seul moyen de défaire un forçage, et il doit être
+ * visible, sinon une correction d'un jour survit à toutes les mutations.
+ */
+export function ServiceAgentForm({
+  userId,
+  service,
+  force,
+  brut,
+  services,
+}: {
+  userId: string;
+  service: string | null;
+  /** Vrai si le rattachement a été décidé à la main. */
+  force: boolean;
+  /** Libellé brut de l'annuaire, s'il y en a un. */
+  brut: string | null;
+  services: string[];
+}) {
+  const [state, action] = useActionState<ActionState, FormData>(
+    modifierServiceAgent,
+    null,
+  );
+  // Un service retiré du référentiel reste affiché sur la fiche : on le
+  // propose pour que le <select> montre bien la valeur en place.
+  const options = service && !services.includes(service) ? [service, ...services] : services;
+
+  return (
+    <form action={action} className="space-y-3">
+      <Alert state={state} />
+      <input type="hidden" name="userId" value={userId} />
+      <Field
+        label="Service"
+        hint={
+          services.length === 0
+            ? "Le référentiel est vide : déclarez les services dans Paramètres → Services."
+            : force
+              ? "Rattachement décidé ici : la synchronisation de l'annuaire ne le modifie pas."
+              : brut
+                ? `Calculé depuis l'annuaire (« ${brut} ») et les regroupements. Choisir un service ici fige la décision.`
+                : "Aucun libellé dans l'annuaire. Choisir un service ici fige la décision."
+        }
+      >
+        <Select name="service" defaultValue={force ? (service ?? "") : "__annuaire"}>
+          <option value="__annuaire">
+            {brut
+              ? `Celui de l'annuaire${!force && service ? ` — ${service}` : ""}`
+              : "Celui de l'annuaire (aucun)"}
+          </option>
+          <option value="">Aucun service</option>
+          {options.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <SubmitButton className={btnSecondary} pendingLabel="Enregistrement…">
+        <Building2 className="h-4 w-4" /> Enregistrer le service
+      </SubmitButton>
     </form>
   );
 }
