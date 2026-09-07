@@ -4,6 +4,7 @@ import { prisma } from "./db";
 import { ldapAuthenticate, ldapFetchAccount } from "./ldap";
 import { getLdapSettings } from "./settings";
 import { audit } from "./audit";
+import { reglesDeRegroupement, resoudreService, servicesProposes } from "./services";
 
 /**
  * Crée le compte admin local de secours au premier démarrage, si aucun
@@ -200,6 +201,13 @@ export async function authenticate(
 
   const groupeConfigure = Boolean((ldap.gestionnaireGroup ?? "").trim());
 
+  // Le service affiché est un résultat : le libellé brut de l'annuaire passé
+  // par les regroupements, comme à la synchronisation (src/lib/annuaire.ts).
+  // Recopier le libellé tel quel défaisait chaque nuit de rapprochement à la
+  // connexion suivante — et un rattachement décidé à la main avec lui.
+  const [regles, referentiel] = await Promise.all([reglesDeRegroupement(), servicesProposes()]);
+  const service = resoudreService(info.service, regles, referentiel);
+
   if (existing) {
     if (!existing.active) return null;
     const user = await prisma.user.update({
@@ -208,7 +216,7 @@ export async function authenticate(
         displayName: info.displayName,
         email: info.email ?? existing.email,
         direction: info.direction ?? existing.direction,
-        service: info.service ?? existing.service,
+        service: existing.serviceForce ? existing.service : (service ?? existing.service),
         role: roleApresConnexion(existing.role, info.gestionnaire, groupeConfigure),
         lastLoginAt: new Date(),
       },
@@ -223,7 +231,7 @@ export async function authenticate(
       displayName: info.displayName,
       email: info.email,
       direction: info.direction,
-      service: info.service,
+      service,
       role: info.gestionnaire ? "GESTIONNAIRE" : "AGENT",
       isLocal: false,
       lastLoginAt: new Date(),

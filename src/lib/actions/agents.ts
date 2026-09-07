@@ -22,6 +22,7 @@ import {
   reglesDeRegroupement,
   resoudreService,
   serviceDuReferentiel,
+  serviceResolu,
   servicesProposes,
 } from "@/lib/services";
 
@@ -466,7 +467,7 @@ export async function rattacherCompteAd(
         login: ad.login,
         displayName: ad.nom || source.displayName,
         email: ad.email ?? source.email,
-        service: ad.service ?? source.service,
+        service: (await serviceResolu(ad.service)) ?? source.service,
         direction: ad.direction ?? source.direction,
         // Le compte devient un compte d'annuaire : son adresse est désormais
         // celle de l'AD. Conserver l'adresse de contact laisserait une valeur
@@ -665,7 +666,14 @@ export async function assurerCompteAgent(login: string): Promise<string | null> 
   }
 
   const user = await prisma.user.create({
-    data: { login: cle, displayName: nom, email, service, direction, role: "AGENT" },
+    data: {
+      login: cle,
+      displayName: nom,
+      email,
+      service: await serviceResolu(service),
+      direction,
+      role: "AGENT",
+    },
   });
   return user.id;
 }

@@ -215,8 +215,15 @@ export function rapprocher(
  *
  * Le libellé BRUT, et non le service affiché : c'est lui que les règles
  * prennent en entrée, et c'est sur lui que le rapprochement doit porter pour
- * rester rejouable. Pour un compte d'annuaire il vient du miroir
- * (`AdAccount.service`), pour les autres du compte lui-même.
+ * rester rejouable.
+ *
+ * Tout l'annuaire synchronisé, pas seulement les comptes Bolt : le
+ * rapprochement se prépare AVANT la rentrée, quand personne ne s'est encore
+ * connecté, et c'est à ce moment qu'on veut voir les libellés de l'AD qui
+ * n'entrent pas dans le référentiel. Les comptes de l'annuaire viennent du
+ * miroir (`AdAccount.service`, comptes activés) ; s'y ajoutent les comptes
+ * Bolt qui n'y figurent pas — participants hors annuaire, comptes locaux —,
+ * avec leur propre libellé.
  */
 export async function inventaireLibelles(): Promise<Libelle[]> {
   const [referentiel, comptes, miroir, regles] = await Promise.all([
@@ -225,18 +232,21 @@ export async function inventaireLibelles(): Promise<Libelle[]> {
       where: { active: true, serviceForce: false },
       select: { login: true, service: true },
     }),
-    prisma.adAccount.findMany({ select: { samAccountName: true, service: true } }),
+    prisma.adAccount.findMany({
+      where: { enabled: true },
+      select: { samAccountName: true, service: true },
+    }),
     prisma.regroupementService.findMany({ select: { source: true } }),
   ]);
 
-  const brutParLogin = new Map(
-    miroir.map((m) => [m.samAccountName.toLowerCase(), m.service]),
-  );
+  const dansMiroir = new Set(miroir.map((m) => m.samAccountName.toLowerCase()));
   return regrouperLibelles(
-    comptes.map((c) => ({
-      login: c.login,
-      brut: brutParLogin.get(c.login.toLowerCase()) ?? c.service,
-    })),
+    [
+      ...miroir.map((m) => ({ login: m.samAccountName, brut: m.service })),
+      ...comptes
+        .filter((c) => !dansMiroir.has(c.login.toLowerCase()))
+        .map((c) => ({ login: c.login, brut: c.service })),
+    ],
     referentiel,
     regles.map((r) => r.source),
   );

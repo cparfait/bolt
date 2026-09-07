@@ -6,6 +6,7 @@ import { nomPourSalutation } from "./constants";
 import { getGeneralSettings, urlEspaceAgent } from "./settings";
 import { envoyerMail } from "./mail";
 import { audit } from "./audit";
+import { serviceResolu } from "./services";
 
 /**
  * Connexion sans mot de passe, par lien envoyé sur l'adresse professionnelle.
@@ -121,7 +122,7 @@ export async function envoyerLienConnexion(
         displayName: ad.displayName ?? ad.samAccountName,
         email: ad.email,
         direction: ad.direction,
-        service: ad.service,
+        service: await serviceResolu(ad.service),
         role: "AGENT",
         isLocal: false,
       },

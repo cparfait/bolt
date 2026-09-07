@@ -172,3 +172,17 @@ export async function appliquerRegroupements(): Promise<number> {
   }
   return touches;
 }
+
+/**
+ * Le service affiché pour un libellé brut, règles et référentiel lus en base.
+ *
+ * Pour les chemins qui créent ou rattachent UN compte depuis l'annuaire —
+ * connexion, lien magique, inscription d'un agent encore inconnu, rattachement
+ * d'un participant à son compte AD. Recopier le libellé tel quel y laissait
+ * une valeur que la synchronisation ne corrigeait que la nuit suivante, et
+ * l'écran disait entre-temps autre chose que le référentiel.
+ */
+export async function serviceResolu(brut: string | null | undefined): Promise<string | null> {
+  const [regles, referentiel] = await Promise.all([reglesDeRegroupement(), servicesProposes()]);
+  return resoudreService(brut, regles, referentiel);
+}
