@@ -44,7 +44,9 @@ export default async function InscriptionsPage({
 
   const [creneaux, demandes, effectifs] = await Promise.all([
     prisma.creneau.findMany({
-      where: { saisonId: saison.id },
+      // Un créneau archivé n'accepte plus personne : le proposer ici ferait
+      // inscrire des agents sur un créneau retiré du planning.
+      where: { saisonId: saison.id, archiveAt: null },
       include: {
         activite: true,
         inscriptions: {

@@ -13,6 +13,7 @@ import {
   supprimerRefusees,
   validerDemande,
 } from "@/lib/demandes";
+import { composerNomAffiche } from "@/lib/constants";
 import { requireUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
 import { serviceDuReferentiel, servicesProposes } from "@/lib/services";
@@ -78,12 +79,19 @@ export async function deposerDemandeAction(
     return succes(ACCUSE);
   }
 
-  const nom = String(formData.get("nom") ?? "").trim().replace(/\s+/g, " ");
+  const prenomSaisi = String(formData.get("prenom") ?? "").trim();
+  const nomSaisi = String(formData.get("nom") ?? "").trim();
+  // Le nom déposé est composé ici, une fois pour toutes : la file d'attente,
+  // le compte créé à la validation et les courriels qui suivront porteront le
+  // même libellé, dans le même ordre.
+  const nom = composerNomAffiche(prenomSaisi, nomSaisi);
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const saisi = String(formData.get("service") ?? "").trim().slice(0, 120);
   const message = String(formData.get("message") ?? "").trim().slice(0, 500);
 
-  if (nom.length < 2) return erreur("Indiquez votre nom et votre prénom.");
+  if (prenomSaisi.length < 2 || nomSaisi.length < 2) {
+    return erreur("Indiquez votre prénom et votre nom.");
+  }
   if (nom.length > 120) return erreur("Nom trop long.");
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return erreur("Adresse e-mail invalide.");

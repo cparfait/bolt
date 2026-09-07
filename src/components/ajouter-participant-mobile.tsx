@@ -92,13 +92,27 @@ function Selecteur({
   // au besoin par son service — la liste des services n'expose pas l'annuaire.
   const [horsAnnuaire, setHorsAnnuaire] = useState(false);
   const [services, setServices] = useState<string[] | null>(null);
+  // Deux cases, comme partout ailleurs dans l'application : d'un champ unique,
+  // rien ne dit lequel des deux mots est le prénom, et c'est celui-là qui
+  // ouvrira les courriels de la personne.
+  const [prenom, setPrenom] = useState("");
+  const [nom, setNom] = useState("");
 
   const activerHorsAnnuaire = () => {
+    // Ce qui a été tapé dans la recherche est reversé dans les deux cases —
+    // premier mot au prénom, le reste au nom. C'est l'ordre le plus courant à
+    // la frappe, et il reste corrigeable : la répartition est proposée, jamais
+    // devinée en silence.
+    const mots = terme.trim().split(/\s+/).filter(Boolean);
+    setPrenom(mots[0] ?? "");
+    setNom(mots.slice(1).join(" "));
     setHorsAnnuaire(true);
     if (services === null) {
       listerServicesEmargement(token, seanceId).then(setServices);
     }
   };
+
+  const complet = prenom.trim().length >= 2 && nom.trim().length >= 2;
 
   // Anti-rebond : la saisie se fait au pouce, sur un réseau souvent médiocre.
   useEffect(() => {
@@ -117,7 +131,6 @@ function Selecteur({
   return (
     <>
       <input type="hidden" name="userId" value={choisi?.id ?? ""} />
-      <input type="hidden" name="nomLibre" value={horsAnnuaire ? terme.trim() : ""} />
 
       <label className="block">
         <span className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -183,10 +196,35 @@ function Selecteur({
       {horsAnnuaire && (
         <div className="space-y-2.5 rounded-xl border border-brand-200 bg-white p-3.5">
           <p className="text-sm text-slate-600">
-            <span className="font-medium">{terme.trim()}</span> sera créé comme
-            participant hors annuaire — le service des sports pourra compléter
-            sa fiche.
+            Cette personne sera créée comme participant hors annuaire — le
+            service des sports pourra compléter sa fiche.
           </p>
+          <div className="grid grid-cols-2 gap-2.5">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-500">
+                Son prénom
+              </span>
+              <input
+                name="prenomLibre"
+                value={prenom}
+                onChange={(e) => setPrenom(e.target.value)}
+                autoComplete="off"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base outline-none focus:border-brand-500"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-500">
+                Son nom
+              </span>
+              <input
+                name="nomLibre"
+                value={nom}
+                onChange={(e) => setNom(e.target.value)}
+                autoComplete="off"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base outline-none focus:border-brand-500"
+              />
+            </label>
+          </div>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-500">
               Son service, si vous le connaissez
@@ -236,13 +274,15 @@ function Selecteur({
         <SubmitButton
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.99] disabled:opacity-50"
           pendingLabel="Ajout…"
-          disabled={!choisi && !horsAnnuaire}
+          disabled={!choisi && !(horsAnnuaire && complet)}
         >
           <UserPlus className="h-4 w-4" />
           {choisi
             ? `Ajouter ${choisi.nom.split(" ")[0]}`
             : horsAnnuaire
-              ? `Ajouter ${terme.trim().split(" ")[0]}`
+              ? complet
+                ? `Ajouter ${prenom.trim()}`
+                : "Prénom et nom"
               : "Choisissez un agent"}
         </SubmitButton>
       </div>

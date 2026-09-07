@@ -97,7 +97,7 @@ export default async function FicheAgent({
     }),
     saison
       ? prisma.creneau.findMany({
-          where: { saisonId: saison.id },
+          where: { saisonId: saison.id, archiveAt: null },
           include: {
             activite: { select: { nom: true, capacitePartagee: true, capacite: true } },
             _count: { select: { inscriptions: { where: { statut: "VALIDEE" } } } },

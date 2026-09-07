@@ -79,7 +79,7 @@ export async function notifierSeanceRetablie(
       `Séance maintenue — ${seance.creneau.activite.nom}`,
       [
         `Bonjour ${nomPourSalutation(u.displayName)},`,
-        `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du ${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}${seance.creneau.lieu ? ` (${seance.creneau.lieu})` : ""}, aura finalement bien lieu.`,
+        `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du **${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}**${seance.creneau.lieu ? ` (${seance.creneau.lieu})` : ""}, aura finalement bien lieu.`,
         `Elle avait été annulée : vous pouvez la réinscrire à votre agenda.`,
         g.contactEmail
           ? `Le service des sports — ${g.contactEmail}`
@@ -141,7 +141,7 @@ export async function notifierSeancesAnnulees(
   >();
 
   for (const s of seances) {
-    const ligne = `• ${s.creneau.activite.nom} — ${fmtDateLongue(s.date)}, ${s.creneau.heureDebut}–${s.creneau.heureFin}${s.creneau.lieu ? ` (${s.creneau.lieu})` : ""}`;
+    const ligne = `• ${s.creneau.activite.nom} — **${fmtDateLongue(s.date)}, ${s.creneau.heureDebut}–${s.creneau.heureFin}**${s.creneau.lieu ? ` (${s.creneau.lieu})` : ""}`;
     // Un agent peut être inscrit au créneau *et* annoncé sur la séance : la
     // `Map` par agent et le dédoublonnage des lignes lui garantissent un seul
     // message, sans date répétée.
@@ -230,7 +230,7 @@ export async function notifierChangementCreneau(
   const decrire = (ids: string[]) =>
     periodes
       .filter((p) => ids.includes(p.id))
-      .map((p) => `• ${p.libelle} (${fmtDate(p.debut)} → ${fmtDate(p.fin)})`)
+      .map((p) => `• ${p.libelle} (**${fmtDate(p.debut)} → ${fmtDate(p.fin)}**)`)
       .join("\n");
 
   const g = await getGeneralSettings();
@@ -240,7 +240,7 @@ export async function notifierChangementCreneau(
   // L'essentiel d'abord : ce qui change le déplacement de l'agent.
   if (changement.quand) {
     blocs.push(
-      `Nouvel horaire : ${changement.quand.apres}\n(auparavant ${changement.quand.avant})`,
+      `Nouvel horaire : **${changement.quand.apres}**\n(auparavant ${changement.quand.avant})`,
     );
   }
   if (changement.lieu) {
@@ -266,7 +266,7 @@ export async function notifierChangementCreneau(
       `Changement — ${creneau.activite.nom}`,
       [
         `Bonjour ${nomPourSalutation(i.user.displayName)},`,
-        `Votre créneau de ${intitule} a été modifié.`,
+        `Votre créneau de ${creneau.activite.nom} — **${JOUR_LABELS[creneau.jour].toLowerCase()} ${creneau.heureDebut}** a été modifié.`,
         ...blocs,
         `Votre inscription reste valable : rien à faire de votre part. Consultez le détail dans l'application à tout moment.`,
         g.contactEmail

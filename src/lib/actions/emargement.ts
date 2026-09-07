@@ -18,6 +18,7 @@ import { enregistrerPresence, saisieOuverte } from "@/lib/emargement";
 import { participeALaSeance } from "@/lib/inscriptions";
 import { notifierSeanceRetablie, notifierSeancesAnnulees } from "@/lib/notifications";
 import { clientIp } from "@/lib/net";
+import { composerNomAffiche } from "@/lib/constants";
 import {
   chercherComptesFeuille,
   creerParticipantHorsAnnuaire,
@@ -281,8 +282,8 @@ export async function listerServicesEmargement(
  * en attente : l'animateur signale, le service des sports arbitre.
  *
  * Si la personne est introuvable dans Bolt (élu, agent sans compte, membre
- * d'un organisme partenaire), l'animateur peut la créer par son nom
- * (`nomLibre`), en la situant au besoin par son service. Le compte créé est
+ * d'un organisme partenaire), l'animateur peut la créer par son prénom et son
+ * nom (`prenomLibre`, `nomLibre`), en la situant au besoin par son service. Le compte créé est
  * un participant hors annuaire (identifiant « no_ad.… »), comme ceux que crée
  * le service des sports — qui en est informé par le journal.
  */
@@ -295,8 +296,15 @@ export async function ajouterParticipantEmargement(
   // Identifiant interne, et non le login : la recherche de la feuille ne
   // divulgue aucun sAMAccountName (voir `chercherComptesFeuille`).
   const userId = String(formData.get("userId") ?? "").trim();
-  const nomLibre = String(formData.get("nomLibre") ?? "").trim().replace(/\s+/g, " ");
-  if (!userId && nomLibre.length < 2) return erreur("Sélectionnez un agent.");
+  // Deux cases sur la feuille comme ailleurs : l'animateur pointe des gens
+  // qu'il connaît de vue, et l'ordre dans lequel il les écrirait ne serait pas
+  // celui du service des sports.
+  const prenomLibre = String(formData.get("prenomLibre") ?? "").trim();
+  const nomSaisi = String(formData.get("nomLibre") ?? "").trim();
+  const nomLibre = composerNomAffiche(prenomLibre, nomSaisi);
+  if (!userId && (prenomLibre.length < 2 || nomSaisi.length < 2)) {
+    return erreur("Sélectionnez un agent, ou indiquez son prénom et son nom.");
+  }
 
   const ctx = await seanceDuCoach(token, seanceId);
   if (!ctx) return erreur("Séance introuvable.");

@@ -228,14 +228,33 @@ function bouton(libelle: string, url: string): string {
 }
 
 /**
- * Version texte brut : « [Libellé](url) » redevient « Libellé : url ».
+ * Mise en gras, écrite « **ainsi** » dans le corps du message.
+ *
+ * Elle sert d'abord aux dates et aux horaires : c'est ce qu'on relit d'un
+ * courriel une fois ouvert, en diagonale et souvent sur un téléphone. « Votre
+ * séance a lieu **mardi 15 septembre de 12:15 à 13:00** » se retrouve d'un
+ * coup d'œil ; noyée dans la phrase, la même information oblige à relire le
+ * paragraphe entier.
+ *
+ * Même notation que les textes saisis dans l'application (src/lib/markup.ts) :
+ * une seule syntaxe pour qui écrit des messages ici. Une marque jamais
+ * refermée, ou qui enjambe une ligne, reste du texte — mieux vaut une étoile
+ * visible qu'une phrase qui disparaît.
+ */
+const GRAS = /\*\*([^*\n]+)\*\*/g;
+
+/**
+ * Version texte brut : « [Libellé](url) » redevient « Libellé : url », et les
+ * marques de gras s'effacent.
  *
  * Le message est envoyé en deux parties, HTML et texte. Laisser la notation
- * telle quelle dans la seconde donnerait des crochets et des parenthèses à
- * quelqu'un qui, précisément, ne voit pas les boutons.
+ * telle quelle dans la seconde donnerait des crochets, des parenthèses et des
+ * étoiles à quelqu'un qui, précisément, ne voit ni les boutons ni le gras.
  */
 export function sansNotation(corps: string): string {
-  return corps.replace(ACTION_GLOBAL, (_, libelle, url) => `${libelle} : ${url}`);
+  return corps
+    .replace(ACTION_GLOBAL, (_, libelle, url) => `${libelle} : ${url}`)
+    .replace(GRAS, "$1");
 }
 
 /**
@@ -300,6 +319,13 @@ function gabarit(
         // par leur libellé : c'est plus court à lire qu'une URL entière.
         .replace(ACTION_GLOBAL, (_, libelle, url) =>
           `<a href="${url}" style="color:${VERT};text-decoration:underline">${libelle}</a>`,
+        )
+        // `font-weight` en plus de la balise : le moteur de Word, avec lequel
+        // Outlook rend les courriels, n'appuie pas toujours un `strong` qui
+        // n'apporte que sa sémantique.
+        .replace(
+          GRAS,
+          (_, texte) => `<strong style="font-weight:700;color:#0f172a">${texte}</strong>`,
         )
         .replace(/\n/g, "<br>");
       return `<p style="margin:0 0 16px;font-family:${POLICE};font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#334155">${avecLiens(enHtml)}</p>`;
@@ -400,7 +426,7 @@ export async function corpsLienAnimateur(
   ];
   if (expiration) {
     lignes.push(
-      `Cet accès est valable jusqu'au ${expiration.toLocaleDateString("fr-FR")}.`,
+      `Cet accès est valable jusqu'au **${expiration.toLocaleDateString("fr-FR")}**.`,
     );
   }
   lignes.push(

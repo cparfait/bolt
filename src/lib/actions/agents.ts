@@ -14,6 +14,7 @@ import {
 } from "@/lib/comptes";
 import { inscrireDirectement } from "@/lib/inscriptions";
 import { anonymiserCompte, desactiverCompte } from "@/lib/departs";
+import { composerNomAffiche } from "@/lib/constants";
 import { requireUser } from "@/lib/session";
 import { erreur, succes, type ActionState } from "./types";
 import { getLdapSettings } from "@/lib/settings";
@@ -220,13 +221,17 @@ export async function creerAgentHorsAnnuaire(
   formData: FormData,
 ): Promise<ActionState> {
   const admin = await requireUser("GESTIONNAIRE");
-  const nom = String(formData.get("nom") ?? "").trim().replace(/\s+/g, " ");
+  const prenomSaisi = String(formData.get("prenom") ?? "").trim();
+  const nomSaisi = String(formData.get("nom") ?? "").trim();
+  const nom = composerNomAffiche(prenomSaisi, nomSaisi);
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const direction = String(formData.get("direction") ?? "").trim();
   const service = String(formData.get("service") ?? "").trim();
   const creneauId = String(formData.get("creneauId") ?? "");
 
-  if (nom.length < 2) return erreur("Indiquez le nom et le prénom de la personne.");
+  if (prenomSaisi.length < 2 || nomSaisi.length < 2) {
+    return erreur("Indiquez le prénom et le nom de la personne.");
+  }
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return erreur("Adresse e-mail invalide.");
   }

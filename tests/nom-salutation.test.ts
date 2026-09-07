@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { nomPourSalutation } from "../src/lib/constants";
+import { composerNomAffiche, nomPourSalutation } from "../src/lib/constants";
 
 /**
  * Nom en tête de courriel.
@@ -42,5 +42,39 @@ describe("nom saisi à la main", () => {
 
   it("tout en capitales : rien à réordonner", () => {
     assert.equal(nomPourSalutation("PARFAIT CHRISTOPHE"), "PARFAIT CHRISTOPHE");
+  });
+});
+
+/**
+ * Deux cases à la saisie, un seul nom affiché.
+ *
+ * La composition suit la convention de l'annuaire — patronyme en capitales
+ * d'abord — pour que les comptes créés à la main et ceux venus de l'AD se
+ * trient ensemble, et pour que `nomPourSalutation` retrouve l'ordre juste.
+ */
+describe("nom composé de deux cases", () => {
+  it("écrit le patronyme en capitales, devant le prénom", () => {
+    assert.equal(composerNomAffiche("Camille", "Dupont"), "DUPONT Camille");
+  });
+
+  it("se relit correctement en tête d'un courriel", () => {
+    assert.equal(nomPourSalutation(composerNomAffiche("Camille", "Dupont")), "Camille Dupont");
+  });
+
+  it("ne se fie pas à la casse saisie", () => {
+    assert.equal(composerNomAffiche("CAMILLE", "dupont"), "DUPONT Camille");
+  });
+
+  it("respecte les prénoms composés et les particules", () => {
+    assert.equal(composerNomAffiche("marie-anne", "le goff"), "LE GOFF Marie-Anne");
+  });
+
+  it("resserre les espaces surnuméraires", () => {
+    assert.equal(composerNomAffiche("  Camille  ", " Dupont "), "DUPONT Camille");
+  });
+
+  it("ne laisse pas d'espace quand une case est vide", () => {
+    assert.equal(composerNomAffiche("", "Dupont"), "DUPONT");
+    assert.equal(composerNomAffiche("Camille", ""), "Camille");
   });
 });

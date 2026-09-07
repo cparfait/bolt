@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { demanderLienAction, type AccesState } from "@/lib/actions/auth";
+import { LIEN_VALIDITE_LIBELLE } from "@/lib/constants";
 import { Alert, Field, Input, btnPrimary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { DemandeAccesForm } from "@/app/demande-acces/formulaire";
@@ -87,8 +88,8 @@ export function DemandeLienForm({ services = [] }: { services?: string[] }) {
       </SubmitButton>
 
       <p className="text-xs text-slate-400">
-        Vous recevez un lien valable 30 minutes. Aucun mot de passe ne vous est
-        demandé.
+        Vous recevez un lien valable {LIEN_VALIDITE_LIBELLE}. Aucun mot de passe
+        ne vous est demandé.
       </p>
     </form>
   );

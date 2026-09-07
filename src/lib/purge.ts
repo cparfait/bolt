@@ -21,7 +21,7 @@ import { audit } from "./audit";
  *    ressort quand un agent conteste.
  *
  * D'où : l'IP est effacée à 3 mois, la ligne entière à 12 mois. Les jetons de
- * connexion par courriel, valables trente minutes, n'ont aucune raison de
+ * connexion par courriel, valables une heure, n'ont aucune raison de
  * survivre : tout jeton de plus de 30 jours est mort depuis longtemps.
  *
  * Les durées sont ici, en clair et en un seul endroit, pour être recopiables
@@ -35,7 +35,7 @@ export const JOURS_CONSERVATION_IP = 90;
 /** Lignes du journal d'audit, action comprise. */
 export const JOURS_CONSERVATION_JOURNAL = 365;
 
-/** Jetons de connexion par courriel (valables 30 minutes à l'émission). */
+/** Jetons de connexion par courriel (valables une heure à l'émission). */
 export const JOURS_CONSERVATION_JETONS = 30;
 
 /**

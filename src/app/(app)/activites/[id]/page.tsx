@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   CalendarDays,
+  Archive,
   CalendarSync,
   Plus,
   Power,
+  RotateCcw,
   Trash2,
   Users,
 } from "lucide-react";
@@ -16,6 +18,7 @@ import {
   basculerActivite,
   basculerInscriptions,
   regenererCalendrier,
+  restaurerCreneau,
   supprimerActivite,
   supprimerCreneau,
 } from "@/lib/actions/activites";
@@ -60,9 +63,10 @@ export default async function ActiviteDetail({
   });
   if (!activite || !saison) notFound();
 
-  const [creneaux, animateurs, fermetures, effectifs, lieux] = await Promise.all([
+  const [creneaux, archives, animateurs, fermetures, effectifs, lieux] =
+    await Promise.all([
     prisma.creneau.findMany({
-      where: { activiteId: id, saisonId: saison.id },
+      where: { activiteId: id, saisonId: saison.id, archiveAt: null },
       orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
       include: {
         animateurs: { select: { id: true, nom: true, prenom: true } },
@@ -71,6 +75,13 @@ export default async function ActiviteDetail({
           select: { seances: true, inscriptions: { where: { statut: "VALIDEE" } } },
         },
       },
+    }),
+    // Retirés du planning, pas de l'historique : ils gardent leurs séances
+    // émargées, que les statistiques continuent de compter.
+    prisma.creneau.findMany({
+      where: { activiteId: id, saisonId: saison.id, archiveAt: { not: null } },
+      orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
+      include: { _count: { select: { seances: true } } },
     }),
     prisma.coach.findMany({
       where: { actif: true },
@@ -87,7 +98,7 @@ export default async function ActiviteDetail({
       orderBy: [{ ordre: "asc" }, { nom: "asc" }],
       select: { nom: true },
     }),
-  ]);
+    ]);
 
   const optionsFermetures = fermetures.map((f) => ({
     id: f.id,
@@ -144,15 +155,17 @@ export default async function ActiviteDetail({
           <Power className="h-4 w-4" />
           {activite.actif ? "Désactiver" : "Réactiver"}
         </BoutonAction>
-        {activite._count.creneaux === 0 && (
-          <BoutonAction
-            action={supprimerActivite.bind(null, id)}
-            confirmation={`Supprimer définitivement l'activité « ${activite.nom} » ?`}
-            className={btnDanger}
-          >
-            <Trash2 className="h-4 w-4" /> Supprimer
-          </BoutonAction>
-        )}
+        <BoutonAction
+          action={supprimerActivite.bind(null, id)}
+          confirmation={
+            activite._count.creneaux === 0
+              ? `Supprimer définitivement l'activité « ${activite.nom} » ?`
+              : `Retirer l'activité « ${activite.nom} » et ses créneaux ? Les séances à venir sont annulées ; les présences déjà saisies restent comptées dans les statistiques, et l'activité se restaure depuis la liste.`
+          }
+          className={btnDanger}
+        >
+          <Trash2 className="h-4 w-4" /> Supprimer
+        </BoutonAction>
       </PageHeader>
 
       <div className="mb-6 h-1.5 rounded-full" style={{ backgroundColor: activite.couleur }} />
@@ -294,7 +307,7 @@ export default async function ActiviteDetail({
                     </BoutonAction>
                     <BoutonAction
                       action={supprimerCreneau.bind(null, c.id)}
-                      confirmation="Supprimer ce créneau et ses séances non émargées ?"
+                      confirmation="Supprimer ce créneau ? Ses séances à venir sont retirées du calendrier ; ce qui a déjà été émargé reste compté dans les statistiques."
                       className="rounded-lg border border-slate-200 px-2 py-1.5 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
                       title="Supprimer"
                     >
@@ -332,6 +345,47 @@ export default async function ActiviteDetail({
           </ul>
         )}
       </Card>
+
+      {archives.length > 0 && (
+        <Card title="Créneaux retirés" className="mt-6">
+          <p className="mb-3 text-sm text-slate-500">
+            Ils ne sont plus au planning et n&apos;acceptent plus d&apos;inscription.
+            Leurs séances émargées restent comptées dans les statistiques de la
+            saison.
+          </p>
+          <ul className="divide-y divide-slate-100">
+            {archives.map((c) => (
+              <li
+                key={c.id}
+                className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm"
+              >
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 font-medium text-slate-600">
+                    <Archive className="h-3.5 w-3.5 text-slate-400" />
+                    {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
+                  </span>
+                  <span className="block text-xs text-slate-400">
+                    {[
+                      c.lieu,
+                      `${c._count.seances} ${pluriel(c._count.seances, "séance")} conservée${c._count.seances > 1 ? "s" : ""}`,
+                      c.archiveAt ? `retiré le ${fmtDate(c.archiveAt)}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </span>
+                <BoutonAction
+                  action={restaurerCreneau.bind(null, c.id)}
+                  confirmation="Remettre ce créneau au planning ? Ses séances à venir sont regénérées."
+                  className={btnSecondary}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Restaurer
+                </BoutonAction>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <div className="mt-6" id="nouveau">
         <Panneau

@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import type { Jour } from "@prisma/client";
-import { fmtDate, jourUtc, normaliserHeure, JOUR_LABELS } from "@/lib/dates";
+import { aujourdhui, fmtDate, jourUtc, normaliserHeure, JOUR_LABELS } from "@/lib/dates";
 import { genererSeancesCreneau } from "@/lib/seances";
 import { promouvoirListeAttente } from "@/lib/inscriptions";
 import { notifierChangementCreneau } from "@/lib/notifications";
@@ -115,18 +115,77 @@ export async function basculerActivite(id: string): Promise<void> {
   revalidatePath("/activites");
 }
 
+/**
+ * Retire une activité du service.
+ *
+ * Deux issues, et le service des sports n'a pas à choisir entre elles : c'est
+ * l'historique qui tranche. Une activité qui n'a jamais eu de créneau n'a rien
+ * à conserver, elle est effacée. Dès qu'un créneau existe, la supprimer
+ * emporterait en cascade ses séances et ses présences — le bilan d'une saison
+ * close changerait rétroactivement, et personne ne saurait pourquoi les totaux
+ * ne correspondent plus à ce qui a été présenté en comité social. Elle est
+ * alors archivée : elle disparaît des écrans de gestion et du catalogue des
+ * agents, ses chiffres restent dans les statistiques, et le geste se défait.
+ */
 export async function supprimerActivite(id: string): Promise<void> {
   const user = await requireUser("GESTIONNAIRE");
   const activite = await prisma.activite.findUnique({
     where: { id },
     include: { _count: { select: { creneaux: true } } },
   });
-  // Une activité qui a servi n'est jamais supprimée : elle porte l'historique
-  // de fréquentation. On la désactive à la place.
-  if (!activite || activite._count.creneaux > 0) return;
-  await prisma.activite.delete({ where: { id } });
-  await audit("ACTIVITE_SUPPRIMEE", { userId: user.id, cible: activite.nom });
+  if (!activite) return;
+
+  if (activite._count.creneaux === 0) {
+    await prisma.activite.delete({ where: { id } });
+    await audit("ACTIVITE_SUPPRIMEE", { userId: user.id, cible: activite.nom });
+  } else {
+    const creneaux = await prisma.creneau.findMany({
+      where: { activiteId: id, archiveAt: null },
+      select: { id: true },
+    });
+    // Les créneaux suivent : une activité archivée dont les créneaux
+    // resteraient au planning continuerait d'appeler des animateurs et
+    // d'accepter des inscriptions.
+    for (const c of creneaux) await archiverCreneau(c.id);
+    await prisma.activite.update({
+      where: { id },
+      data: { archiveAt: new Date(), actif: false },
+    });
+    await audit("ACTIVITE_ARCHIVEE", {
+      userId: user.id,
+      cible: activite.nom,
+      details: `${creneaux.length} créneau(x) archivé(s) — historique conservé`,
+    });
+  }
   revalidatePath("/activites");
+  revalidatePath("/mes-activites");
+  revalidatePath("/inscriptions");
+  revalidatePath("/seances");
+}
+
+/** Remet une activité archivée en service, avec ses créneaux. */
+export async function restaurerActivite(id: string): Promise<void> {
+  const user = await requireUser("GESTIONNAIRE");
+  const activite = await prisma.activite.findUnique({ where: { id } });
+  if (!activite?.archiveAt) return;
+  const archivee = activite.archiveAt;
+
+  await prisma.activite.update({
+    where: { id },
+    data: { archiveAt: null, actif: true },
+  });
+  // Seuls les créneaux archivés EN MÊME TEMPS qu'elle reviennent : un créneau
+  // retiré trois mois plus tôt l'a été pour sa propre raison, et le ressusciter
+  // au passage remettrait au planning une séance que personne n'attend.
+  await prisma.creneau.updateMany({
+    where: { activiteId: id, archiveAt: archivee },
+    data: { archiveAt: null },
+  });
+  await audit("ACTIVITE_RESTAUREE", { userId: user.id, cible: activite.nom });
+  revalidatePath("/activites");
+  revalidatePath("/mes-activites");
+  revalidatePath("/inscriptions");
+  revalidatePath("/seances");
 }
 
 const creneauSchema = z.object({
@@ -346,18 +405,98 @@ export async function enregistrerCreneau(
   return succes(`Créneau enregistré — ${calendrier}.${notification}`);
 }
 
+/**
+ * Retire un créneau du planning.
+ *
+ * Comme pour l'activité : effacé s'il n'a rien laissé, archivé sinon. La
+ * frontière est l'émargement — une séance faite, ou une présence saisie sur
+ * une séance qui ne l'était pas encore. C'est la seule chose que la cascade
+ * détruirait sans retour, et c'est de là que sortent les statistiques de
+ * fréquentation.
+ */
 export async function supprimerCreneau(id: string): Promise<void> {
   const user = await requireUser("GESTIONNAIRE");
   const creneau = await prisma.creneau.findUnique({
     where: { id },
-    include: { seances: { where: { statut: "FAITE" }, select: { id: true } } },
+    include: {
+      activite: { select: { nom: true } },
+      _count: {
+        select: {
+          seances: { where: { OR: [{ statut: "FAITE" }, { presences: { some: {} } }] } },
+        },
+      },
+    },
   });
-  // Refus si de l'émargement existe : la suppression en cascade effacerait
-  // l'historique de fréquentation.
-  if (!creneau || creneau.seances.length > 0) return;
-  await prisma.creneau.delete({ where: { id } });
-  await audit("CRENEAU_SUPPRIME", { userId: user.id, cible: id });
+  if (!creneau) return;
+
+  const intitule = `${creneau.activite.nom} — ${JOUR_LABELS[creneau.jour].toLowerCase()} ${creneau.heureDebut}`;
+  if (creneau._count.seances === 0) {
+    await prisma.creneau.delete({ where: { id } });
+    await audit("CRENEAU_SUPPRIME", { userId: user.id, cible: intitule });
+  } else {
+    const retirees = await archiverCreneau(id);
+    await audit("CRENEAU_ARCHIVE", {
+      userId: user.id,
+      cible: intitule,
+      details: `${retirees} séance(s) à venir retirée(s) — historique conservé`,
+    });
+  }
   revalidatePath("/activites");
+  revalidatePath("/mes-activites");
+  revalidatePath("/inscriptions");
+  revalidatePath("/seances");
+}
+
+/**
+ * Archive un créneau et nettoie ce qui n'a pas encore eu lieu.
+ *
+ * Les séances à venir sont retirées — elles n'auront pas lieu, et les laisser
+ * réclamerait des feuilles d'émargement pour un créneau qui n'existe plus.
+ * Celles qui portent déjà une présence ne sont jamais touchées, même à venir :
+ * quelqu'un y a été pointé, c'est un fait constaté. Les inscriptions, elles,
+ * restent en place : ce sont elles qui disent combien d'agents la saison a
+ * touchés, et les désister ferait varier le bilan après coup.
+ *
+ * Renvoie le nombre de séances retirées du calendrier.
+ */
+async function archiverCreneau(id: string): Promise<number> {
+  const retirees = await prisma.seance.deleteMany({
+    where: {
+      creneauId: id,
+      statut: "PLANIFIEE",
+      date: { gte: aujourdhui() },
+      presences: { none: {} },
+    },
+  });
+  await prisma.creneau.update({
+    where: { id },
+    data: { archiveAt: new Date(), ouvertInscription: false },
+  });
+  return retirees.count;
+}
+
+/** Remet au planning un créneau archivé. Les séances se regénèrent. */
+export async function restaurerCreneau(id: string): Promise<void> {
+  const user = await requireUser("GESTIONNAIRE");
+  const creneau = await prisma.creneau.findUnique({
+    where: { id },
+    include: { activite: { select: { nom: true, archiveAt: true } } },
+  });
+  if (!creneau?.archiveAt) return;
+  // Une activité archivée ne peut pas héberger un créneau vivant : c'est elle
+  // qu'il faut restaurer d'abord, et ses créneaux suivront.
+  if (creneau.activite.archiveAt) return;
+
+  await prisma.creneau.update({ where: { id }, data: { archiveAt: null } });
+  await genererSeancesCreneau(id);
+  await audit("CRENEAU_RESTAURE", {
+    userId: user.id,
+    cible: `${creneau.activite.nom} — ${JOUR_LABELS[creneau.jour].toLowerCase()} ${creneau.heureDebut}`,
+  });
+  revalidatePath("/activites");
+  revalidatePath("/mes-activites");
+  revalidatePath("/inscriptions");
+  revalidatePath("/seances");
 }
 
 export async function regenererCalendrier(creneauId: string): Promise<void> {

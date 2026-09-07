@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Plus, Users } from "lucide-react";
+import { Archive, ChevronRight, Plus, RotateCcw, Users } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
@@ -13,9 +13,11 @@ import {
   btnSecondary,
 } from "@/components/ui";
 import { FiltreActivites } from "@/components/filtre-activites";
-import { JOUR_LABELS } from "@/lib/dates";
+import { fmtDate, JOUR_LABELS } from "@/lib/dates";
 import { effectifsParActivite } from "@/lib/inscriptions";
 import { pluriel } from "@/lib/constants";
+import { restaurerActivite } from "@/lib/actions/activites";
+import { BoutonAction } from "@/components/bouton-action";
 
 /**
  * Liste des activités.
@@ -52,12 +54,13 @@ export default async function ActivitesPage({
     );
   }
 
-  const [activites, nbFermetures, effectifs] = await Promise.all([
+  const [activites, archivees, nbFermetures, effectifs] = await Promise.all([
     prisma.activite.findMany({
+      where: { archiveAt: null },
       orderBy: [{ actif: "desc" }, { ordre: "asc" }, { nom: "asc" }],
       include: {
         creneaux: {
-          where: { saisonId: saison.id },
+          where: { saisonId: saison.id, archiveAt: null },
           orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
           include: {
             animateurs: { select: { id: true, nom: true, prenom: true } },
@@ -71,6 +74,13 @@ export default async function ActivitesPage({
           },
         },
       },
+    }),
+    // Retirées du service, mais toujours comptées : elles reparaissent ici
+    // seulement, avec de quoi revenir en arrière.
+    prisma.activite.findMany({
+      where: { archiveAt: { not: null } },
+      orderBy: { archiveAt: "desc" },
+      select: { id: true, nom: true, couleur: true, archiveAt: true },
     }),
     prisma.fermeture.count({ where: { saisonId: saison.id } }),
     effectifsParActivite(saison.id),
@@ -250,6 +260,43 @@ export default async function ActivitesPage({
             );
           })}
         </div>
+      )}
+
+      {archivees.length > 0 && !selection && (
+        <Card className="mt-6" title="Activités retirées">
+          <p className="mb-3 text-sm text-slate-500">
+            Elles ne sont plus proposées et n&apos;apparaissent plus au planning.
+            Leur fréquentation reste comptée dans les statistiques des saisons
+            où elles ont eu lieu.
+          </p>
+          <ul className="divide-y divide-slate-100">
+            {archivees.map((a) => (
+              <li
+                key={a.id}
+                className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Archive className="h-3.5 w-3.5 text-slate-400" />
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: a.couleur }}
+                  />
+                  <span className="font-medium text-slate-600">{a.nom}</span>
+                  <span className="text-xs text-slate-400">
+                    retirée le {fmtDate(a.archiveAt)}
+                  </span>
+                </span>
+                <BoutonAction
+                  action={restaurerActivite.bind(null, a.id)}
+                  confirmation={`Remettre « ${a.nom} » en service, avec ses créneaux ?`}
+                  className={btnSecondary}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Restaurer
+                </BoutonAction>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
     </>
   );

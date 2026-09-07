@@ -119,7 +119,7 @@ export async function genererSeancesCreneau(creneauId: string): Promise<Resultat
 /** (Re)génère les séances de tous les créneaux d'une saison. */
 export async function genererSeancesSaison(saisonId: string): Promise<ResultatGeneration> {
   const creneaux = await prisma.creneau.findMany({
-    where: { saisonId },
+    where: { saisonId, archiveAt: null },
     select: { id: true },
   });
   const total = { creees: 0, existantes: 0, supprimees: 0 };

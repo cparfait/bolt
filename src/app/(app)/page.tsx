@@ -404,9 +404,13 @@ export default async function TableauDeBord({
           />
         )}
 
+        {/* La vue « Agents » est nommée dans l'adresse : la liste des
+            décrocheurs n'existe que là. Sans elle, « Lister » déposait sur le
+            bilan QVT, où l'ancre ne désigne rien — et le clic semblait n'avoir
+            servi qu'à ouvrir les statistiques. */}
         {lachages.length > 0 && (
           <Alerte
-            href="/statistiques#decrocheurs"
+            href="/statistiques?vue=agents#decrocheurs"
             icon={<UserX className="h-5 w-5" />}
             titre={
               <>

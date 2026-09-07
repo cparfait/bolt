@@ -100,3 +100,25 @@ describe("boutons d'action", () => {
     assert.equal(vu, "Me connecter : https://exemple.fr/x");
   });
 });
+
+describe("mise en gras", () => {
+  it("efface les marques dans la version texte du message", () => {
+    // Celle que reçoivent les clients qui n'affichent pas le HTML : des
+    // étoiles au milieu d'une date y seraient du bruit.
+    assert.equal(
+      sansNotation("Séance **mardi 15 septembre** à 12:15"),
+      "Séance mardi 15 septembre à 12:15",
+    );
+  });
+
+  it("laisse une marque jamais refermée telle quelle", () => {
+    assert.equal(sansNotation("Un **astérisque isolé"), "Un **astérisque isolé");
+  });
+
+  it("l'aperçu ne montre jamais les étoiles", () => {
+    assert.equal(
+      apercu("Bonjour Chloé,\n\nRendez-vous **mardi 15 septembre**."),
+      "Rendez-vous mardi 15 septembre.",
+    );
+  });
+});

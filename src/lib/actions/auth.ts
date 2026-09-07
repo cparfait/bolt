@@ -9,6 +9,7 @@ import { audit } from "@/lib/audit";
 import { alerterSecurite } from "@/lib/alertes";
 import { clientIp, estInterne } from "@/lib/net";
 import { adresseConnue, consommerLien, envoyerLienConnexion } from "@/lib/magic";
+import { LIEN_VALIDITE_LIBELLE } from "@/lib/constants";
 import { estAdresseDeLaCollectivite, getGeneralSettings } from "@/lib/settings";
 import type { ActionState } from "./types";
 
@@ -141,7 +142,7 @@ export async function demanderLienAction(
   // ne se remplit jamais. Avec un millier d'adresses IP, ce qui coûte quelques
   // euros, cette action expédierait 20 000 courriels par heure sous le domaine
   // de la collectivité. Le dommage n'est pas la fuite — chaque lien part à son
-  // seul destinataire et expire en 30 minutes — c'est la réputation
+  // seul destinataire et expire en une heure — c'est la réputation
   // d'expéditeur, qui met des semaines à se réparer et emporte avec elle tout
   // le courrier de la mairie.
   //
@@ -192,7 +193,7 @@ export async function demanderLienAction(
   await envoyerLienConnexion(email, { externe: !estInterne(ip) });
   return {
     success:
-      "Si cette adresse est enregistrée, le lien vient de partir. Regardez votre messagerie — il est valable 30 minutes.",
+      `Si cette adresse est enregistrée, le lien vient de partir. Regardez votre messagerie — il est valable ${LIEN_VALIDITE_LIBELLE}.`,
   };
 }
 

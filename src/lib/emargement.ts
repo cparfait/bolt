@@ -185,7 +185,11 @@ export async function feuillesAttendues<
     // l'alerte du tableau de bord réclame indéfiniment une feuille qui
     // n'existera pas.
     prisma.creneau.findMany({
-      where: { id: { in: creneauIds }, activite: { suiviPresence: true } },
+      // Un créneau archivé n'attend plus de feuille : ses séances passées
+      // non émargées le resteront, et les réclamer indéfiniment ferait du
+      // compteur du tableau de bord un chiffre que personne ne peut ramener à
+      // zéro.
+      where: { id: { in: creneauIds }, archiveAt: null, activite: { suiviPresence: true } },
       select: { id: true },
     }),
     prisma.inscription.findMany({

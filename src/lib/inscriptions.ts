@@ -79,8 +79,15 @@ export async function perimetreCapacite(creneauId: string): Promise<Perimetre | 
 
   // Le groupe ne se partage qu'entre créneaux d'une même saison : deux saisons
   // successives ont chacune leurs inscrits.
+  // Un créneau archivé sort du groupe : ses inscrits n'occupent plus de place
+  // sur les créneaux qui restent, sans quoi retirer un créneau du planning
+  // fermerait durablement l'activité sans que rien ne l'explique à l'écran.
   const fratrie = await prisma.creneau.findMany({
-    where: { activiteId: creneau.activiteId, saisonId: creneau.saisonId },
+    where: {
+      activiteId: creneau.activiteId,
+      saisonId: creneau.saisonId,
+      archiveAt: null,
+    },
     select: { id: true },
   });
   return {
@@ -236,7 +243,9 @@ export async function accuserReception(
     if (!adresse) return;
 
     const g = await getGeneralSettings();
-    const quand = `${creneau.jour.toLowerCase()} de ${creneau.heureDebut} à ${creneau.heureFin}${creneau.lieu ? ` — ${creneau.lieu}` : ""}`;
+    // Le jour et l'horaire en gras, le lieu hors des marques : c'est la date
+    // qu'on revient chercher dans le message, pas le nom de la salle.
+    const quand = `**${creneau.jour.toLowerCase()} de ${creneau.heureDebut} à ${creneau.heureFin}**${creneau.lieu ? ` — ${creneau.lieu}` : ""}`;
     const nom = creneau.activite.nom;
     const seDesinscrire = `Si cette inscription ne vous convient pas, désinscrivez-vous depuis l'application : votre place profitera à un collègue en liste d'attente.`;
 
@@ -557,7 +566,7 @@ export async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
       `Une place s'est libérée en ${promu.creneau.activite.nom}`,
       [
         `Bonjour ${nomPourSalutation(promu.user.displayName)},`,
-        `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}). Votre inscription est confirmée.`,
+        `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (**${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}**). Votre inscription est confirmée.`,
         g.contactEmail
           ? `Si vous ne souhaitez plus participer, prévenez le service des sports : ${g.contactEmail}.`
           : `Si vous ne souhaitez plus participer, prévenez le service des sports.`,

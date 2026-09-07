@@ -252,7 +252,7 @@ export async function validerDemande(
  * Annonce à la personne que son accès est ouvert.
  *
  * On envoie l'adresse de l'espace agent, pas un lien de connexion : un jeton
- * vaut trente minutes, et ce courriel-ci peut être lu le lendemain. La personne
+ * vaut une heure, et ce courriel-ci peut être lu le lendemain. La personne
  * demandera son lien quand elle en aura besoin.
  */
 async function annoncerAcces(userId: string): Promise<void> {

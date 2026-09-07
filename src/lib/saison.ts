@@ -49,7 +49,7 @@ export async function reprendreCreneaux(
   cibleId: string,
 ): Promise<RepriseCreneaux> {
   const creneaux = await prisma.creneau.findMany({
-    where: { saisonId: sourceId },
+    where: { saisonId: sourceId, archiveAt: null },
     include: {
       activite: { select: { actif: true } },
       animateurs: { where: { actif: true }, select: { id: true } },

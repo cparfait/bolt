@@ -88,7 +88,7 @@ export default async function AnnulerSeancesPage({
       take: 300,
     }),
     prisma.creneau.findMany({
-      where: { saisonId: saison.id, ...perimetre },
+      where: { saisonId: saison.id, archiveAt: null, ...perimetre },
       include: { activite: { select: { id: true, nom: true } } },
       orderBy: [{ activite: { nom: "asc" } }, { jour: "asc" }, { heureDebut: "asc" }],
     }),

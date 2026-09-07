@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Role } from "@prisma/client";
 import { prisma } from "./db";
 import { adresseDeContact } from "./comptes";
-import { nomPourSalutation } from "./constants";
+import { LIEN_VALIDITE_LIBELLE, LIEN_VALIDITE_MINUTES, nomPourSalutation } from "./constants";
 import { getGeneralSettings, urlEspaceAgent } from "./settings";
 import { envoyerMail } from "./mail";
 import { audit } from "./audit";
@@ -16,10 +16,8 @@ import { serviceResolu } from "./services";
  * déjà connue de l'annuaire (miroir AdAccount, ou compte Bolt existant) reçoit
  * un lien — impossible de créer une identité en saisissant un nom.
  *
- * Jeton à usage unique, valable 30 minutes.
+ * Jeton à usage unique, valable une heure (src/lib/constants.ts).
  */
-
-const VALIDITE_MINUTES = 30;
 
 /**
  * Qui peut ouvrir une session depuis Internet.
@@ -149,7 +147,7 @@ export async function envoyerLienConnexion(
     data: {
       token,
       userId: user.id,
-      expiresAt: new Date(Date.now() + VALIDITE_MINUTES * 60 * 1000),
+      expiresAt: new Date(Date.now() + LIEN_VALIDITE_MINUTES * 60 * 1000),
     },
   });
 
@@ -164,7 +162,7 @@ export async function envoyerLienConnexion(
     `Votre lien de connexion à ${g.appName}`,
     [
       `Bonjour ${nomPourSalutation(user.displayName)},`,
-      `Voici votre accès aux activités sportives. Il est valable ${VALIDITE_MINUTES} minutes et ne sert qu'une fois — ensuite vous restez connecté sur cet appareil, sans avoir à le redemander.`,
+      `Voici votre accès aux activités sportives. Il est valable ${LIEN_VALIDITE_LIBELLE} et ne sert qu'une fois — ensuite vous restez connecté sur cet appareil, sans avoir à le redemander.`,
       `[Me connecter](${lien})`,
       `Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : aucun accès n'a été ouvert.`,
     ].join("\n\n"),

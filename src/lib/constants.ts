@@ -64,6 +64,21 @@ export const COACH_ACCES_AIDE: Record<CoachAcces, string> = {
   LIEN: "Aucun compte : un lien personnel + un code à 6 chiffres, utilisable depuis n'importe où. Recommandé pour les prestataires extérieurs.",
 };
 
+/**
+ * Durée de validité du lien de connexion envoyé par courriel.
+ *
+ * Ici, et non dans `src/lib/magic.ts` : les écrans qui l'annoncent à l'agent
+ * sont des composants clients, et importer le module d'envoi depuis l'un d'eux
+ * embarquerait Prisma et nodemailer dans le navigateur.
+ *
+ * Le libellé accompagne la durée pour que les deux ne se séparent jamais —
+ * c'est précisément ce qui était arrivé à la précédente, recopiée en clair sur
+ * trois écrans. « 60 minutes » serait d'ailleurs juste et mal écrit : personne
+ * ne compte en minutes au-delà de la demi-heure.
+ */
+export const LIEN_VALIDITE_MINUTES = 60;
+export const LIEN_VALIDITE_LIBELLE = "1 heure";
+
 /** Palette proposée pour les activités (badges, graphiques). */
 export const COULEURS_ACTIVITE = [
   "#4f46e5", // indigo
@@ -130,6 +145,34 @@ export function nomPourSalutation(nomAffiche: string): string {
       .replace(/(^|[-'’])(\p{L})/gu, (_, s, l) => s + l.toLocaleUpperCase("fr"));
 
   return [...prenoms, ...patronyme.map(capitaliser)].join(" ");
+}
+
+/**
+ * Nom affiché composé de deux champs saisis séparément.
+ *
+ * Un champ unique « prénom et nom » demande à celui qui le remplit de connaître
+ * une convention qu'il n'a aucune raison de connaître, et rien ne permet
+ * ensuite de rattraper l'erreur : « Parfait Chloé » et « Chloé Parfait » sont
+ * indiscernables pour la machine. Deux cases suppriment la question, à la
+ * saisie comme à la relecture.
+ *
+ * Le résultat suit la convention de l'annuaire — patronyme en capitales
+ * d'abord, « DUPONT Camille » —, celle que porte déjà `User.displayName` pour
+ * les comptes venus de l'Active Directory. Deux bénéfices immédiats : les
+ * listes se trient sur le nom de famille sans mélanger les deux origines, et
+ * `prenomDe` comme `nomPourSalutation` retrouvent l'ordre juste, ce qu'ils ne
+ * pouvaient pas faire d'une saisie libre.
+ */
+export function composerNomAffiche(prenom: string, nom: string): string {
+  const propre = (s: string) => s.trim().replace(/\s+/g, " ");
+  // Casse normalisée avant capitalisation : « CAMILLE » saisi au verrouillage
+  // majuscule ressortirait sinon tel quel, et « Bonjour CAMILLE » en tête de
+  // courriel est exactement ce que `nomPourSalutation` s'emploie à éviter.
+  const p = propre(prenom)
+    .toLocaleLowerCase("fr")
+    .replace(/(^|[-'’ ])(\p{L})/gu, (_, s, l) => s + l.toLocaleUpperCase("fr"));
+  const n = propre(nom).toLocaleUpperCase("fr");
+  return [n, p].filter(Boolean).join(" ");
 }
 
 export function pluriel(n: number, singulier: string, plurielMot?: string): string {

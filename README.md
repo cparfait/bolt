@@ -138,7 +138,7 @@ dans la navigation. **La validation est le seul endroit où une identité naît
 d'une adresse saisie sur Internet** — et c'est un geste humain. Elle crée le
 compte `no_ad.…` et envoie à la personne un message lui annonçant que son accès
 est ouvert, avec l'adresse de l'espace agent : pas un lien de connexion, dont
-les trente minutes seraient écoulées quand elle lira le message. Un refus, lui,
+l'heure de validité serait écoulée quand elle lira le message. Un refus, lui,
 n'envoie rien : le motif reste interne, et c'est au service de reprendre contact
 s'il le juge utile.
 
@@ -155,7 +155,7 @@ une source distribuée les contourne en faisant varier les deux, et aucun ne se
 remplit jamais. Avec un millier d'adresses IP — quelques euros —, l'action
 expédierait 20 000 courriels par heure sous le domaine de la collectivité. Le
 dommage ne serait pas la fuite (chaque lien part à son seul destinataire et
-expire en 30 minutes) mais la **réputation d'expéditeur** : des semaines à se
+expire en une heure) mais la **réputation d'expéditeur** : des semaines à se
 réparer, et tout le courrier de la mairie en indésirable entre-temps. D'où un
 troisième compteur, sans clé d'identité, plafonné à 200 envois par heure. Il ne
 s'applique qu'aux demandes venues de l'extérieur : pendant une attaque, un
@@ -301,6 +301,31 @@ restent ouvertes.
 
 La génération du calendrier est idempotente. Elle ne supprime jamais une séance
 déjà émargée.
+
+### Supprimer sans perdre la fréquentation
+
+Un créneau qui n'aura plus lieu, une activité abandonnée : le service des sports
+doit pouvoir les retirer. Mais présences et séances pendent au créneau, et une
+suppression en cascade ferait changer rétroactivement le bilan d'une saison
+close — les totaux présentés en comité social ne se retrouveraient plus, sans
+que rien à l'écran n'explique pourquoi.
+
+D'où deux issues, et **c'est l'historique qui tranche, pas l'utilisateur** :
+
+- rien n'a jamais été émargé → la ligne est réellement supprimée ;
+- une feuille existe → elle est **archivée**. Le créneau quitte le planning, les
+  inscriptions et les feuilles d'émargement, ses séances à venir sont retirées
+  du calendrier, celles qui portent déjà une présence ne sont pas touchées. Les
+  statistiques, elles, continuent de le compter à l'identique.
+
+Archiver une activité archive ses créneaux. Le geste se défait : *Activités*
+liste en bas les activités retirées, la fiche d'une activité ses créneaux
+retirés, chacun avec un bouton **Restaurer** — restaurer un créneau regénère
+ses séances à venir.
+
+C'est distinct de la **désactivation** (`actif`), qui ferme une activité aux
+inscriptions en la laissant sous les yeux du service : ici, elle disparaît des
+écrans de travail.
 
 ---
 
@@ -507,7 +532,7 @@ absence longue au terme de laquelle l'agent retrouve son créneau.
     est la mémoire administrative du service : qui a validé cette inscription,
     qui a annulé cette séance. Elle sert une saison entière.
 
-  Les jetons de connexion par courriel, valables trente minutes, sont supprimés
+  Les jetons de connexion par courriel, valables une heure, sont supprimés
   au bout de 30 jours. Les durées sont réunies en tête de `src/lib/purge.ts`,
   pour être recopiables au registre des traitements et modifiables sans relire
   l'application. Elles sont également affichées en clair sous le titre de

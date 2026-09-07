@@ -4,6 +4,7 @@ import Link from "next/link";
 import { currentUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
 import { servicesProposes } from "@/lib/services";
+import { LIEN_VALIDITE_LIBELLE } from "@/lib/constants";
 import { clientIp, estInterne } from "@/lib/net";
 import { Logos, TitreConnexion } from "@/components/ui";
 import { DemandeLienForm } from "./demande-form";
@@ -59,7 +60,7 @@ export default async function AccesPage({
               Ce lien a expiré
             </p>
             <p className="mt-1 text-sm text-amber-700">
-              Un lien ne sert qu&apos;une fois, et pendant 30 minutes.
+              Un lien ne sert qu&apos;une fois, et pendant {LIEN_VALIDITE_LIBELLE}.
               Demandez-en un nouveau ci-dessous.
             </p>
           </div>

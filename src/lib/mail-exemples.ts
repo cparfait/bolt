@@ -1,4 +1,5 @@
 import { getGeneralSettings } from "./settings";
+import { LIEN_VALIDITE_LIBELLE } from "./constants";
 
 /**
  * Catalogue des messages que Bolt envoie, avec un jeu de données d'exemple.
@@ -64,7 +65,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       objet: `Votre lien de connexion à ${g.appName}`,
       corps: [
         `Bonjour ${PRENOM},`,
-        `Voici votre accès aux activités sportives. Il est valable 30 minutes et ne sert qu'une fois — ensuite vous restez connecté sur cet appareil, sans avoir à le redemander.`,
+        `Voici votre accès aux activités sportives. Il est valable ${LIEN_VALIDITE_LIBELLE} et ne sert qu'une fois — ensuite vous restez connecté sur cet appareil, sans avoir à le redemander.`,
         `[Me connecter](${base}/acces/lien?token=exemple-de-jeton)`,
         `Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : aucun accès n'a été ouvert.`,
       ].join("\n\n"),
@@ -77,7 +78,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       objet: "Demande d'inscription reçue — Aquagym",
       corps: [
         `Bonjour ${PRENOM},`,
-        `Votre demande d'inscription à Aquagym (mardi 12:15–13:00) est bien enregistrée.`,
+        `Votre demande d'inscription à Aquagym (**mardi 12:15–13:00**) est bien enregistrée.`,
         `Le service des sports l'examine : vous recevrez un message dès qu'une décision sera prise. Vous n'avez rien d'autre à faire d'ici là.`,
         signature,
       ].join("\n\n"),
@@ -90,7 +91,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       objet: "Inscription confirmée — Aquagym",
       corps: [
         `Bonjour ${PRENOM},`,
-        `Votre inscription à Aquagym est confirmée : mardi de 12:15 à 13:00 — Piscine municipale.`,
+        `Votre inscription à Aquagym est confirmée : **mardi de 12:15 à 13:00** — Piscine municipale.`,
         `Bonne pratique !`,
       ].join("\n\n"),
     },
@@ -102,7 +103,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       objet: "Liste d'attente — Aquagym",
       corps: [
         `Bonjour ${PRENOM},`,
-        `Le créneau de Aquagym (mardi 12:15–13:00) est complet : vous êtes en liste d'attente, en position 3.`,
+        `Le créneau de Aquagym (**mardi 12:15–13:00**) est complet : vous êtes en liste d'attente, en position 3.`,
         `Vous serez prévenu par courriel dès qu'une place se libère. Votre demande reste valable, il est inutile de la renouveler.`,
         signature,
       ].join("\n\n"),
@@ -115,7 +116,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       objet: "Une place s'est libérée en Aquagym",
       corps: [
         `Bonjour ${PRENOM},`,
-        `Une place vient de se libérer sur le créneau de Aquagym (mardi 12:15). Votre inscription est confirmée.`,
+        `Une place vient de se libérer sur le créneau de Aquagym (**mardi 12:15**). Votre inscription est confirmée.`,
         `Si vous ne souhaitez plus participer, prévenez le service des sports : ${contact}.`,
       ].join("\n\n"),
     },
@@ -139,7 +140,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       objet: "Rappel — Aquagym mardi 15 septembre",
       corps: [
         `Bonjour ${PRENOM},`,
-        `Petit rappel : votre séance de Aquagym a lieu mardi 15 septembre de 12:15 à 13:00, Piscine municipale.`,
+        `Petit rappel : votre séance de Aquagym a lieu **mardi 15 septembre de 12:15 à 13:00**, Piscine municipale.`,
         `Un empêchement ? Prévenez le service des sports : votre place profitera à un collègue en liste d'attente.`,
         signature,
       ].join("\n\n"),
@@ -153,7 +154,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       corps: [
         `Bonjour ${PRENOM},`,
         `La séance suivante n'aura pas lieu :`,
-        `— Aquagym, mardi 15 septembre, 12:15–13:00 (Piscine municipale)`,
+        `— Aquagym, **mardi 15 septembre, 12:15–13:00** (Piscine municipale)`,
         `Motif : bassin fermé pour maintenance`,
         `Votre inscription reste valable et les autres séances sont maintenues : il n'y a rien à faire de votre part.`,
         signature,
@@ -167,7 +168,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       objet: "Séance maintenue — Aquagym",
       corps: [
         `Bonjour ${PRENOM},`,
-        `Bonne nouvelle : la séance de Aquagym du mardi 15 septembre, 12:15–13:00 (Piscine municipale), aura finalement bien lieu.`,
+        `Bonne nouvelle : la séance de Aquagym du **mardi 15 septembre, 12:15–13:00** (Piscine municipale), aura finalement bien lieu.`,
         `Elle avait été annulée : vous pouvez la réinscrire à votre agenda.`,
         signature,
       ].join("\n\n"),
@@ -180,9 +181,9 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       objet: "Changement — Aquagym",
       corps: [
         `Bonjour ${PRENOM},`,
-        `Votre créneau de Aquagym du mardi a été modifié.`,
-        `Nouvel horaire : 12:30–13:15 au lieu de 12:15–13:00.`,
-        `Il n'y aura finalement PAS de séance pendant :\n— les vacances de la Toussaint, du 18 octobre au 2 novembre`,
+        `Votre créneau de Aquagym — **mardi 12:15** a été modifié.`,
+        `Nouvel horaire : **12:30–13:15**\n(auparavant 12:15–13:00)`,
+        `Il n'y aura finalement PAS de séance pendant :\n• les vacances de la Toussaint (**18/10/2026 → 02/11/2026**)`,
         `Votre inscription reste valable : rien à faire de votre part. Consultez le détail dans l'application à tout moment.`,
         signature,
       ].join("\n\n"),

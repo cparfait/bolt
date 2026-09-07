@@ -64,13 +64,24 @@ export function DemandeAccesForm({
         </label>
       </div>
 
-      {/* Prénom d'abord, et l'exemple le montre : c'est ce qui est saisi ici
-          qui ouvrira les courriels de la personne, et rien ne permet ensuite de
-          deviner l'ordre — « Parfait Chloé » et « Chloé Parfait » sont
-          indiscernables pour la machine. */}
-      <Field label="Votre prénom et votre nom" required>
-        <Input name="nom" autoComplete="name" placeholder="Camille Martin" autoFocus required />
-      </Field>
+      {/* Deux cases, et non un champ unique : c'est ce qui est saisi ici qui
+          ouvrira les courriels de la personne, et d'un champ unique rien ne
+          permet de deviner l'ordre — « Parfait Chloé » et « Chloé Parfait »
+          sont indiscernables pour la machine. */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Votre prénom" required>
+          <Input
+            name="prenom"
+            autoComplete="given-name"
+            placeholder="Camille"
+            autoFocus
+            required
+          />
+        </Field>
+        <Field label="Votre nom" required>
+          <Input name="nom" autoComplete="family-name" placeholder="Martin" required />
+        </Field>
+      </div>
 
       <Field
         label="Votre adresse e-mail"

@@ -263,6 +263,20 @@ model Activite {
   capacitePartagee Boolean @default(false)
   capacite         Int? // effectif du groupe, quand la capacité est mutualisée
 
+  /// Activité retirée du service — « supprimée » du point de vue du service
+  /// des sports — sans que sa fréquentation le soit.
+  ///
+  /// Une activité qui n'a jamais servi est bel et bien effacée. Dès qu'un
+  /// créneau existe, la supprimer emporterait en cascade ses séances et ses
+  /// présences : le bilan QVT de la saison passée perdrait une ligne, et les
+  /// totaux de la collectivité changeraient rétroactivement. On l'archive donc
+  /// à la place — invisible partout où l'on travaille, entière partout où l'on
+  /// compte. Le geste se défait (« Restaurer »).
+  ///
+  /// Distinct de `actif`, qui ferme une activité pour la saison en la laissant
+  /// sous les yeux du service : ici, elle disparaît de l'écran.
+  archiveAt DateTime?
+
   creneaux Creneau[]
 
   createdAt DateTime @default(now())
@@ -297,6 +311,15 @@ model Creneau {
   // Bornes optionnelles : par défaut, celles de la saison.
   dateDebut DateTime? @db.Date
   dateFin   DateTime? @db.Date
+
+  /// Créneau retiré du planning sans effacer ce qui s'y est passé.
+  ///
+  /// Même raison que sur l'activité : les présences pendent aux séances, qui
+  /// pendent au créneau. Un créneau sans aucune séance émargée est supprimé
+  /// pour de bon ; dès qu'une feuille existe, il est archivé — ses séances à
+  /// venir sont retirées du calendrier, son historique reste dans les
+  /// statistiques.
+  archiveAt DateTime?
 
   saison       Saison        @relation(fields: [saisonId], references: [id], onDelete: Cascade)
   activite     Activite      @relation(fields: [activiteId], references: [id], onDelete: Restrict)

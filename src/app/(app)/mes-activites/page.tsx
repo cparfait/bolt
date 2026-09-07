@@ -47,7 +47,7 @@ export default async function MesActivitesPage({
 
   const [creneaux, mesInscriptions, mesPresences] = await Promise.all([
     prisma.creneau.findMany({
-      where: { saisonId: saison.id, activite: { actif: true } },
+      where: { saisonId: saison.id, archiveAt: null, activite: { actif: true } },
       include: {
         activite: true,
         animateurs: { select: { prenom: true, nom: true } },

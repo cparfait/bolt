@@ -70,7 +70,7 @@ export function estCreeALaMain(login: string): boolean {
  * L'adresse de contact, saisie par le service des sports, l'emporte sur celle
  * de l'annuaire : c'est tout l'intérêt de la saisir. Un agent de terrain a bien
  * une boîte professionnelle sur le papier, mais ne la consulte jamais — lui
- * envoyer un lien de connexion valable trente minutes revient à ne rien
+ * envoyer un lien de connexion valable une heure revient à ne rien
  * envoyer.
  */
 export function adresseDeContact(user: {

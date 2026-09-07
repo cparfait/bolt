@@ -87,7 +87,7 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
         `Rappel — ${s.creneau.activite.nom} ${fmtDateLongue(s.date)}`,
         [
           `Bonjour ${nomPourSalutation(i.user.displayName)},`,
-          `Petit rappel : votre séance de ${s.creneau.activite.nom} a lieu ${fmtDateLongue(s.date)} de ${s.creneau.heureDebut} à ${s.creneau.heureFin}${s.creneau.lieu ? `, ${s.creneau.lieu}` : ""}.`,
+          `Petit rappel : votre séance de ${s.creneau.activite.nom} a lieu **${fmtDateLongue(s.date)} de ${s.creneau.heureDebut} à ${s.creneau.heureFin}**${s.creneau.lieu ? `, ${s.creneau.lieu}` : ""}.`,
           `Un empêchement ? Prévenez le service des sports : votre place profitera à un collègue en liste d'attente.`,
           g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
         ].join("\n\n"),

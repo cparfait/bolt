@@ -28,17 +28,24 @@ export function AgentHorsAnnuaireForm({
     <form action={action} className="space-y-4" key={state?.success ?? "initial"}>
       <Alert state={state} />
 
+      {/* Deux cases plutôt qu'une : sur un champ unique, l'ordre saisi varie
+          d'une fiche à l'autre et plus rien ne dit lequel des deux mots est le
+          prénom — ce qui ressort ensuite en tête des courriels. */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Nom et prénom" required>
-          <Input name="nom" required placeholder="Camille DUPONT" />
+        <Field label="Prénom" required>
+          <Input name="prenom" required placeholder="Camille" />
         </Field>
-        <Field
-          label="Adresse e-mail"
-          hint="Sans elle, la personne ne peut ni se connecter ni être prévenue d'une annulation."
-        >
-          <Input name="email" type="email" placeholder="c.dupont@ccas-exemple.fr" />
+        <Field label="Nom" required>
+          <Input name="nom" required placeholder="Dupont" />
         </Field>
       </div>
+
+      <Field
+        label="Adresse e-mail"
+        hint="Sans elle, la personne ne peut ni se connecter ni être prévenue d'une annulation."
+      >
+        <Input name="email" type="email" placeholder="c.dupont@ccas-exemple.fr" />
+      </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Direction" hint="Reprise dans les statistiques de fréquentation.">
