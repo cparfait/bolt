@@ -29,7 +29,7 @@ export type Filtre = {
   au?: Date;
 };
 
-function estPresent(etat: EtatPresence): boolean {
+export function estPresent(etat: EtatPresence): boolean {
   return etat === "PRESENT";
 }
 
@@ -51,7 +51,7 @@ export function placesOffertes(seance: {
   return a.capacitePartagee ? (a.capacite ?? seance.creneau.capacite) : seance.creneau.capacite;
 }
 
-async function chargerSeances(f: Filtre) {
+export async function chargerSeances(f: Filtre) {
   return prisma.seance.findMany({
     where: {
       creneau: {

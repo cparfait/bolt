@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { CaseGrille } from "@/lib/stats";
 import { JOUR_LABELS, JOURS } from "@/lib/dates";
 
@@ -12,7 +13,14 @@ import { JOUR_LABELS, JOURS } from "@/lib/dates";
  * les sept jours et vingt-quatre heures produirait un damier illisible pour
  * cinq activités.
  */
-export function GrilleCreneaux({ cases }: { cases: CaseGrille[] }) {
+export function GrilleCreneaux({
+  cases,
+  lien,
+}: {
+  cases: CaseGrille[];
+  /** Où mène une case remplie. Les cases vides ne mènent nulle part. */
+  lien?: (c: CaseGrille) => string;
+}) {
   if (cases.length === 0) {
     return <p className="text-sm text-slate-400">Aucune séance émargée sur la période.</p>;
   }
@@ -61,18 +69,29 @@ export function GrilleCreneaux({ cases }: { cases: CaseGrille[] }) {
                     </td>
                   );
                 }
-                return (
-                  <td
-                    key={j}
-                    title={`${c.activites.join(", ")} · ${c.presentsMoyens} présents en moyenne sur ${c.placesMoyennes} places`}
-                    className={`rounded-lg px-2 py-2 text-center ${teinte(c.tauxRemplissage)}`}
-                  >
+                const contenu = (
+                  <>
                     <span className="block text-sm font-semibold tabular-nums">
                       {c.tauxRemplissage}%
                     </span>
                     <span className="block truncate text-[11px] opacity-80">
                       {c.activites.join(", ")}
                     </span>
+                  </>
+                );
+                return (
+                  <td
+                    key={j}
+                    title={`${c.activites.join(", ")} · ${c.presentsMoyens} présents en moyenne sur ${c.placesMoyennes} places`}
+                    className={`rounded-lg text-center ${teinte(c.tauxRemplissage)}`}
+                  >
+                    {lien ? (
+                      <Link href={lien(c)} className="block px-2 py-2 transition hover:opacity-80">
+                        {contenu}
+                      </Link>
+                    ) : (
+                      <span className="block px-2 py-2">{contenu}</span>
+                    )}
                   </td>
                 );
               })}

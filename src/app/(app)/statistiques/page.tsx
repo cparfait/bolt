@@ -163,15 +163,50 @@ export default async function StatistiquesPage({
       </nav>
 
       {vue === "bilan" && (
-        <VueBilan filtre={filtre} ind={ind} indPrecedent={indPrecedent} />
+        <VueBilan
+          filtre={filtre}
+          ind={ind}
+          indPrecedent={indPrecedent}
+          vers={versDetail(filtre, "bilan")}
+        />
       )}
-      {vue === "pilotage" && <VuePilotage filtre={filtre} />}
-      {vue === "agents" && <VueAgents filtre={filtre} seuil={g.absencesAvantRelance} />}
+      {vue === "pilotage" && (
+        <VuePilotage filtre={filtre} vers={versDetail(filtre, "pilotage")} />
+      )}
+      {vue === "agents" && (
+        <VueAgents
+          filtre={filtre}
+          seuil={g.absencesAvantRelance}
+          vers={versDetail(filtre, "agents")}
+        />
+      )}
     </>
   );
 }
 
 type Filtre = { saisonId: string; activiteId?: string };
+
+/**
+ * Où mène un chiffre.
+ *
+ * Chaque ligne de ces écrans est un total, et un total ne dit pas quoi faire :
+ * « 3 jamais venus » appelle une relance, encore faut-il savoir lesquels. Le
+ * lien porte le filtre courant et la vue d'où l'on part, pour que le retour
+ * ramène exactement où l'on était.
+ */
+type Vers = (type: string, valeur: string) => string;
+
+function versDetail(filtre: Filtre, vue: Vue): Vers {
+  return (type, valeur) => {
+    const p = new URLSearchParams({ saison: filtre.saisonId, type, valeur });
+    if (filtre.activiteId) p.set("activite", filtre.activiteId);
+    if (vue !== "bilan") p.set("vue", vue);
+    return `/statistiques/detail?${p.toString()}`;
+  };
+}
+
+/** Rend une ligne de tableau cliquable sans la déguiser en bouton. */
+const LIGNE_CLIQUABLE = "cursor-pointer transition hover:bg-slate-50";
 
 // ── Bilan QVT ──────────────────────────────────────────────────────────────
 
@@ -179,10 +214,12 @@ async function VueBilan({
   filtre,
   ind,
   indPrecedent,
+  vers,
 }: {
   filtre: Filtre;
   ind: Indicateurs;
   indPrecedent: Indicateurs | null;
+  vers: Vers;
 }) {
   const [mensuel, directions, activites, assid] = await Promise.all([
     evolutionMensuelle(filtre),
@@ -227,9 +264,10 @@ async function VueBilan({
 
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <Card title="Évolution de la fréquentation">
-          <HistogrammeMensuel points={mensuel} />
+          <HistogrammeMensuel points={mensuel} lien={(p) => vers("mois", p.cle)} />
           <p className="mt-3 text-xs text-slate-400">
-            Nombre de présences par mois. Survolez une barre pour le détail.
+            Nombre de présences par mois. Survolez une barre pour le résumé,
+            cliquez pour les séances du mois.
           </p>
         </Card>
 
@@ -243,13 +281,18 @@ async function VueBilan({
             <ul className="space-y-3">
               {directions.map((d) => (
                 <li key={d.libelle}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-                    <span className="truncate font-medium">{d.libelle}</span>
-                    <span className="shrink-0 tabular-nums text-slate-500">
-                      {d.agents} {pluriel(d.agents, "agent")}
-                    </span>
-                  </div>
-                  <Jauge valeur={(d.presents / maxDirection) * 100} />
+                  <Link
+                    href={vers("direction", d.libelle)}
+                    className="block rounded-lg p-1 transition hover:bg-slate-50"
+                  >
+                    <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                      <span className="truncate font-medium">{d.libelle}</span>
+                      <span className="shrink-0 tabular-nums text-slate-500">
+                        {d.agents} {pluriel(d.agents, "agent")}
+                      </span>
+                    </div>
+                    <Jauge valeur={(d.presents / maxDirection) * 100} />
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -259,11 +302,11 @@ async function VueBilan({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Par activité">
-          <TableauActivites activites={activites} />
+          <TableauActivites activites={activites} vers={vers} />
         </Card>
 
         <Card title="Qui vient vraiment">
-          <RepartitionAssiduite a={assid} />
+          <RepartitionAssiduite a={assid} vers={vers} />
         </Card>
       </div>
     </>
@@ -272,7 +315,7 @@ async function VueBilan({
 
 // ── Pilotage ───────────────────────────────────────────────────────────────
 
-async function VuePilotage({ filtre }: { filtre: Filtre }) {
+async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
   const [grille, demande, activites, fiab] = await Promise.all([
     grilleJourHeure(filtre),
     demandeNonSatisfaite(filtre),
@@ -285,7 +328,7 @@ async function VuePilotage({ filtre }: { filtre: Filtre }) {
   return (
     <>
       <Card title="Remplissage par jour et par heure" className="mb-6">
-        <GrilleCreneaux cases={grille} />
+        <GrilleCreneaux cases={grille} lien={(c) => vers("creneau", `${c.jour}-${c.heure}`)} />
         <p className="mt-3 text-xs text-slate-400">
           Moyenne des présences rapportée aux places du créneau, sur les séances
           émargées. Les tranches sans créneau restent visibles : c&apos;est là
@@ -319,8 +362,16 @@ async function VuePilotage({ filtre }: { filtre: Filtre }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {demande.map((d) => (
-                    <tr key={d.activiteId}>
-                      <td className="py-2.5">
+                    <tr
+                      key={d.activiteId}
+                      className={LIGNE_CLIQUABLE}
+                    >
+                      <td className="relative py-2.5">
+                        <Link
+                          href={vers("attente", d.activiteId)}
+                          className="absolute inset-0"
+                          aria-label={`Détail des demandes — ${d.nom}`}
+                        />
                         <span className="flex items-center gap-2">
                           <span
                             className="h-2.5 w-2.5 rounded-full"
@@ -367,14 +418,19 @@ async function VuePilotage({ filtre }: { filtre: Filtre }) {
             <ul className="space-y-3.5">
               {activites.map((a) => (
                 <li key={a.activiteId}>
-                  <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
-                    <span className="font-medium">{a.nom}</span>
-                    <span className="tabular-nums text-slate-500">{a.tauxRemplissage}%</span>
-                  </div>
-                  <Jauge valeur={a.tauxRemplissage} couleur={a.couleur} />
-                  <p className="mt-1 text-xs text-slate-400">
-                    {a.presents} présences pour {a.capacite} places offertes
-                  </p>
+                  <Link
+                    href={vers("activite", a.activiteId)}
+                    className="block rounded-lg p-1 transition hover:bg-slate-50"
+                  >
+                    <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                      <span className="font-medium">{a.nom}</span>
+                      <span className="tabular-nums text-slate-500">{a.tauxRemplissage}%</span>
+                    </div>
+                    <Jauge valeur={a.tauxRemplissage} couleur={a.couleur} />
+                    <p className="mt-1 text-xs text-slate-400">
+                      {a.presents} présences pour {a.capacite} places offertes
+                    </p>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -418,11 +474,16 @@ async function VuePilotage({ filtre }: { filtre: Filtre }) {
             </p>
             <ul className="divide-y divide-slate-100 text-sm">
               {fiab.motifs.map((m) => (
-                <li key={m.motif} className="flex items-center justify-between gap-3 py-2">
-                  <span className="min-w-0 truncate">{m.motif}</span>
-                  <span className="shrink-0 tabular-nums text-slate-500">
-                    {m.nombre} {pluriel(m.nombre, "séance")}
-                  </span>
+                <li key={m.motif}>
+                  <Link
+                    href={vers("motif", m.motif)}
+                    className="flex items-center justify-between gap-3 rounded-lg px-1 py-2 transition hover:bg-slate-50"
+                  >
+                    <span className="min-w-0 truncate">{m.motif}</span>
+                    <span className="shrink-0 tabular-nums text-slate-500">
+                      {m.nombre} {pluriel(m.nombre, "séance")}
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -435,7 +496,15 @@ async function VuePilotage({ filtre }: { filtre: Filtre }) {
 
 // ── Agents ─────────────────────────────────────────────────────────────────
 
-async function VueAgents({ filtre, seuil }: { filtre: Filtre; seuil: number }) {
+async function VueAgents({
+  filtre,
+  seuil,
+  vers,
+}: {
+  filtre: Filtre;
+  seuil: number;
+  vers: Vers;
+}) {
   const [assid, lachages, fiab] = await Promise.all([
     assiduite(filtre),
     decrocheurs(filtre, seuil),
@@ -471,12 +540,13 @@ async function VueAgents({ filtre, seuil }: { filtre: Filtre; seuil: number }) {
             assid.jamaisVenus > 0 ? "text-red-600 bg-red-50" : "text-slate-400 bg-slate-50"
           }
           hint="inscrits sans aucune présence"
+          href={assid.jamaisVenus > 0 ? vers("assiduite", "jamais") : undefined}
         />
       </div>
 
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <Card title="Régularité des inscrits">
-          <RepartitionAssiduite a={assid} />
+          <RepartitionAssiduite a={assid} vers={vers} />
         </Card>
 
         <Card title="Prévenir ou pas">
@@ -572,8 +642,10 @@ async function VueAgents({ filtre, seuil }: { filtre: Filtre; seuil: number }) {
 
 function TableauActivites({
   activites,
+  vers,
 }: {
   activites: Awaited<ReturnType<typeof parActivite>>;
+  vers: Vers;
 }) {
   if (activites.length === 0) {
     return <p className="text-sm text-slate-400">Aucune séance émargée.</p>;
@@ -591,8 +663,13 @@ function TableauActivites({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {activites.map((a) => (
-            <tr key={a.activiteId}>
-              <td className="py-2.5">
+            <tr key={a.activiteId} className={LIGNE_CLIQUABLE}>
+              <td className="relative py-2.5">
+                <Link
+                  href={vers("activite", a.activiteId)}
+                  className="absolute inset-0"
+                  aria-label={`Détail — ${a.nom}`}
+                />
                 <span className="flex items-center gap-2">
                   <span
                     className="h-2.5 w-2.5 rounded-full"
@@ -643,14 +720,16 @@ function TableauActivites({
  */
 function RepartitionAssiduite({
   a,
+  vers,
 }: {
   a: Awaited<ReturnType<typeof assiduite>>;
+  vers: Vers;
 }) {
   const groupes = [
-    { libelle: "Assidus", detail: "80 % et plus", n: a.assidus, couleur: "#059669" },
-    { libelle: "Réguliers", detail: "40 à 80 %", n: a.reguliers, couleur: "#4f46e5" },
-    { libelle: "Occasionnels", detail: "moins de 40 %", n: a.occasionnels, couleur: "#d97706" },
-    { libelle: "Jamais venus", detail: "aucune présence", n: a.jamaisVenus, couleur: "#dc2626" },
+    { cle: "assidus", libelle: "Assidus", detail: "80 % et plus", n: a.assidus, couleur: "#059669" },
+    { cle: "reguliers", libelle: "Réguliers", detail: "40 à 80 %", n: a.reguliers, couleur: "#4f46e5" },
+    { cle: "occasionnels", libelle: "Occasionnels", detail: "moins de 40 %", n: a.occasionnels, couleur: "#d97706" },
+    { cle: "jamais", libelle: "Jamais venus", detail: "aucune présence", n: a.jamaisVenus, couleur: "#dc2626" },
   ];
   if (a.agents === 0) {
     return <p className="text-sm text-slate-400">Aucun inscrit sur ce périmètre.</p>;
@@ -670,24 +749,43 @@ function RepartitionAssiduite({
           ),
         )}
       </div>
-      <ul className="space-y-2 text-sm">
-        {groupes.map((g) => (
-          <li key={g.libelle} className="flex items-baseline justify-between gap-3">
-            <span className="flex items-center gap-2">
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: g.couleur }}
-              />
-              {g.libelle}
-              <span className="text-xs text-slate-400">{g.detail}</span>
-            </span>
-            <span className="shrink-0 tabular-nums text-slate-500">
-              {g.n} <span className="text-xs text-slate-400">
-                ({Math.round((g.n / a.agents) * 100)}%)
+      <ul className="space-y-1 text-sm">
+        {groupes.map((g) => {
+          const ligne = (
+            <>
+              <span className="flex items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: g.couleur }}
+                />
+                {g.libelle}
+                <span className="text-xs text-slate-400">{g.detail}</span>
               </span>
-            </span>
-          </li>
-        ))}
+              <span className="shrink-0 tabular-nums text-slate-500">
+                {g.n} <span className="text-xs text-slate-400">
+                  ({Math.round((g.n / a.agents) * 100)}%)
+                </span>
+              </span>
+            </>
+          );
+          const classe = "flex items-baseline justify-between gap-3 rounded-lg px-1 py-1";
+          // Un groupe vide ne mène nulle part : la page de détail serait vide,
+          // et une ligne qui réagit au survol promet quelque chose à voir.
+          return (
+            <li key={g.cle}>
+              {g.n > 0 ? (
+                <Link
+                  href={vers("assiduite", g.cle)}
+                  className={`${classe} transition hover:bg-slate-50`}
+                >
+                  {ligne}
+                </Link>
+              ) : (
+                <span className={`${classe} text-slate-400`}>{ligne}</span>
+              )}
+            </li>
+          );
+        })}
       </ul>
       <p className="mt-3 text-xs text-slate-400">
         Part des séances suivies parmi celles proposées sur ses créneaux, séances
