@@ -219,13 +219,14 @@ export function rapprocher(
  * (`AdAccount.service`), pour les autres du compte lui-même.
  */
 export async function inventaireLibelles(): Promise<Libelle[]> {
-  const [referentiel, comptes, miroir] = await Promise.all([
+  const [referentiel, comptes, miroir, regles] = await Promise.all([
     servicesProposes(),
     prisma.user.findMany({
       where: { active: true, serviceForce: false },
       select: { login: true, service: true },
     }),
     prisma.adAccount.findMany({ select: { samAccountName: true, service: true } }),
+    prisma.regroupementService.findMany({ select: { source: true } }),
   ]);
 
   const brutParLogin = new Map(
@@ -237,6 +238,7 @@ export async function inventaireLibelles(): Promise<Libelle[]> {
       brut: brutParLogin.get(c.login.toLowerCase()) ?? c.service,
     })),
     referentiel,
+    regles.map((r) => r.source),
   );
 }
 
@@ -248,8 +250,10 @@ export async function inventaireLibelles(): Promise<Libelle[]> {
 export function regrouperLibelles(
   comptes: { login: string; brut: string | null }[],
   referentiel: string[],
+  /** Sources déjà couvertes par une règle : rattachées, donc plus à proposer. */
+  regles: Iterable<string> = [],
 ): Libelle[] {
-  const connus = new Set(referentiel.map(cleComparaison));
+  const connus = new Set([...referentiel, ...regles].map(cleComparaison));
   const parLibelle = new Map<string, Libelle>();
 
   for (const c of comptes) {

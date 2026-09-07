@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { Building2, ClipboardPaste, DownloadCloud, Wand2 } from "lucide-react";
+import { Building2, ClipboardPaste, DownloadCloud, Landmark, Wand2 } from "lucide-react";
 import {
   appliquerRapprochementsSurs,
+  chargerReferentielOfficiel,
   collerServices,
   enregistrerService,
   importerServicesAnnuaire,
@@ -131,6 +132,38 @@ export function AppliquerRapprochements({ surs }: { surs: number }) {
         Appliquer les {surs} rapprochement{surs > 1 ? "s" : ""} sûr
         {surs > 1 ? "s" : ""}
       </SubmitButton>
+    </form>
+  );
+}
+
+/**
+ * Le référentiel officiel, d'un geste.
+ *
+ * La liste vit dans le code (src/lib/referentiel-services.ts) parce qu'elle est
+ * une donnée de la collectivité, pas de cette application : c'est elle dont
+ * tous les outils doivent parler. Le bouton la pose, aligne les graphies,
+ * retire de la liste proposée ce qui n'en fait pas partie, et laisse au
+ * rapprochement le soin de rattacher les libellés de l'annuaire.
+ */
+export function ChargerReferentiel({ total }: { total: number }) {
+  const [state, action] = useActionState<ActionState, FormData>(
+    chargerReferentielOfficiel,
+    null,
+  );
+  return (
+    <form action={action} className="space-y-3">
+      <Alert state={state} />
+      <SubmitButton className={btnPrimary} pendingLabel="Chargement…">
+        <Landmark className="h-4 w-4" />
+        Poser le référentiel officiel ({total} services)
+      </SubmitButton>
+      <p className="text-xs text-slate-500">
+        La liste des services de la collectivité, celle dont tous les outils
+        parlent. Les services déjà présents sont alignés sur son orthographe,
+        les autres sont retirés de la liste proposée sans être supprimés, et
+        les regroupements établis dans cybermois sont repris. Relançable sans
+        risque.
+      </p>
     </form>
   );
 }

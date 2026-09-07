@@ -13,6 +13,7 @@ import {
   servicesProposes,
 } from "@/lib/services";
 import { inventaireLibelles, rapprocher } from "@/lib/rapprochement";
+import { REGROUPEMENTS_INITIAUX, SERVICES_OFFICIELS } from "@/lib/referentiel-services";
 import { audit } from "@/lib/audit";
 import { erreur, succes, type ActionState } from "./types";
 
@@ -309,5 +310,78 @@ export async function appliquerRapprochementsSurs(): Promise<ActionState> {
   const touches = await recalculer();
   return succes(
     `${surs.length} libellé(s) rattaché(s), ${touches} compte(s) mis à jour.`,
+  );
+}
+
+/**
+ * Pose le référentiel officiel de la collectivité (src/lib/referentiel-services.ts).
+ *
+ * Trois gestes, dans cet ordre :
+ *  1. chaque service officiel est créé, ou — s'il existe déjà à la graphie
+ *     près — aligné sur l'orthographe officielle, avec la même propagation
+ *     qu'un renommage : comptes, règles, demandes en attente ;
+ *  2. tout autre service du référentiel est RETIRÉ de la liste proposée, pas
+ *     supprimé : un import d'annuaire a pu en créer cent, portés par des
+ *     fiches, et ce sont eux que le rapprochement va maintenant rattacher ;
+ *  3. les regroupements de départ sont posés s'ils n'existent pas encore.
+ *
+ * Relançable : une seconde exécution ne change rien qu'elle n'ait déjà fait.
+ */
+export async function chargerReferentielOfficiel(): Promise<ActionState> {
+  const user = await requireUser("GESTIONNAIRE");
+  const existants = await prisma.service.findMany();
+  const parCle = new Map(existants.map((s) => [cleComparaison(s.nom), s]));
+
+  let crees = 0;
+  let renommes = 0;
+  const officiels = new Set<string>();
+  for (const [ordre, nom] of SERVICES_OFFICIELS.entries()) {
+    const cle = cleComparaison(nom);
+    officiels.add(cle);
+    const existant = parCle.get(cle);
+    if (!existant) {
+      await prisma.service.create({ data: { nom, ordre, actif: true } });
+      crees++;
+      continue;
+    }
+    await prisma.service.update({ where: { id: existant.id }, data: { nom, ordre, actif: true } });
+    if (existant.nom !== nom) {
+      await Promise.all([
+        prisma.regroupementService.updateMany({
+          where: { cible: existant.nom },
+          data: { cible: nom },
+        }),
+        prisma.demandeAcces.updateMany({
+          where: { service: existant.nom, statut: "EN_ATTENTE" },
+          data: { service: nom },
+        }),
+        prisma.user.updateMany({ where: { service: existant.nom }, data: { service: nom } }),
+      ]);
+      renommes++;
+    }
+  }
+
+  const retires = await prisma.service.updateMany({
+    where: { actif: true, id: { in: existants.filter((s) => !officiels.has(cleComparaison(s.nom))).map((s) => s.id) } },
+    data: { actif: false },
+  });
+
+  const regles = await prisma.regroupementService.findMany({ select: { source: true } });
+  const sources = new Set(regles.map((r) => cleComparaison(r.source)));
+  const nouvelles = REGROUPEMENTS_INITIAUX.filter((r) => !sources.has(cleComparaison(r.source)));
+  if (nouvelles.length > 0) {
+    await prisma.regroupementService.createMany({ data: nouvelles, skipDuplicates: true });
+  }
+
+  await audit("REFERENTIEL_OFFICIEL_CHARGE", {
+    userId: user.id,
+    details: `${crees} créé(s), ${renommes} renommé(s), ${retires.count} retiré(s), ${nouvelles.length} règle(s)`,
+  });
+
+  const touches = await recalculer();
+  return succes(
+    `Référentiel posé : ${crees} service(s) ajouté(s), ${renommes} aligné(s) sur l'orthographe officielle, ` +
+      `${retires.count} retiré(s) de la liste proposée, ${nouvelles.length} regroupement(s) posé(s). ` +
+      `${touches} compte(s) rattaché(s) au passage.`,
   );
 }

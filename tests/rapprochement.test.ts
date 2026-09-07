@@ -109,6 +109,15 @@ describe("inventaire des libellés", () => {
     assert.equal(e.annuaire, 2);
   });
 
+  it("écarte ce qu'une règle couvre déjà, aux accents près", () => {
+    const restes = regrouperLibelles(
+      [ad("Crèche Sablons"), ad("Crêche La Cigogne"), ad("CTM")],
+      ["Petite enfance"],
+      ["Crêche Sablons", "Crèche La Cigogne"],
+    ).map((e) => e.libelle);
+    assert.deepEqual(restes, ["CTM"]);
+  });
+
   it("classe les plus nombreux d'abord", () => {
     const noms = regrouperLibelles(
       [horsAd("Rare"), horsAd("Fréquent"), horsAd("Fréquent")],
