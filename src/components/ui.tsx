@@ -59,7 +59,11 @@ export function Logos({
         <img
           src={ville}
           alt={orgName}
-          className="max-h-16 w-auto max-w-[240px] object-contain"
+          // La largeur borne autant que la hauteur : un logo de collectivité
+          // est souvent un bandeau — blason, puis nom de la ville à côté. Un
+          // plafond de largeur trop bas le réduit à une vignette illisible,
+          // alors que la hauteur, elle, n'était pas atteinte.
+          className="max-h-24 w-auto max-w-[320px] object-contain"
         />
       )}
       {operation && (
