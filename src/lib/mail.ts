@@ -261,6 +261,22 @@ export function apercu(corps: string): string {
  * Les quelques propriétés modernes qui subsistent (angles arrondis) sont des
  * agréments : là où elles ne sont pas comprises, la mise en page reste entière.
  */
+/**
+ * Rend un message dans le gabarit, tel que le destinataire le verra.
+ *
+ * Exporté pour l'aperçu de Paramètres → Messagerie : un texte de courriel se
+ * juge dans une boîte de réception, pas dans le code, et le gabarit fait la
+ * moitié de l'impression qu'il donne.
+ */
+export async function rendreMail(titre: string, corps: string): Promise<string> {
+  const g = await getGeneralSettings();
+  const html = gabarit(titre, corps, logoPourMail(g.logo), g.appName, g.appDescription, g.orgName);
+  // Le logo voyage en pièce jointe (`cid:`) dans un vrai envoi ; un navigateur
+  // ne sait pas résoudre cette référence et n'afficherait qu'une image cassée.
+  // On la remplace par la source configurée, le temps de l'aperçu.
+  return g.logo ? html.replace(`cid:${CID_LOGO}`, g.logo) : html;
+}
+
 function gabarit(
   titre: string,
   corps: string,

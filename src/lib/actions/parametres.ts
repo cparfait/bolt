@@ -10,6 +10,7 @@ import { ldapSearchGroups, ldapTest } from "@/lib/ldap";
 import { synchroniserAnnuaire as synchroniserAnnuaireDepuisAd } from "@/lib/annuaire";
 import { desactiverCompte } from "@/lib/departs";
 import { envoyerMail } from "@/lib/mail";
+import { exemplesMail } from "@/lib/mail-exemples";
 import {
   getGeneralSettings,
   getLdapSettings,
@@ -457,4 +458,55 @@ export async function enregistrerTextes(
   revalidatePath("/mentions");
   revalidatePath("/mes-activites");
   return succes(`Version ${textes.version} publiée. Elle s'applique aux prochaines inscriptions.`);
+}
+
+/**
+ * Envoie un jeu de messages d'exemple à une adresse choisie.
+ *
+ * Sert la démonstration : montrer ce que l'agent recevra sans attendre qu'une
+ * inscription soit validée ni qu'une séance soit annulée — certains de ces
+ * messages ne partent qu'une fois par an, et on ne fait pas une démonstration
+ * en cassant une séance réelle pour voir le courriel d'annulation.
+ *
+ * Une seule adresse, celle qu'on saisit, et jamais un destinataire tiré de la
+ * base : un écran qui expédie des messages fictifs à de vrais agents ferait
+ * plus de dégâts qu'il n'en montre. L'objet est préfixé pour la même raison —
+ * personne ne doit prendre un exemple pour une vraie annulation.
+ */
+export async function envoyerExemplesMail(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("ADMIN");
+  const destinataire = texte(formData, "destinataire").toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(destinataire)) {
+    return erreur("Indiquez une adresse de destination valable.");
+  }
+  const choisis = new Set(formData.getAll("cles").map(String));
+  const exemples = (await exemplesMail()).filter(
+    (e) => choisis.size === 0 || choisis.has(e.cle),
+  );
+  if (exemples.length === 0) return erreur("Choisissez au moins un message.");
+
+  let envoyes = 0;
+  const echecs: string[] = [];
+  for (const e of exemples) {
+    const res = await envoyerMail(destinataire, `[Exemple] ${e.objet}`, e.corps);
+    if (res.ok) envoyes += 1;
+    else if (echecs.length < 3) echecs.push(res.message);
+  }
+
+  await audit("MAILS_EXEMPLES_ENVOYES", {
+    userId: admin.id,
+    cible: destinataire,
+    details: `${envoyes}/${exemples.length}`,
+  });
+
+  if (envoyes === 0) {
+    return erreur(echecs[0] ?? "Aucun message n'a pu être envoyé.");
+  }
+  return succes(
+    `${envoyes} message(s) envoyé(s) à ${destinataire}.` +
+      (envoyes < exemples.length ? ` ${exemples.length - envoyes} en échec : ${echecs[0]}` : ""),
+  );
 }
