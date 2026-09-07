@@ -20,6 +20,7 @@ import {
 } from "@/components/service-form";
 import { RapprochementService } from "@/components/rapprochement-service";
 import { inventaireLibelles, rapprocher } from "@/lib/rapprochement";
+import { parNom } from "@/lib/services";
 import { pluriel } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export default async function ParametresServices({
 
   const [services, regroupements, libelles] = await Promise.all([
     prisma.service.findMany({
-      orderBy: [{ actif: "desc" }, { ordre: "asc" }, { nom: "asc" }],
+      orderBy: { nom: "asc" },
     }),
     prisma.regroupementService.findMany({ orderBy: [{ cible: "asc" }, { source: "asc" }] }),
     inventaireLibelles(),
@@ -53,8 +54,11 @@ export default async function ParametresServices({
   // la collectivité reconnaît, et les libellés dont il a hérité de l'annuaire
   // avant que le rattachement n'existe. Mêlés, les seconds noyaient les
   // premiers — quatre-vingt-dix lignes contre trente-sept.
-  const actifs = services.filter((s) => s.actif);
-  const retires = services.filter((s) => !s.actif);
+  // Alphabétique, comme partout ailleurs : c'est ainsi qu'on cherche un
+  // service, et le tri de la base ne place pas les accents où on les attend.
+  const parLibelle = (a: { nom: string }, b: { nom: string }) => parNom(a.nom, b.nom);
+  const actifs = services.filter((s) => s.actif).sort(parLibelle);
+  const retires = services.filter((s) => !s.actif).sort(parLibelle);
   const proposables = actifs.map((s) => s.nom);
 
   const suggestions = rapprocher(libelles, proposables);

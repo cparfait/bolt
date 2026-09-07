@@ -65,14 +65,29 @@ export function analyserCollage(texte: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-/** Services proposés à la saisie, dans l'ordre choisi par le service des sports. */
+/**
+ * Comparaison de deux libellés pour l'affichage, en français.
+ *
+ * `localeCompare` et non l'ordre de la base : celui-ci dépend de la collation
+ * du serveur, et range « Éducation » après « Zoo » là où une personne le
+ * cherche entre « Education » et « Etat-Civil ».
+ */
+export const parNom = (a: string, b: string): number => a.localeCompare(b, "fr");
+
+/**
+ * Services proposés à la saisie, par ordre alphabétique.
+ *
+ * L'ordre de l'organigramme se défend sur un trombinoscope ; dans une liste
+ * déroulante de trente-sept lignes, il oblige à tout parcourir pour trouver
+ * « Sports » — personne ne connaît de tête le rang d'un service dans
+ * l'organigramme, tout le monde sait épeler son nom.
+ */
 export async function servicesProposes(): Promise<string[]> {
   const lignes = await prisma.service.findMany({
     where: { actif: true },
-    orderBy: [{ ordre: "asc" }, { nom: "asc" }],
     select: { nom: true },
   });
-  return lignes.map((l) => l.nom);
+  return lignes.map((l) => l.nom).sort(parNom);
 }
 
 /**

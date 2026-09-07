@@ -1,5 +1,5 @@
 import { prisma } from "./db";
-import { cleComparaison, normaliser } from "./services";
+import { cleComparaison, normaliser, parNom } from "./services";
 
 /**
  * Paramétrage des services, transportable d'un outil à l'autre.
@@ -104,10 +104,7 @@ export function lireParametrage(texte: string): Parametrage {
 /** Le paramétrage courant, tel qu'on l'exporte. */
 export async function exporterParametrage(): Promise<Parametrage> {
   const [services, regroupements] = await Promise.all([
-    prisma.service.findMany({
-      orderBy: [{ ordre: "asc" }, { nom: "asc" }],
-      select: { nom: true, actif: true },
-    }),
+    prisma.service.findMany({ select: { nom: true, actif: true } }),
     prisma.regroupementService.findMany({
       orderBy: [{ cible: "asc" }, { source: "asc" }],
       select: { source: true, cible: true },
@@ -116,7 +113,7 @@ export async function exporterParametrage(): Promise<Parametrage> {
   return {
     version: VERSION_PARAMETRAGE,
     note: `Bolt — référentiel des services et regroupements, exporté le ${new Date().toLocaleDateString("fr-FR")}`,
-    referentiel: services,
+    referentiel: [...services].sort((a, b) => parNom(a.nom, b.nom)),
     regroupements,
     exclusionsSync: [],
     agents: [],
