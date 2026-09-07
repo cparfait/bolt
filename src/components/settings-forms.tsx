@@ -248,7 +248,24 @@ export function SmtpForm({ cfg }: { cfg: SmtpSettings | null }) {
  * le logo existant sans en choisir un autre — côté serveur, un champ fichier
  * vide conserve l'existant.
  */
-function ChampLogo({ actuel }: { actuel: string }) {
+/**
+ * Un logo téléversable. Deux instances sur cet écran, et c'est le point :
+ * l'identité de la collectivité ne bouge jamais, l'habillage d'une opération
+ * change plusieurs fois par an. Avec un seul champ, poser un logo d'Halloween
+ * demandait d'effacer celui de la ville — et personne ne le remettait ensuite.
+ */
+function ChampLogo({
+  nom,
+  libelle,
+  aide,
+  actuel,
+}: {
+  /** Nom du champ, qui porte aussi l'ordre de suppression. */
+  nom: string;
+  libelle: string;
+  aide: string;
+  actuel: string;
+}) {
   const [apercu, setApercu] = useState(actuel);
   const fichierRef = useRef<HTMLInputElement>(null);
 
@@ -266,16 +283,16 @@ function ChampLogo({ actuel }: { actuel: string }) {
 
   return (
     <div>
-      <span className="mb-1 block text-sm font-medium text-slate-700">Logo</span>
+      <span className="mb-1 block text-sm font-medium text-slate-700">{libelle}</span>
       <input
         ref={fichierRef}
         type="file"
-        name="logo"
+        name={nom}
         accept="image/png,image/jpeg,image/webp,image/svg+xml"
         className="hidden"
         onChange={(e) => choisir(e.target.files?.[0] ?? undefined)}
       />
-      {!apercu && actuel && <input type="hidden" name="supprimerLogo" value="1" />}
+      {!apercu && actuel && <input type="hidden" name={`supprimer_${nom}`} value="1" />}
       <div className="flex items-stretch gap-3">
         <button
           type="button"
@@ -286,7 +303,7 @@ function ChampLogo({ actuel }: { actuel: string }) {
             // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
             <img
               src={apercu}
-              alt="Aperçu du logo"
+              alt={`Aperçu — ${libelle}`}
               className="max-h-14 w-auto max-w-full object-contain"
             />
           ) : (
@@ -297,14 +314,14 @@ function ChampLogo({ actuel }: { actuel: string }) {
           )}
         </button>
         {apercu && (
-          <button type="button" onClick={retirer} className={btnSecondary} title="Retirer le logo">
+          <button type="button" onClick={retirer} className={btnSecondary} title={`Retirer ${libelle.toLowerCase()}`}>
             <X className="h-4 w-4" />
             Retirer
           </button>
         )}
       </div>
       <span className="mt-1 block text-xs text-slate-500">
-        Affiché sur la page de connexion. PNG, JPEG, WebP ou SVG, 300 Ko maximum.
+        {aide}
         {apercu !== actuel && " N'oubliez pas d'enregistrer."}
       </span>
     </div>
@@ -393,7 +410,20 @@ export function GeneralForm({
         )}
       </Field>
 
-      <ChampLogo actuel={cfg.logo} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ChampLogo
+          nom="logoVille"
+          libelle="Logo de la collectivité"
+          actuel={cfg.logoVille}
+          aide="Affiché en haut des écrans d'accueil. Il ne change pas au fil de l'année. PNG, JPEG, WebP ou SVG, 300 Ko maximum."
+        />
+        <ChampLogo
+          nom="logo"
+          libelle="Logo de l'opération"
+          actuel={cfg.logo}
+          aide="Sous celui de la collectivité, et sur les courriels : l'habillage du moment — Halloween, Noël, un défi de rentrée. Se retire sans toucher au premier."
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field

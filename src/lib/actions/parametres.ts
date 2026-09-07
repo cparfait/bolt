@@ -44,10 +44,11 @@ const LOGO_TAILLE_MAX = 300 * 1024; // 300 Ko : large pour un logo, contenu dans
 async function lireLogo(
   formData: FormData,
   actuel: string,
+  champ = "logo",
 ): Promise<{ logo: string; erreur?: string }> {
-  if (formData.get("supprimerLogo") === "1") return { logo: "" };
+  if (formData.get(`supprimer_${champ}`) === "1") return { logo: "" };
 
-  const fichier = formData.get("logo");
+  const fichier = formData.get(champ);
   // Aucun nouveau fichier : on repasse quand même l'existant par la réduction.
   // Les logos téléversés avant elle sont ainsi allégés au premier
   // enregistrement des paramètres, sans qu'il faille les retéléverser.
@@ -223,6 +224,12 @@ export async function enregistrerGeneral(
 
   const { logo, erreur: erreurLogo } = await lireLogo(formData, actuel.logo);
   if (erreurLogo) return erreur(erreurLogo);
+  const { logo: logoVille, erreur: erreurVille } = await lireLogo(
+    formData,
+    actuel.logoVille,
+    "logoVille",
+  );
+  if (erreurVille) return erreur(erreurVille);
 
   // Les deux URL publiques servent de base aux liens envoyés par courriel
   // (src/lib/magic.ts, src/lib/coach-access.ts). Les réécrire suffirait à faire
@@ -239,6 +246,7 @@ export async function enregistrerGeneral(
     orgName: texte(formData, "orgName") || actuel.orgName,
     appUrl: url("appUrl", actuel.appUrl),
     pointageUrl: url("pointageUrl", actuel.pointageUrl),
+    logoVille,
     logo,
     contactEmail: texte(formData, "contactEmail"),
     maxInscriptionsParAgent: Math.max(0, Number(texte(formData, "maxInscriptionsParAgent")) || 0),

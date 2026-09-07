@@ -1,4 +1,3 @@
-import { Dumbbell } from "lucide-react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -6,7 +5,7 @@ import { currentUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
 import { servicesProposes } from "@/lib/services";
 import { clientIp, estInterne } from "@/lib/net";
-import { TitreConnexion } from "@/components/ui";
+import { Logos, TitreConnexion } from "@/components/ui";
 import { DemandeLienForm } from "./demande-form";
 
 export const dynamic = "force-dynamic";
@@ -45,20 +44,9 @@ export default async function AccesPage({
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3">
-          {g.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
-            <img
-              src={g.logo}
-              alt={g.orgName}
-              className="max-h-20 w-auto max-w-[280px] object-contain"
-            />
-          ) : (
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/20">
-              <Dumbbell className="h-6 w-6" />
-            </span>
-          )}
+          <Logos ville={g.logoVille} operation={g.logo} orgName={g.orgName} />
           <TitreConnexion
-            logo={g.logo}
+            logo={g.logoVille || g.logo}
             orgName={g.orgName}
             appName={g.appName}
             appDescription={g.appDescription}
@@ -90,35 +78,6 @@ export default async function AccesPage({
             </p>
           </div>
         )}
-
-        {/* Mention affichée en PERMANENCE, jamais en réponse à une adresse
-            inconnue. `envoyerLienConnexion` renvoie volontairement le même
-            message que l'adresse soit connue ou non : cette page est publiée sur
-            Internet, et un « adresse inconnue, contactez le service » en ferait
-            un moyen de vérifier qui travaille dans la collectivité. */}
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
-          <p className="text-sm font-medium text-slate-700">
-            Vous ne recevez rien ?
-          </p>
-          <p className="mt-1 text-sm text-slate-500">
-            C&apos;est que ce n&apos;est pas l&apos;adresse enregistrée pour
-            vous. Essayez l&apos;autre, ou demandez au service des sports
-            {g.contactEmail ? (
-              <>
-                {" : "}
-                <a
-                  href={`mailto:${g.contactEmail}`}
-                  className="font-medium text-brand-600 hover:underline"
-                >
-                  {g.contactEmail}
-                </a>
-              </>
-            ) : (
-              ""
-            )}
-            .
-          </p>
-        </div>
 
         {interne && (
           <p className="mt-6 text-center text-xs text-slate-400">

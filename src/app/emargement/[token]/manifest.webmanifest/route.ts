@@ -46,13 +46,13 @@ export async function GET(
     theme_color: "#006e46",
     icons: [
       {
-        src: "/icones/bolt-192.png",
+        src: "/icones/chat-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any maskable",
       },
       {
-        src: "/icones/bolt-512.png",
+        src: "/icones/chat-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any maskable",

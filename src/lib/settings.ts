@@ -52,8 +52,21 @@ export type GeneralSettings = {
   //
   // Vide : tout se rabat sur appUrl, cas du déploiement à un seul nom.
   pointageUrl: string;
-  // Logo affiché sur la page de connexion, en data URI (data:image/png;base64,…).
-  // Vide : l'icône par défaut est utilisée.
+  // Deux logos, en data URI (data:image/png;base64,…), empilés sur les écrans
+  // d'accueil : celui de la collectivité au-dessus, celui de l'opération en
+  // cours en dessous.
+  //
+  // La distinction existe parce que l'un ne bouge jamais et l'autre change
+  // plusieurs fois par an — Halloween, Noël, un défi de rentrée. Avec un seul
+  // champ, habiller l'application pour une saison obligeait à effacer
+  // l'identité de la ville, puis à la remettre ; en pratique, on ne la
+  // remettait pas.
+  //
+  // `logo` garde son nom malgré son nouveau rôle : le renommer imposerait une
+  // migration des réglages enregistrés pour un gain cosmétique, et surtout
+  // ferait disparaître le logo en place chez ceux qui l'ont déjà posé.
+  logoVille: string;
+  /** Logo de l'opération en cours. Vide : rien ne s'affiche à cette place. */
   logo: string;
   contactEmail: string; // adresse du service des sports, affichée aux agents
   maxInscriptionsParAgent: number; // 0 = illimité
@@ -114,6 +127,7 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   orgName: "Collectivité",
   appUrl: process.env.BOLT_PUBLIC_URL ?? "",
   pointageUrl: process.env.BOLT_POINTAGE_URL ?? "",
+  logoVille: "",
   logo: "",
   contactEmail: "",
   maxInscriptionsParAgent: 2,

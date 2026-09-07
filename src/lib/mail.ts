@@ -32,7 +32,10 @@ export async function envoyerMail(
   // Le logo voyage en pièce jointe inline (référencée par `cid:`) : la plupart
   // des messageries ignorent les images en data URI dans le HTML — Gmail les
   // retire purement et simplement.
-  const logo = logoPourMail(g.logo);
+  // Le logo de l'opération, celui de la ville à défaut : un courriel porte
+  // déjà le nom de l'application dans son en-tête, et c'est l'habillage en
+  // cours qu'on y reconnaît.
+  const logo = logoPourMail(g.logo || g.logoVille);
   try {
     await transport.sendMail({
       from: smtp.from,
@@ -270,11 +273,12 @@ export function apercu(corps: string): string {
  */
 export async function rendreMail(titre: string, corps: string): Promise<string> {
   const g = await getGeneralSettings();
-  const html = gabarit(titre, corps, logoPourMail(g.logo), g.appName, g.appDescription, g.orgName);
+  const marque = g.logo || g.logoVille;
+  const html = gabarit(titre, corps, logoPourMail(marque), g.appName, g.appDescription, g.orgName);
   // Le logo voyage en pièce jointe (`cid:`) dans un vrai envoi ; un navigateur
   // ne sait pas résoudre cette référence et n'afficherait qu'une image cassée.
   // On la remplace par la source configurée, le temps de l'aperçu.
-  return g.logo ? html.replace(`cid:${CID_LOGO}`, g.logo) : html;
+  return marque ? html.replace(`cid:${CID_LOGO}`, marque) : html;
 }
 
 function gabarit(

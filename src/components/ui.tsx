@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Ticket } from "lucide-react";
+import { ChevronRight, Ticket, Dumbbell } from "lucide-react";
 import type {
   CSSProperties,
   InputHTMLAttributes,
@@ -21,12 +21,70 @@ import type {
  * il s'agit. Sans logo, il reprend son plein format et rappelle la
  * collectivité, que rien d'autre ne nomme alors à l'écran.
  */
+/**
+ * Les deux logos des écrans d'accueil, empilés.
+ *
+ * Celui de la collectivité au-dessus, celui de l'opération en dessous : le
+ * permanent porte le passager, et l'ordre reste le même que l'un des deux soit
+ * absent ou non.
+ *
+ * Ni cadre ni arrondi : un logo téléversé n'a ni forme ni proportions connues
+ * à l'avance — un bandeau large avec le nom de la ville à côté d'un blason est
+ * aussi courant qu'une icône carrée. On borne la hauteur et la largeur, et on
+ * laisse l'image respecter ses proportions.
+ *
+ * Sans aucun logo, l'haltère par défaut : une page d'accueil sans rien
+ * au-dessus du titre a l'air inachevée.
+ */
+export function Logos({
+  ville,
+  operation,
+  orgName,
+}: {
+  ville: string;
+  operation: string;
+  orgName: string;
+}) {
+  if (!ville && !operation) {
+    return (
+      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/20">
+        <Dumbbell className="h-6 w-6" />
+      </span>
+    );
+  }
+  return (
+    <div className="flex flex-col items-center gap-3">
+      {ville && (
+        // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
+        <img
+          src={ville}
+          alt={orgName}
+          className="max-h-16 w-auto max-w-[240px] object-contain"
+        />
+      )}
+      {operation && (
+        // Plus grand que celui de la ville quand les deux sont là : c'est
+        // l'opération en cours qu'on annonce, l'institution ne fait que la
+        // signer. `alt` vide : l'image est décorative, le titre juste en
+        // dessous dit déjà de quoi il s'agit.
+        // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
+        <img
+          src={operation}
+          alt=""
+          className="max-h-24 w-auto max-w-[280px] object-contain"
+        />
+      )}
+    </div>
+  );
+}
+
 export function TitreConnexion({
   logo,
   orgName,
   appName,
   appDescription,
 }: {
+  /** Un logo, quel qu'il soit, est affiché juste au-dessus. */
   logo: string;
   orgName: string;
   appName: string;

@@ -1,9 +1,8 @@
-import { Dumbbell } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
-import { TitreConnexion } from "@/components/ui";
+import { Logos, TitreConnexion } from "@/components/ui";
 import { LoginForm } from "./login-form";
 
 export default async function ConnexionPage() {
@@ -15,22 +14,9 @@ export default async function ConnexionPage() {
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3">
-          {g.logo ? (
-            // Pas de cadre carré ni d'arrondi : le logo importé n'a ni forme ni
-            // proportions connues à l'avance (texte à côté d'une icône, etc.).
-            // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
-            <img
-              src={g.logo}
-              alt={g.orgName}
-              className="max-h-20 w-auto max-w-[280px] object-contain"
-            />
-          ) : (
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/20">
-              <Dumbbell className="h-6 w-6" />
-            </span>
-          )}
+          <Logos ville={g.logoVille} operation={g.logo} orgName={g.orgName} />
           <TitreConnexion
-            logo={g.logo}
+            logo={g.logoVille || g.logo}
             orgName={g.orgName}
             appName={g.appName}
             appDescription={g.appDescription}
