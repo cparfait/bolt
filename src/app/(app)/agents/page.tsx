@@ -99,6 +99,14 @@ export default async function AgentsPage({
 
   const effectifs = new Map(repartition.map((r) => [r.service, r._count]));
   const referentiel = new Set(services.map((s) => s.nom));
+  // Seuls les services qui ont quelqu'un, les plus fournis d'abord : une
+  // pastille à zéro ne mène nulle part, et le référentiel en compte cent.
+  // Un service filtré mais vide dans cette catégorie reste affiché, sinon on
+  // ne saurait plus d'où vient la liste vide.
+  const servicesPeuples = services
+    .filter((s) => (effectifs.get(s.nom) ?? 0) > 0 || parService === s.nom)
+    .sort((a, b) => (effectifs.get(b.nom) ?? 0) - (effectifs.get(a.nom) ?? 0));
+  const servicesVides = services.length - servicesPeuples.length;
   // Libellés portés par des comptes sans figurer au référentiel : ils se
   // rattachent dans Paramètres → Services, mais on doit pouvoir voir qui.
   const horsReferentiel = repartition
@@ -176,7 +184,7 @@ export default async function AgentsPage({
       {/* Répartition par service. La liste du référentiel, avec qui s'y trouve :
           c'est la question à laquelle l'annuaire ne répondait pas — on savait
           chercher une personne, pas voir un service. */}
-      {terme.length < 2 && (services.length > 0 || horsReferentiel.length > 0) && (
+      {terme.length < 2 && (servicesPeuples.length > 0 || horsReferentiel.length > 0 || sansService > 0) && (
         <Card
           title="Par service"
           className="mb-4"
@@ -190,7 +198,7 @@ export default async function AgentsPage({
           }
         >
           <div className="flex flex-wrap gap-1.5">
-            {services.map((s) => {
+            {servicesPeuples.map((s) => {
               const n = effectifs.get(s.nom) ?? 0;
               const actif = parService === s.nom;
               return (
@@ -200,9 +208,7 @@ export default async function AgentsPage({
                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
                     actif
                       ? "bg-brand-600 text-white"
-                      : n === 0
-                        ? "bg-slate-50 text-slate-400 hover:bg-slate-100"
-                        : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                      : "bg-slate-50 text-slate-700 hover:bg-slate-100"
                   } ${!s.actif ? "line-through decoration-slate-300" : ""}`}
                   title={!s.actif ? "Service retiré du référentiel" : undefined}
                 >
@@ -253,10 +259,12 @@ export default async function AgentsPage({
               </Link>
             )}
           </div>
-          {horsReferentiel.length > 0 && (
+          {(horsReferentiel.length > 0 || servicesVides > 0) && (
             <p className="mt-3 text-xs text-slate-400">
-              En orange, les libellés portés par des comptes sans figurer au
-              référentiel : ils se rattachent dans Paramètres → Services.
+              {horsReferentiel.length > 0 &&
+                "En orange, des libellés portés par des comptes sans figurer au référentiel : ils se rattachent dans Paramètres → Services. "}
+              {servicesVides > 0 &&
+                `${servicesVides} ${pluriel(servicesVides, "autre service du référentiel n'a", "autres services du référentiel n'ont")} encore personne dans cette catégorie.`}
             </p>
           )}
         </Card>
