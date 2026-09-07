@@ -18,6 +18,7 @@ import { DecisionForm, RetirerForm } from "@/components/inscription-actions";
 import { RechercheAgent } from "@/components/recherche-agent";
 import { AgentHorsAnnuaireForm } from "@/components/agent-hors-annuaire-form";
 import { effectifsParActivite } from "@/lib/inscriptions";
+import { servicesProposes } from "@/lib/services";
 import {
   INSCRIPTION_STATUT_COLORS,
   INSCRIPTION_STATUT_LABELS,
@@ -42,7 +43,7 @@ export default async function InscriptionsPage({
     );
   }
 
-  const [creneaux, demandes, effectifs] = await Promise.all([
+  const [creneaux, demandes, effectifs, services] = await Promise.all([
     prisma.creneau.findMany({
       // Un créneau archivé n'accepte plus personne : le proposer ici ferait
       // inscrire des agents sur un créneau retiré du planning.
@@ -63,6 +64,7 @@ export default async function InscriptionsPage({
       orderBy: { demandeAt: "asc" },
     }),
     effectifsParActivite(saison.id),
+    servicesProposes(),
   ]);
 
   // Une activité à groupe unique n'offre ses places qu'une fois, et son inscrit
@@ -196,7 +198,7 @@ export default async function InscriptionsPage({
           titre="Créer un participant hors annuaire"
           sousTitre="Élu, agent d'un autre organisme, stagiaire sans compte AD"
         >
-          <AgentHorsAnnuaireForm creneaux={optionsCreneaux} />
+          <AgentHorsAnnuaireForm creneaux={optionsCreneaux} services={services} />
         </Panneau>
       </div>
 

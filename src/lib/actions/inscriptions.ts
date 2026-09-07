@@ -148,7 +148,7 @@ export async function deciderInscription(
         `Inscription confirmée — ${inscription.creneau.activite.nom}`,
         [
           `Bonjour ${nomPourSalutation(inscription.user.displayName)},`,
-          `Votre inscription à ${inscription.creneau.activite.nom} est confirmée : **${inscription.creneau.jour.toLowerCase()} de ${inscription.creneau.heureDebut} à ${inscription.creneau.heureFin}**${inscription.creneau.lieu ? ` — ${inscription.creneau.lieu}` : ""}.`,
+          `Votre inscription à ${inscription.creneau.activite.nom} est confirmée : **${inscription.creneau.jour.toLowerCase()} de ${inscription.creneau.heureDebut} à ${inscription.creneau.heureFin}**${inscription.creneau.lieu ? ` — **${inscription.creneau.lieu}**` : ""}.`,
           `Bonne pratique !`,
         ].join("\n\n"),
       );

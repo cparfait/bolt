@@ -17,8 +17,15 @@ import { SubmitButton } from "@/components/submit-button";
  */
 export function AgentHorsAnnuaireForm({
   creneaux,
+  services,
 }: {
   creneaux: { id: string; label: string }[];
+  /**
+   * Référentiel des services (Paramètres → Services). Vide, le champ reste
+   * libre : une liste déroulante sans option n'est pas une simplification,
+   * c'est une impasse — même règle que le formulaire de demande d'accès.
+   */
+  services: string[];
 }) {
   const [state, action] = useActionState<ActionState, FormData>(
     creerAgentHorsAnnuaire,
@@ -47,14 +54,37 @@ export function AgentHorsAnnuaireForm({
         <Input name="email" type="email" placeholder="c.dupont@ccas-exemple.fr" />
       </Field>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Direction" hint="Reprise dans les statistiques de fréquentation.">
-          <Input name="direction" placeholder="CCAS, élus, association…" />
-        </Field>
-        <Field label="Service">
-          <Input name="service" placeholder="facultatif" />
-        </Field>
-      </div>
+      {/* Le service, et lui seul : c'est la maille des statistiques de
+          fréquentation, et il se prend dans le référentiel. Un champ libre à
+          côté laissait « Dsi » voisiner avec « DSI », et la fréquentation par
+          service se répartissait sur autant de lignes que d'orthographes.
+          La direction a disparu : elle se déduit du service pour les agents de
+          la collectivité, et ne veut rien dire pour un élu ou un prestataire —
+          la saisir ici revenait à inventer un rattachement. */}
+      <Field
+        label="Service"
+        hint={
+          services.length > 0
+            ? "Il porte la fréquentation dans les statistiques. Choisissez la ligne la plus proche pour une personne extérieure."
+            : "Le référentiel est vide : déclarez les services dans Paramètres → Services."
+        }
+        required
+      >
+        {services.length > 0 ? (
+          <Select name="service" defaultValue="" required>
+            <option value="" disabled>
+              — Choisir un service —
+            </option>
+            {services.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Input name="service" required placeholder="Petite Enfance, CCAS…" />
+        )}
+      </Field>
 
       {creneaux.length > 0 && (
         <Field

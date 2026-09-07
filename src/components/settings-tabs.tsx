@@ -13,6 +13,7 @@ const onglets = [
   { href: "/parametres/messagerie", label: "Messagerie", adminSeul: true },
   { href: "/parametres/utilisateurs", label: "Comptes & rôles", adminSeul: true },
   { href: "/parametres/journal", label: "Journal", adminSeul: true },
+  { href: "/parametres/remise-a-zero", label: "Remise à zéro", adminSeul: true },
 ];
 
 export function OngletsParametres({ estAdmin }: { estAdmin: boolean }) {

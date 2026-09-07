@@ -79,7 +79,7 @@ export async function notifierSeanceRetablie(
       `Séance maintenue — ${seance.creneau.activite.nom}`,
       [
         `Bonjour ${nomPourSalutation(u.displayName)},`,
-        `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du **${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}**${seance.creneau.lieu ? ` (${seance.creneau.lieu})` : ""}, aura finalement bien lieu.`,
+        `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du **${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}**${seance.creneau.lieu ? ` (**${seance.creneau.lieu}**)` : ""}, aura finalement bien lieu.`,
         `Elle avait été annulée : vous pouvez la réinscrire à votre agenda.`,
         g.contactEmail
           ? `Le service des sports — ${g.contactEmail}`
@@ -141,7 +141,7 @@ export async function notifierSeancesAnnulees(
   >();
 
   for (const s of seances) {
-    const ligne = `• ${s.creneau.activite.nom} — **${fmtDateLongue(s.date)}, ${s.creneau.heureDebut}–${s.creneau.heureFin}**${s.creneau.lieu ? ` (${s.creneau.lieu})` : ""}`;
+    const ligne = `• ${s.creneau.activite.nom} — **${fmtDateLongue(s.date)}, ${s.creneau.heureDebut}–${s.creneau.heureFin}**${s.creneau.lieu ? ` (**${s.creneau.lieu}**)` : ""}`;
     // Un agent peut être inscrit au créneau *et* annoncé sur la séance : la
     // `Map` par agent et le dédoublonnage des lignes lui garantissent un seul
     // message, sans date répétée.
@@ -245,7 +245,7 @@ export async function notifierChangementCreneau(
   }
   if (changement.lieu) {
     blocs.push(
-      `Nouveau lieu : ${changement.lieu.apres ?? "à préciser"}\n(auparavant ${changement.lieu.avant ?? "non précisé"})`,
+      `Nouveau lieu : **${changement.lieu.apres ?? "à préciser"}**\n(auparavant ${changement.lieu.avant ?? "non précisé"})`,
     );
   }
   if (ajoutees.length > 0) {

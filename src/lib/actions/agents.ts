@@ -225,12 +225,27 @@ export async function creerAgentHorsAnnuaire(
   const nomSaisi = String(formData.get("nom") ?? "").trim();
   const nom = composerNomAffiche(prenomSaisi, nomSaisi);
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const direction = String(formData.get("direction") ?? "").trim();
-  const service = String(formData.get("service") ?? "").trim();
+  const saisiService = String(formData.get("service") ?? "").trim();
   const creneauId = String(formData.get("creneauId") ?? "");
 
   if (prenomSaisi.length < 2 || nomSaisi.length < 2) {
     return erreur("Indiquez le prénom et le nom de la personne.");
+  }
+
+  // Le service est obligatoire, et vérifié contre le référentiel : c'est par
+  // lui que la personne apparaît dans la fréquentation par service, et un
+  // compte hors annuaire n'a aucune autre source pour ce rattachement — la
+  // synchronisation ne le remplira jamais. La valeur d'un `<select>` se
+  // falsifie comme celle d'un champ libre, d'où le contrôle ici ; c'est
+  // l'orthographe du référentiel qui est enregistrée. Référentiel vide, la
+  // saisie reste libre, sans quoi plus aucun participant ne pourrait être créé.
+  if (!saisiService) return erreur("Choisissez le service de rattachement.");
+  const referentiel = await servicesProposes();
+  let service = saisiService;
+  if (referentiel.length > 0) {
+    const canonique = await serviceDuReferentiel(saisiService);
+    if (!canonique) return erreur("Choisissez un service dans la liste.");
+    service = canonique;
   }
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return erreur("Adresse e-mail invalide.");
@@ -247,7 +262,7 @@ export async function creerAgentHorsAnnuaire(
     }
   }
 
-  const user = await creerParticipantHorsAnnuaire({ nom, email, direction, service });
+  const user = await creerParticipantHorsAnnuaire({ nom, email, service });
 
   let suite = "";
   if (creneauId) {

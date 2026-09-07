@@ -157,10 +157,14 @@ export async function supprimerActivite(id: string): Promise<void> {
       details: `${creneaux.length} créneau(x) archivé(s) — historique conservé`,
     });
   }
-  revalidatePath("/activites");
-  revalidatePath("/mes-activites");
-  revalidatePath("/inscriptions");
-  revalidatePath("/seances");
+  // L'activité touche le catalogue, le planning, les inscriptions et la
+  // navigation : on invalide tout l'arbre plutôt que d'énumérer des chemins
+  // qu'on finirait par oublier de tenir à jour.
+  revalidatePath("/", "layout");
+  // Le geste part de la fiche de l'activité : y rester laisserait à l'écran une
+  // page qui ne décrit plus rien — supprimée, elle n'existe plus ; archivée,
+  // elle n'a plus de créneau. C'est ce qui obligeait à recharger à la main.
+  redirect("/activites");
 }
 
 /** Remet une activité archivée en service, avec ses créneaux. */
@@ -182,10 +186,7 @@ export async function restaurerActivite(id: string): Promise<void> {
     data: { archiveAt: null },
   });
   await audit("ACTIVITE_RESTAUREE", { userId: user.id, cible: activite.nom });
-  revalidatePath("/activites");
-  revalidatePath("/mes-activites");
-  revalidatePath("/inscriptions");
-  revalidatePath("/seances");
+  revalidatePath("/", "layout");
 }
 
 const creneauSchema = z.object({
@@ -441,10 +442,10 @@ export async function supprimerCreneau(id: string): Promise<void> {
       details: `${retirees} séance(s) à venir retirée(s) — historique conservé`,
     });
   }
-  revalidatePath("/activites");
-  revalidatePath("/mes-activites");
-  revalidatePath("/inscriptions");
-  revalidatePath("/seances");
+  // Y compris la fiche de l'activité, d'où part le geste : `revalidatePath`
+  // sur une route dynamique ne rafraîchit pas la page affichée, et le créneau
+  // restait à l'écran jusqu'à un rechargement manuel.
+  revalidatePath("/", "layout");
 }
 
 /**
@@ -493,10 +494,7 @@ export async function restaurerCreneau(id: string): Promise<void> {
     userId: user.id,
     cible: `${creneau.activite.nom} — ${JOUR_LABELS[creneau.jour].toLowerCase()} ${creneau.heureDebut}`,
   });
-  revalidatePath("/activites");
-  revalidatePath("/mes-activites");
-  revalidatePath("/inscriptions");
-  revalidatePath("/seances");
+  revalidatePath("/", "layout");
 }
 
 export async function regenererCalendrier(creneauId: string): Promise<void> {

@@ -538,6 +538,31 @@ absence longue au terme de laquelle l'agent retrouve son créneau.
   l'application. Elles sont également affichées en clair sous le titre de
   *Paramètres → Journal*.
 
+### Remise à zéro
+
+*Paramètres → Remise à zéro*, **administrateurs seuls**. Le cas visé est la fin
+de la période d'essai : les activités ont été saisies pour tester, la
+collectivité veut repartir de la première inscription réelle — sans refaire le
+LDAPS, le SMTP ni le référentiel des services, qui ont coûté des heures et ne
+dépendent d'aucune saison.
+
+Sont effacés : présences, absences, participations, inscriptions, séances,
+créneaux, activités, saisons et périodes de fermeture, animateurs et leurs
+accès, lieux, comptes AGENT et COACH, demandes d'accès, journal d'audit.
+
+Sont conservés : les paramètres (annuaire, messagerie, général), le référentiel
+des services et ses regroupements, les déclarations et mentions d'information,
+le miroir de l'annuaire — une copie que la synchronisation reconstituerait de
+toute façon —, et les comptes ADMIN et GESTIONNAIRE, sans quoi celui qui clique
+se déconnecterait lui-même.
+
+La ligne de partage est tenue dans `src/lib/reinitialisation.ts`, et l'effacement
+se fait en une transaction : interrompu à mi-chemin, il laisserait des séances
+sans saison que rien ne sait rattraper. Le geste est gardé par un mot à recopier
+plutôt qu'une case à cocher, et laisse dans le journal vidé une première ligne
+`REINITIALISATION` qui dit qui, quand, et combien. Aucune sauvegarde n'est faite
+au passage : l'instantané de base, s'il est voulu, se prend avant.
+
 ---
 
 ## Structure du code

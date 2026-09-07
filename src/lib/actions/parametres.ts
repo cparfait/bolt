@@ -9,6 +9,7 @@ import { FREQUENCES_AVIS, type FrequenceAvis } from "@/lib/frequences";
 import { ldapSearchGroups, ldapTest } from "@/lib/ldap";
 import { synchroniserAnnuaire as synchroniserAnnuaireDepuisAd } from "@/lib/annuaire";
 import { desactiverCompte } from "@/lib/departs";
+import { reinitialiser } from "@/lib/reinitialisation";
 import { envoyerMail } from "@/lib/mail";
 import { exemplesMail } from "@/lib/mail-exemples";
 import {
@@ -382,6 +383,56 @@ export async function purgerInscriptionsAction(
   revalidatePath("/parametres/journal");
   return succes(
     `${res.inscriptions} inscription(s) et ${res.presences} présence(s) effacées définitivement.`,
+  );
+}
+
+/**
+ * Remise à zéro de l'exploitation, paramétrage conservé.
+ *
+ * Réservée aux administrateurs, et gardée par un mot à recopier plutôt qu'une
+ * case à cocher : une case se coche d'un réflexe, et il n'y a rien derrière
+ * celle-ci — ni corbeille, ni annulation, ni sauvegarde faite au passage. Ce
+ * que la fonction efface exactement se lit dans src/lib/reinitialisation.ts.
+ */
+const MOT_DE_CONFIRMATION = "REINITIALISER";
+
+export async function reinitialiserDonneesAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser("ADMIN");
+
+  if (texte(formData, "confirmation").toUpperCase() !== MOT_DE_CONFIRMATION) {
+    return erreur(
+      `Recopiez « ${MOT_DE_CONFIRMATION} » pour confirmer. Rien n'a été effacé.`,
+    );
+  }
+
+  const efface = await reinitialiser();
+  // Écrit APRÈS la transaction, qui vide le journal : c'est la première ligne
+  // de la nouvelle vie de l'application, et la seule qui expliquera plus tard
+  // pourquoi tout ce qui précède a disparu.
+  await audit("REINITIALISATION", {
+    userId: user.id,
+    cible: "données d'exploitation",
+    details: [
+      `${efface.presences} présence(s)`,
+      `${efface.inscriptions} inscription(s)`,
+      `${efface.seances} séance(s)`,
+      `${efface.creneaux} créneau(x)`,
+      `${efface.activites} activité(s)`,
+      `${efface.saisons} saison(s)`,
+      `${efface.animateurs} animateur(s)`,
+      `${efface.lieux} lieu(x)`,
+      `${efface.comptes} compte(s) agent`,
+      `${efface.journal} ligne(s) de journal`,
+    ].join(", "),
+  });
+
+  // Tout l'arbre : il ne reste plus une page dont le contenu tienne encore.
+  revalidatePath("/", "layout");
+  return succes(
+    `Remise à zéro effectuée : ${efface.activites} activité(s), ${efface.creneaux} créneau(x), ${efface.inscriptions} inscription(s) et ${efface.presences} présence(s) effacés. Paramètres, services et déclarations conservés.`,
   );
 }
 

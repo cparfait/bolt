@@ -243,9 +243,9 @@ export async function accuserReception(
     if (!adresse) return;
 
     const g = await getGeneralSettings();
-    // Le jour et l'horaire en gras, le lieu hors des marques : c'est la date
-    // qu'on revient chercher dans le message, pas le nom de la salle.
-    const quand = `**${creneau.jour.toLowerCase()} de ${creneau.heureDebut} à ${creneau.heureFin}**${creneau.lieu ? ` — ${creneau.lieu}` : ""}`;
+    // Jour, horaire et lieu en gras : ce sont les trois seules choses qu'on
+    // revient chercher dans le message, et on les cherche en diagonale.
+    const quand = `**${creneau.jour.toLowerCase()} de ${creneau.heureDebut} à ${creneau.heureFin}**${creneau.lieu ? ` — **${creneau.lieu}**` : ""}`;
     const nom = creneau.activite.nom;
     const seDesinscrire = `Si cette inscription ne vous convient pas, désinscrivez-vous depuis l'application : votre place profitera à un collègue en liste d'attente.`;
 
