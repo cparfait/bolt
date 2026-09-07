@@ -1,13 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { Building2, ClipboardPaste, DownloadCloud, FileJson, Upload, Wand2 } from "lucide-react";
+import { Building2, ClipboardPaste, FileJson, Trash2, Upload, Wand2 } from "lucide-react";
 import {
   appliquerRapprochementsSurs,
   importerParametrage,
   collerServices,
   enregistrerService,
-  importerServicesAnnuaire,
+  nettoyerServicesRetires,
 } from "@/lib/actions/services";
 import type { ActionState } from "@/lib/actions/types";
 import {
@@ -83,35 +83,6 @@ export function CollageServices() {
 }
 
 /**
- * Reprise des services déjà portés par l'annuaire.
- *
- * Sans elle, un référentiel vide se remplit à la main alors que l'AD contient
- * déjà la liste réelle — recopiée, elle le serait avec des écarts, ce qui est
- * exactement le défaut que ce référentiel corrige.
- */
-export function ImportServicesAnnuaire() {
-  const [state, action] = useActionState<ActionState, FormData>(
-    importerServicesAnnuaire,
-    null,
-  );
-  return (
-    <form action={action} className="space-y-3">
-      <Alert state={state} />
-      <SubmitButton className={btnSecondary} pendingLabel="Import…">
-        <DownloadCloud className="h-4 w-4" />
-        Reprendre les services de l&apos;annuaire
-      </SubmitButton>
-      <p className="text-xs text-slate-500">
-        Ajoute les libellés portés par les comptes de l&apos;annuaire (attribut{" "}
-        <code>department</code>) qui ne figurent pas déjà dans la liste. N&apos;en
-        retire aucun, et ne crée pas de doublon : relançable après chaque
-        synchronisation.
-      </p>
-    </form>
-  );
-}
-
-/**
  * Application en lot des seuls rapprochements sûrs.
  *
  * Les « probables » restent à trancher : trente agents basculés dans le mauvais
@@ -182,6 +153,30 @@ export function ImportParametrage() {
         fichier, et les comptes suivent. Rien n&apos;est supprimé : un service
         retiré reste sur les fiches qui le portent.
       </p>
+    </form>
+  );
+}
+
+/**
+ * Ménage des libellés retirés que plus personne ne porte.
+ *
+ * Le pendant du rattachement : à mesure que les libellés d'annuaire se
+ * rattachent, ceux dont le référentiel avait hérité se vident. Les retirer un
+ * par un serait long, et les laisser encombre la seule liste qui doit rester
+ * lisible.
+ */
+export function NettoyerRetires({ total }: { total: number }) {
+  const [state, action] = useActionState<ActionState, FormData>(
+    nettoyerServicesRetires,
+    null,
+  );
+  return (
+    <form action={action} className="space-y-2">
+      <Alert state={state} />
+      <SubmitButton className={btnSecondary} pendingLabel="Suppression…">
+        <Trash2 className="h-4 w-4" />
+        Supprimer les {total} libellé{total > 1 ? "s" : ""} que plus personne ne porte
+      </SubmitButton>
     </form>
   );
 }

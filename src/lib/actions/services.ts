@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { rattachementsConnus } from "@/lib/comptes";
 import {
   analyserCollage,
   appliquerRegroupements,
@@ -161,59 +160,6 @@ export async function supprimerService(id: string): Promise<void> {
   await prisma.service.delete({ where: { id } });
   await audit("SERVICE_SUPPRIME", { userId: user.id, cible: service.nom });
   await recalculer();
-}
-
-/**
- * Reprend les services déjà présents dans l'annuaire.
- *
- * L'AD porte le rattachement réel de toute la collectivité dans `department` :
- * retaper cette liste à la main serait absurde, et la recopierait avec des
- * écarts. On importe donc ce qui existe, et le service des sports élague.
- *
- * Ajoute seulement : un service retiré de la liste ne revient pas par un import,
- * et un import répété ne crée pas de doublon.
- */
-// Sans paramètre : l'import ne lit rien du formulaire. Le bouton lui en passe
-// deux, comme à toute action de `useActionState` ; les ignorer dans la
-// signature vaut mieux que de les nommer pour rien.
-export async function importerServicesAnnuaire(): Promise<ActionState> {
-  const user = await requireUser("GESTIONNAIRE");
-  const { services } = await rattachementsConnus();
-  if (services.length === 0) {
-    return erreur(
-      "L'annuaire ne porte aucun service. Synchronisez-le depuis Paramètres → Annuaire, ou saisissez les services à la main.",
-    );
-  }
-
-  const existants = await prisma.service.findMany({ select: { nom: true } });
-  const connus = new Set(existants.map((s) => cleComparaison(s.nom)));
-  const nouveaux: string[] = [];
-  for (const brut of services) {
-    const nom = normaliser(brut);
-    const cle = cleComparaison(nom);
-    if (nom.length < 2 || !cle || connus.has(cle)) continue;
-    connus.add(cle);
-    nouveaux.push(nom);
-  }
-
-  if (nouveaux.length === 0) {
-    return succes("Aucun service à ajouter : l'annuaire n'en porte pas d'autre.");
-  }
-
-  const depart = await prisma.service.count();
-  await prisma.service.createMany({
-    data: nouveaux.map((nom, i) => ({ nom, ordre: depart + i })),
-    skipDuplicates: true,
-  });
-  await audit("SERVICES_IMPORTES", {
-    userId: user.id,
-    details: `${nouveaux.length} service(s) depuis l'annuaire`,
-  });
-
-  await recalculer();
-  return succes(
-    `${nouveaux.length} service(s) repris de l'annuaire. Retirez ceux qui n'ont pas à figurer sur le bon d'inscription.`,
-  );
 }
 
 /**
@@ -435,5 +381,52 @@ export async function importerParametrage(
     `Paramétrage importé : ${crees} service(s) ajouté(s), ${renommes} aligné(s) sur l'orthographe du fichier, ` +
       `${retires} retiré(s) de la liste proposée ; ${posees} regroupement(s) posé(s), ${reglesRetirees} retiré(s). ` +
       `${touches} compte(s) rattaché(s) au passage.`,
+  );
+}
+
+/**
+ * Supprime les libellés retirés que plus personne ne porte.
+ *
+ * Après le rattachement, les quatre-vingt-dix libellés que l'annuaire avait
+ * déposés dans le référentiel se vident un à un : leurs porteurs sont passés
+ * sur un vrai service. Ils restent pourtant dans la liste, où ils n'ont plus
+ * rien à faire — et les retirer un par un est une tâche qu'on ne finit pas.
+ *
+ * Ne touche ni aux services actifs, ni à ceux que quelqu'un porte encore : la
+ * règle de `supprimerService` vaut ici aussi, en lot.
+ */
+export async function nettoyerServicesRetires(): Promise<ActionState> {
+  const user = await requireUser("GESTIONNAIRE");
+  const retires = await prisma.service.findMany({ where: { actif: false } });
+  if (retires.length === 0) return erreur("Aucun service retiré.");
+
+  const porteurs = await prisma.user.groupBy({
+    by: ["service"],
+    where: { service: { in: retires.map((s) => s.nom) } },
+    _count: true,
+  });
+  const portes = new Set(porteurs.map((p) => p.service));
+  const vides = retires.filter((s) => !portes.has(s.nom));
+  if (vides.length === 0) {
+    return erreur(
+      "Tous les services retirés sont encore portés par des comptes : rattachez-les d'abord.",
+    );
+  }
+
+  const noms = vides.map((s) => s.nom);
+  await prisma.regroupementService.deleteMany({ where: { cible: { in: noms } } });
+  await prisma.service.deleteMany({ where: { id: { in: vides.map((s) => s.id) } } });
+  await audit("SERVICES_RETIRES_SUPPRIMES", {
+    userId: user.id,
+    details: `${vides.length} service(s)`,
+  });
+
+  await recalculer();
+  const restants = retires.length - vides.length;
+  return succes(
+    `${vides.length} libellé(s) supprimé(s).` +
+      (restants > 0
+        ? ` ${restants} reste(nt) : des comptes les portent encore.`
+        : ""),
   );
 }

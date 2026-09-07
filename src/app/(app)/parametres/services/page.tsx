@@ -8,14 +8,14 @@ import {
   retirerRegroupement,
   supprimerService,
 } from "@/lib/actions/services";
-import { Badge, Card, EmptyState } from "@/components/ui";
+import { Card, EmptyState } from "@/components/ui";
 import { Panneau } from "@/components/panneau";
 import { BoutonAction } from "@/components/bouton-action";
 import {
   AppliquerRapprochements,
-  ImportParametrage,
   CollageServices,
-  ImportServicesAnnuaire,
+  ImportParametrage,
+  NettoyerRetires,
   ServiceForm,
 } from "@/components/service-form";
 import { RapprochementService } from "@/components/rapprochement-service";
@@ -49,7 +49,13 @@ export default async function ParametresServices({
     inventaireLibelles(),
   ]);
 
-  const proposables = services.filter((s) => s.actif).map((s) => s.nom);
+  // Deux listes, et c'est toute la lisibilité de l'écran : le référentiel que
+  // la collectivité reconnaît, et les libellés dont il a hérité de l'annuaire
+  // avant que le rattachement n'existe. Mêlés, les seconds noyaient les
+  // premiers — quatre-vingt-dix lignes contre trente-sept.
+  const actifs = services.filter((s) => s.actif);
+  const retires = services.filter((s) => !s.actif);
+  const proposables = actifs.map((s) => s.nom);
 
   const suggestions = rapprocher(libelles, proposables);
   const surs = suggestions.filter((s) => s.confiance === "sure").length;
@@ -63,15 +69,21 @@ export default async function ParametresServices({
 
   return (
     <div className="space-y-6">
-      <Card title={`Services (${services.length})`}>
-        {services.length === 0 ? (
+      <Card title={`Référentiel des services (${actifs.length})`}>
+        <p className="mb-4 text-sm text-slate-500">
+          La liste que la collectivité reconnaît. C&apos;est elle, et rien
+          d&apos;autre, qui est proposée partout où l&apos;on attribue un
+          service : sur la fiche d&apos;un agent comme sur le bon
+          d&apos;inscription.
+        </p>
+        {actifs.length === 0 ? (
           <EmptyState
             title="Aucun service déclaré"
             hint="Tant que la liste est vide, le bon d'inscription laisse la personne écrire son service à la main."
           />
         ) : (
           <ul className="divide-y divide-slate-100">
-            {services.map((s) => {
+            {actifs.map((s) => {
               const utilise = usages.get(s.nom) ?? 0;
               const agreges = regroupements.filter((r) => r.cible === s.nom).length;
               return (
@@ -81,7 +93,6 @@ export default async function ParametresServices({
                       <p className="flex items-center gap-2 font-medium">
                         <Building2 className="h-4 w-4 shrink-0 text-slate-400" />
                         {s.nom}
-                        {!s.actif && <Badge>Retiré</Badge>}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-400">
                         {utilise > 0 ? (
@@ -118,9 +129,7 @@ export default async function ParametresServices({
                       <BoutonAction
                         action={basculerService.bind(null, s.id)}
                         className="rounded-lg border border-slate-200 px-2 py-1.5 text-slate-500 transition hover:bg-slate-50"
-                        title={
-                          s.actif ? "Retirer du bon d'inscription" : "Remettre dans la liste"
-                        }
+                        title="Retirer du référentiel"
                       >
                         <Power className="h-3.5 w-3.5" />
                       </BoutonAction>
@@ -162,6 +171,64 @@ export default async function ParametresServices({
           </ul>
         )}
       </Card>
+
+      {/* Les libellés dont le référentiel a hérité de l'annuaire, repliés :
+          ils n'ont plus à être proposés nulle part, mais on ne peut pas les
+          supprimer tant que des comptes les portent — ce serait effacer ce que
+          les fiches affichent. Ils s'en vont à mesure du rattachement. */}
+      {retires.length > 0 && (
+        <Panneau
+          titre={`Libellés retirés (${retires.length})`}
+          sousTitre="Plus proposés à la saisie, encore affichés sur les fiches qui les portent"
+        >
+          <div className="space-y-4">
+            <NettoyerRetires total={retires.filter((s) => (usages.get(s.nom) ?? 0) === 0).length} />
+            <ul className="divide-y divide-slate-100 text-sm">
+              {retires.map((s) => {
+                const utilise = usages.get(s.nom) ?? 0;
+                return (
+                  <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-slate-600">{s.nom}</p>
+                      <p className="text-xs text-slate-400">
+                        {utilise > 0 ? (
+                          <Link
+                            href={`/agents?${new URLSearchParams({ f: "tous", service: s.nom })}`}
+                            className="hover:text-brand-600 hover:underline"
+                          >
+                            {utilise} {pluriel(utilise, "personne", "personnes")}
+                          </Link>
+                        ) : (
+                          "personne"
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <BoutonAction
+                        action={basculerService.bind(null, s.id)}
+                        className="rounded-lg border border-slate-200 px-2 py-1.5 text-slate-500 transition hover:bg-slate-50"
+                        title="Remettre au référentiel"
+                      >
+                        <Power className="h-3.5 w-3.5" />
+                      </BoutonAction>
+                      {utilise === 0 && (
+                        <BoutonAction
+                          action={supprimerService.bind(null, s.id)}
+                          confirmation={`Supprimer définitivement « ${s.nom} » ?`}
+                          className="rounded-lg border border-slate-200 px-2 py-1.5 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </BoutonAction>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </Panneau>
+      )}
 
       {/* Le rapprochement. Fermer la liste ne règle que l'avenir : les comptes
           déjà là portent ce que l'annuaire dit, et ce sont eux qui font diverger
@@ -232,9 +299,6 @@ export default async function ParametresServices({
           <div className="border-t border-slate-100 pt-6">
             <CollageServices />
           </div>
-          <div className="border-t border-slate-100 pt-6">
-            <ImportServicesAnnuaire />
-          </div>
         </div>
       </Panneau>
 
@@ -254,7 +318,9 @@ export default async function ParametresServices({
           l&apos;annuaire (<code>department</code>), passé au travers des
           regroupements ci-dessus. Corriger une règle suffit donc à corriger
           tout le monde, et rien n&apos;est perdu — le libellé d&apos;origine
-          reste dans le miroir de l&apos;annuaire.
+          reste dans le miroir de l&apos;annuaire. La synchronisation
+          n&apos;ajoute jamais de service au référentiel : elle alimente les
+          libellés à rattacher, et c&apos;est ici qu&apos;on décide.
         </p>
       </div>
     </div>
