@@ -207,8 +207,11 @@ export function Card({
       style={style}
       className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}
     >
+      {/* `flex-wrap` : sur un téléphone, un titre un peu long et un bouton
+          d'action se disputaient la même ligne et se coupaient tous les deux en
+          deux. Ils passent l'un sous l'autre plutôt que de se serrer. */}
       {(title || action) && (
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           {title && (
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
               {title}

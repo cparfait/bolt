@@ -88,7 +88,7 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
               setPeriode((v) => !v);
               setOuvert(null);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
           >
             {periode ? (
               <>

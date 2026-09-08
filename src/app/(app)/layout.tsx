@@ -44,6 +44,7 @@ export default async function AppLayout({
         demandesActives={g.demandeAccesActive}
         externe={externe}
         appName={g.appName}
+        logo={g.logo || g.logoVille}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <NavMobile
@@ -52,6 +53,7 @@ export default async function AppLayout({
           demandesActives={g.demandeAccesActive}
           externe={externe}
           appName={g.appName}
+          logo={g.logo || g.logoVille}
           utilisateur={{ nom: user.displayName, role: ROLE_LABELS[user.role] }}
         />
         <header className="sticky top-0 z-10 hidden h-14 md:flex items-center justify-end gap-4 border-b border-slate-200 bg-white/80 px-4 backdrop-blur lg:px-6">

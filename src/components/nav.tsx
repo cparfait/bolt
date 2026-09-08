@@ -116,6 +116,42 @@ const items: Item[] = [
 /** Nombre d'éléments en attente par écran, indexé par lien. */
 export type Compteurs = Record<string, number>;
 
+/**
+ * La marque, en tête des deux barres de navigation.
+ *
+ * Les écrans d'accueil portaient les logos configurés, la navigation non : elle
+ * affichait l'haltère par défaut, y compris chez une collectivité qui avait
+ * posé son blason et l'habillage de l'opération en cours. Sur téléphone, où
+ * cette barre EST tout l'en-tête, l'application semblait donc n'avoir jamais
+ * été personnalisée.
+ *
+ * Celui de l'opération d'abord, celui de la ville à défaut : même ordre que
+ * dans les courriels (src/lib/mail.ts). C'est l'habillage du moment qu'on
+ * reconnaît, la ville étant déjà nommée partout ailleurs. Sans aucun logo,
+ * l'haltère reprend sa place — une barre sans rien à gauche paraît cassée.
+ */
+function Marque({ logo, appName }: { logo: string; appName: string }) {
+  return (
+    <>
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element -- data URI, next/image ne s'applique pas
+        <img
+          src={logo}
+          alt=""
+          className="h-8 w-8 shrink-0 rounded-lg object-contain"
+        />
+      ) : (
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white">
+          <Dumbbell className="h-4 w-4" />
+        </span>
+      )}
+      <span className="min-w-0 truncate text-lg font-semibold tracking-tight text-brand-600">
+        {appName}
+      </span>
+    </>
+  );
+}
+
 function Liens({
   role,
   compteurs,
@@ -207,20 +243,20 @@ export function Sidebar({
   demandesActives,
   externe,
   appName,
+  logo,
 }: {
   role: Role;
   compteurs?: Compteurs;
   demandesActives?: boolean;
   externe?: boolean;
   appName: string;
+  /** Logo de l'opération, celui de la ville à défaut. Vide : l'haltère. */
+  logo: string;
 }) {
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
       <div className="flex h-14 items-center gap-2.5 border-b border-slate-100 px-5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
-          <Dumbbell className="h-4 w-4" />
-        </span>
-        <span className="text-lg font-semibold tracking-tight text-brand-600">{appName}</span>
+        <Marque logo={logo} appName={appName} />
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
         <Liens
@@ -244,6 +280,7 @@ export function NavMobile({
   demandesActives,
   externe,
   appName,
+  logo,
   utilisateur,
 }: {
   role: Role;
@@ -251,6 +288,7 @@ export function NavMobile({
   demandesActives?: boolean;
   externe?: boolean;
   appName: string;
+  logo: string;
   // Identité et déconnexion vivent ici sur téléphone : l'en-tête qui les
   // portait est masqué sous md, où deux barres empilées mangeaient 112 px de
   // hauteur avant le moindre contenu.
@@ -260,10 +298,7 @@ export function NavMobile({
   return (
     <details className="group border-b border-slate-200 bg-white md:hidden">
       <summary className="flex h-14 cursor-pointer list-none items-center gap-2.5 px-4">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
-          <Dumbbell className="h-4 w-4" />
-        </span>
-        <span className="text-lg font-semibold tracking-tight text-brand-600">{appName}</span>
+        <Marque logo={logo} appName={appName} />
         {/* Menu replié : le total en attente reste visible, sinon l'alerte
             disparaîtrait complètement sur téléphone. */}
         {enAttente > 0 && (
