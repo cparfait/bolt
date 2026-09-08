@@ -7,6 +7,7 @@ import type { ActionState } from "@/lib/actions/types";
 import { CHAMP_RGPD, champDeclaration, type TextesLegaux } from "@/lib/declarations";
 import { TexteEnLigne, TexteMisEnForme } from "@/components/texte-mis-en-forme";
 import { Alert } from "@/components/ui";
+import { texteSur } from "@/lib/couleurs";
 import { SubmitButton } from "@/components/submit-button";
 
 /**
@@ -21,11 +22,14 @@ import { SubmitButton } from "@/components/submit-button";
 export function InscrireForm({
   creneauId,
   complet,
+  couleur,
   intitule,
   textes,
 }: {
   creneauId: string;
   complet: boolean;
+  /** Teinte de l'activité, portée par le bouton — voir plus bas. */
+  couleur: string;
   /** « Yoga · lundi 17h45–18h45 », rappelé en tête des déclarations. */
   intitule?: string;
   /** Textes en vigueur, lus en base par la page (Paramètres → Déclarations). */
@@ -69,13 +73,27 @@ export function InscrireForm({
         </p>
       )}
 
+      {/* Le bouton prend la couleur de l'activité, et non le vert de la
+          collectivité. Sur une carte au liseré violet, au titre violet et à la
+          jauge violette, un bouton vert institutionnel n'appartenait à rien : la
+          carte parlait deux langues à la fois. Le catalogue est le seul écran
+          rangé par activité — ailleurs, le vert reste la couleur de l'action.
+
+          Plein pour s'inscrire, en creux pour rejoindre une file : ce n'est pas
+          le même engagement, et le second se remarquait trop en bleu — une
+          cinquième couleur qui ne désignait rien. */}
       <button
         type="button"
         onClick={ouvrir}
+        style={
+          complet
+            ? { color: couleur, borderColor: `${couleur}59` }
+            : { backgroundColor: couleur, color: texteSur(couleur) }
+        }
         className={
           complet
-            ? "inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2.5 text-sm font-medium text-blue-700 transition hover:bg-blue-50"
-            : "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-500"
+            ? "inline-flex w-full items-center justify-center gap-2 rounded-lg border bg-white px-4 py-2.5 text-sm font-medium transition hover:brightness-95"
+            : "inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition hover:brightness-110"
         }
       >
         <Plus className="h-4 w-4" />

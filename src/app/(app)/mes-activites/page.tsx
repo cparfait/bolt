@@ -23,6 +23,15 @@ import {
   pluriel,
 } from "@/lib/constants";
 
+/**
+ * Teinte d'une jauge pleine. Grise, et non plus rouge : un créneau complet
+ * n'est pas une anomalie, c'est une information — et le rouge, sur une carte
+ * déjà teintée aux couleurs de l'activité, criait une alerte là où le bouton
+ * juste en dessous propose tranquillement la liste d'attente. Le décompte
+ * « 10 / 10 places » dit déjà ce qu'il faut savoir.
+ */
+const COMPLET = "#94a3b8";
+
 export default async function MesActivitesPage({
   searchParams,
 }: {
@@ -256,12 +265,15 @@ export default async function MesActivitesPage({
                             ? (groupe.inscrits / groupe.capacite) * 100
                             : 0
                         }
-                        couleur={groupeComplet ? "#dc2626" : activite.couleur}
+                        couleur={groupeComplet ? COMPLET : activite.couleur}
                       />
                     </div>
                   )}
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                {/* Une seule colonne quand l'activité n'a qu'un créneau : à
+                    deux colonnes, la moitié droite restait un grand aplat
+                    teinté et vide, qui se lisait comme un bloc manquant. */}
+                <div className={`grid gap-3 ${liste.length > 1 ? "sm:grid-cols-2" : ""}`}>
                   {liste.map((c) => {
                     const inscrits = c._count.inscriptions;
                     const complet = groupe ? groupeComplet : inscrits >= c.capacite;
@@ -316,7 +328,7 @@ export default async function MesActivitesPage({
                           {!groupe && (
                             <Jauge
                               valeur={(inscrits / c.capacite) * 100}
-                              couleur={complet ? "#dc2626" : activite.couleur}
+                              couleur={complet ? COMPLET : activite.couleur}
                             />
                           )}
                         </div>
@@ -341,6 +353,7 @@ export default async function MesActivitesPage({
                           <InscrireForm
                             creneauId={c.id}
                             complet={complet}
+                            couleur={activite.couleur}
                             intitule={`${activite.nom} · ${JOUR_LABELS[c.jour]} ${c.heureDebut}–${c.heureFin}`}
                             textes={textes}
                           />
