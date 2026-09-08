@@ -448,6 +448,27 @@ variables. « Update the stack », même avec « Re-pull image », ne casse alor
 plus rien : `pull_policy: never` dit à Docker que cette image n'existe que sur
 la machine.
 
+⚠ `docker image prune -a` détruit cette image : aucun registre ne sait la
+restituer, et le redéploiement échoue ensuite sur le message ci-dessus.
+Préférez `docker image prune` sans `-a`. Les données ne risquent rien — la base
+vit dans un répertoire de l'hôte, qu'aucun élagage ne touche.
+
+### Quelle version tourne ?
+
+```
+https://votre-domaine/api/health   →   {"status":"ok","version":"K7hR2…"}
+```
+
+`version` est l'identifiant de construction de Next : deux images différentes
+ne le partagent jamais. Il répond à la question qui suit chaque déploiement, et
+qu'on ne savait pas trancher depuis un téléphone — « est-ce l'ancienne version,
+ou mon cache ? ». Une mise à jour qui échoue laisse le conteneur précédent en
+place et ressemble en tout point à un cache tenace : si l'identifiant n'a pas
+bougé après un redéploiement, ce n'est pas le navigateur.
+
+La route est publiée sur Internet, comme sonde du healthcheck Docker. Elle
+n'expose qu'une empreinte opaque, sans lien avec le code ni avec les données.
+
 ### Reverse proxy — l'essentiel
 
 Le proxy doit renseigner `X-Forwarded-For` **en écrasant** toute valeur fournie
