@@ -166,7 +166,7 @@ function Liens({
   onClick?: () => void;
 }) {
   const pathname = usePathname();
-  const visible = items.filter(
+  const retenus = items.filter(
     (i) =>
       // Depuis Internet, seul l'espace personnel est joignable : `requireUser`
       // refuse les écrans de gestion, et le proxy ne publie même pas leurs
@@ -184,7 +184,30 @@ function Liens({
   );
   // Le séparateur n'apparaît que si l'utilisateur a réellement les deux
   // casquettes : un agent simple ne voit qu'une liste, sans intertitre inutile.
-  const mixte = visible.some((i) => i.groupe === "gestion");
+  const mixte = retenus.some((i) => i.groupe === "gestion");
+
+  /**
+   * Un agent qui ne gère rien n'a qu'un seul écran, et donc une seule entrée.
+   *
+   * Il en avait deux — le tableau de bord et « Mes activités » —, et depuis que
+   * les prochaines séances figurent sur les deux, elles racontent la même
+   * chose : on choisit entre deux portes qui donnent sur la même pièce. Sur
+   * téléphone, où le menu se déplie par-dessus la page, ce choix est un
+   * obstacle de plus avant d'arriver quelque part.
+   *
+   * Le tableau de bord l'emporte : c'est là qu'on atterrit en se connectant, et
+   * il mène au catalogue par son propre bouton. « Mes activités » reste
+   * atteignable, simplement plus depuis le menu.
+   *
+   * Sauf depuis Internet, où le tableau de bord n'est pas publié : le menu se
+   * retrouverait vide. On garde alors l'entrée personnelle, qui est tout ce
+   * qu'il y a.
+   */
+  const dansLeMenu =
+    mixte || !retenus.some((i) => i.href === "/")
+      ? retenus
+      : retenus.filter((i) => i.groupe !== "personnel");
+  const visible = dansLeMenu;
   return (
     <>
       {visible.map((item, index) => {
