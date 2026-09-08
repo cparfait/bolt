@@ -422,6 +422,32 @@ Variables obligatoires : `POSTGRES_PASSWORD`, `SESSION_SECRET` (32 caractères
 minimum), `BOLT_ADMIN_PASSWORD` (8 minimum), `BOLT_PUBLIC_URL`. Le conteneur
 refuse de démarrer si elles manquent, et applique les migrations au démarrage.
 
+### Portainer — ne pas coller `docker-compose.yml`
+
+Portainer déploie une stack en faisant `pull` avant `up`. Or `docker-compose.yml`
+décrit une image à **construire** (`build: .`) : rien ne la publie sous ce nom,
+et la stack échoue sur
+
+```
+pull access denied for bolt, repository does not exist or may require 'docker login'
+```
+
+C'est le symptôme d'un fichier fait pour la ligne de commande, déposé dans un
+outil qui ne construit pas. Utilisez
+[`deploy/portainer-stack.yml`](deploy/portainer-stack.yml), qui désigne une
+image locale et interdit explicitement le `pull` :
+
+```bash
+# sur le serveur, une fois par mise à jour
+cd /home/sysadmin/docker/bolt/bolt_data && git pull
+docker build -t bolt:local .
+```
+
+puis, dans Portainer → Stacks → Web editor, coller ce fichier et renseigner les
+variables. « Update the stack », même avec « Re-pull image », ne casse alors
+plus rien : `pull_policy: never` dit à Docker que cette image n'existe que sur
+la machine.
+
 ### Reverse proxy — l'essentiel
 
 Le proxy doit renseigner `X-Forwarded-For` **en écrasant** toute valeur fournie

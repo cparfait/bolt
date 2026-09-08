@@ -27,8 +27,12 @@ services:
       retries: 10
 
   app:
+    # Image CONSTRUITE, non publiée : ce fichier est fait pour la ligne de
+    # commande (`docker compose up -d --build`). Ne le collez pas dans
+    # Portainer, qui fait un `pull` avant de démarrer et échouera sur
+    # « pull access denied for bolt » — utilisez deploy/portainer-stack.yml.
     build: .
-    # ou, avec la CI GitHub : image: ghcr.io/VOTRE_COMPTE/bolt:latest
+    # ou, avec une CI qui publie : image: ghcr.io/VOTRE_COMPTE/bolt:latest
     container_name: bolt_web
     restart: unless-stopped
     depends_on:
