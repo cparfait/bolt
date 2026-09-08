@@ -83,7 +83,7 @@ const ACTIVITES: {
   {
     nom: "Aquagym",
     description:
-      "Bassin réservé aux agents. Maillot de bain, serviette, claquettes et gel douche à prendre.",
+      "Bassin réservé aux agents. Maillot de bain, bonnet de bain, serviette, claquettes et gel douche à prendre.",
     couleur: "#0891b2",
     icone: "Waves",
     ordre: 3,
