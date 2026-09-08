@@ -113,7 +113,11 @@ beforeEach(async () => {
   await prisma.saison.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.user.deleteMany();
-  await setSetting("general", { validationRequise: false, maxInscriptionsParAgent: 0 });
+  await setSetting("general", {
+    validationRequise: false,
+    maxInscriptionsParAgent: 0,
+    maxListeAttenteParAgent: 0,
+  });
 });
 
 after(async () => {
@@ -388,42 +392,84 @@ describe("file d'attente", () => {
   });
 });
 
-describe("quota d'activités par agent", () => {
-  it("compte en activités, pas en créneaux", async () => {
-    await setSetting("general", { validationRequise: false, maxInscriptionsParAgent: 1 });
+describe("quota de créneaux par agent", () => {
+  const quota = (creneaux: number, attente: number) =>
+    setSetting("general", {
+      validationRequise: false,
+      maxInscriptionsParAgent: creneaux,
+      maxListeAttenteParAgent: attente,
+    });
+
+  it("compte en créneaux, même sur une seule activité", async () => {
+    await quota(1, 1);
     const c = await contexte({ capacites: [10, 10], agents: 1 });
     const premier = await demanderInscription(c.agents[0], c.creneaux[0]);
-    // Second créneau de la MÊME activité : c'est toujours une seule activité.
+    // Second créneau de la MÊME activité : c'est une seconde place occupée sur
+    // le planning, donc un second engagement.
     const second = await demanderInscription(c.agents[0], c.creneaux[1]);
     assert.equal(premier.ok, true);
-    assert.equal(second.ok, true, "deux créneaux d'une même activité ne font qu'un engagement");
+    assert.equal(second.ok, false, "deux créneaux, même activité, font deux engagements");
+    assert.match(second.message, /limité à 1 créneau/);
   });
 
-  it("refuse au-delà du quota, sur une autre activité", async () => {
-    await setSetting("general", { validationRequise: false, maxInscriptionsParAgent: 1 });
-    const c = await contexte({ capacites: [10], agents: 1 });
+  it("compte en créneaux jusqu'en capacité mutualisée", async () => {
+    // La place mutualisée ne se compte qu'une fois côté salle — elle suit
+    // l'agent d'un créneau à l'autre. Côté agent, elle n'ouvre pas pour autant
+    // le droit d'occuper deux lignes du planning.
+    await quota(1, 1);
+    const c = await contexte({
+      capacites: [10, 10],
+      partagee: true,
+      capaciteActivite: 10,
+      agents: 1,
+    });
+    await demanderInscription(c.agents[0], c.creneaux[0]);
+    const second = await demanderInscription(c.agents[0], c.creneaux[1]);
+    assert.equal(second.ok, false);
+  });
+
+  it("laisse attendre sur un créneau complet malgré le quota atteint", async () => {
+    await quota(1, 1);
+    // Le second créneau est plein : la demande y part en liste d'attente, qui
+    // a son propre plafond. C'est tout l'intérêt — l'agent prend ce qui reste
+    // et garde sa chance sur ce qu'il voulait.
+    const c = await contexte({ capacites: [10, 1], agents: 2 });
+    await demanderInscription(c.agents[1], c.creneaux[1]); // remplit le second
     await demanderInscription(c.agents[0], c.creneaux[0]);
 
-    const autre = await prisma.activite.create({ data: { nom: `autre-${cle()}` } });
-    const creneauAutre = await prisma.creneau.create({
-      data: {
-        saisonId: c.saisonId,
-        activiteId: autre.id,
-        jour: "JEUDI",
-        heureDebut: "12:15",
-        heureFin: "13:15",
-        capacite: 10,
-      },
-    });
-    const refus = await demanderInscription(c.agents[0], creneauAutre.id);
-    assert.equal(refus.ok, false);
-    assert.match(refus.message, /limité à 1 activité/);
+    const attente = await demanderInscription(c.agents[0], c.creneaux[1]);
+    assert.equal(attente.ok, true, "la file ne consomme pas le quota d'inscriptions");
+    assert.match(attente.message, /liste d'attente/);
+  });
+
+  it("borne le nombre de files d'attente", async () => {
+    await quota(0, 1);
+    const c = await contexte({ capacites: [1, 1], agents: 2 });
+    await demanderInscription(c.agents[1], c.creneaux[0]);
+    await demanderInscription(c.agents[1], c.creneaux[1]);
+
+    assert.equal((await demanderInscription(c.agents[0], c.creneaux[0])).ok, true);
+    const seconde = await demanderInscription(c.agents[0], c.creneaux[1]);
+    assert.equal(seconde.ok, false);
+    assert.match(seconde.message, /déjà en liste d'attente/);
+  });
+
+  it("ne limite rien quand les deux plafonds sont à zéro", async () => {
+    await quota(0, 0);
+    const c = await contexte({ capacites: [10, 10, 10], agents: 1 });
+    for (const creneauId of c.creneaux) {
+      assert.equal((await demanderInscription(c.agents[0], creneauId)).ok, true);
+    }
   });
 });
 
 describe("arbitrage", () => {
   it("met la demande en attente quand le service arbitre", async () => {
-    await setSetting("general", { validationRequise: true, maxInscriptionsParAgent: 0 });
+    await setSetting("general", {
+      validationRequise: true,
+      maxInscriptionsParAgent: 0,
+      maxListeAttenteParAgent: 0,
+    });
     const c = await contexte({ capacites: [5], agents: 1 });
     await demanderInscription(c.agents[0], c.creneaux[0]);
     const rows = await file(c.creneaux[0]);
@@ -431,7 +477,11 @@ describe("arbitrage", () => {
   });
 
   it("passe la file avant l'arbitrage quand le créneau est plein", async () => {
-    await setSetting("general", { validationRequise: true, maxInscriptionsParAgent: 0 });
+    await setSetting("general", {
+      validationRequise: true,
+      maxInscriptionsParAgent: 0,
+      maxListeAttenteParAgent: 0,
+    });
     const c = await contexte({ capacites: [1], agents: 2 });
     await inscrireDirectement(c.creneaux[0], c.agents[0], "service");
     await demanderInscription(c.agents[1], c.creneaux[0]);

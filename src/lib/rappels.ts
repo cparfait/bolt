@@ -1,8 +1,21 @@
 import { prisma } from "./db";
 import { adresseDeContact } from "./comptes";
 import { envoyerMail } from "./mail";
-import { getGeneralSettings, getSetting, setSetting } from "./settings";
-import { aujourdhui, fmtDateLongue } from "./dates";
+import {
+  DEFAULT_GENERAL,
+  getGeneralSettings,
+  getSetting,
+  setSetting,
+  type GeneralSettings,
+} from "./settings";
+import {
+  ajouterJours,
+  aujourdhui,
+  fmtDateLongue,
+  fmtHeure,
+  heureCourante,
+  normaliserHeure,
+} from "./dates";
 import { nomPourSalutation } from "./constants";
 import { audit } from "./audit";
 
@@ -14,6 +27,10 @@ import { audit } from "./audit";
  * soit connecté ou non. Une route protégée (`/api/taches/rappels`) permet en
  * plus de brancher un ordonnanceur externe : les deux voies sont sûres, le
  * verrou et l'horodatage par séance empêchent tout double envoi.
+ *
+ * L'envoi a un rendez-vous — la veille à midi, par défaut — et non une fenêtre
+ * d'anticipation : voir `rappelJoursAvant` (src/lib/settings.ts) pour ce que
+ * cela change du point de vue de l'agent.
  */
 
 const CLE_VERROU = "rappels.dernier";
@@ -30,6 +47,37 @@ export type ResultatRappels = {
   message: string;
 };
 
+/** Réglage d'envoi, normalisé : l'heure vient d'un champ de saisie. */
+export function heureDEnvoi(g: Pick<GeneralSettings, "rappelHeure">): string {
+  return normaliserHeure(g.rappelHeure) ?? DEFAULT_GENERAL.rappelHeure;
+}
+
+/**
+ * Jusqu'à quelle date les séances sont rappelées en ce moment — `null` tant
+ * que l'heure d'envoi n'est pas venue.
+ *
+ * Séparée de l'envoi pour être vérifiable sans base ni messagerie : c'est la
+ * seule partie du mécanisme où une erreur ne se voit pas (un rappel parti trop
+ * tôt reste un rappel, et personne ne signale celui qui n'est jamais parti).
+ *
+ * La borne haute est un jour calendaire, comme `Seance.date`. La borne basse
+ * est le jour courant chez la collectivité et non la date UTC : entre minuit
+ * et 2 h à Paris, celle-ci désigne encore la veille — et une séance d'hier
+ * restée non émargée déclenchait un « votre séance a lieu hier ».
+ *
+ * Toutes les séances jusqu'à la borne, et pas seulement celles du jour visé :
+ * si l'application est restée éteinte, ou le réglage activé ce matin, ce qui
+ * n'a pas été rappelé part au premier passage plutôt que de ne partir jamais.
+ */
+export function borneDesRappels(
+  g: Pick<GeneralSettings, "rappelJoursAvant" | "rappelHeure">,
+  maintenant: Date = new Date(),
+): Date | null {
+  if (heureCourante(maintenant) < heureDEnvoi(g)) return null;
+  const jours = Math.max(0, Math.min(7, Math.round(g.rappelJoursAvant)));
+  return ajouterJours(aujourdhui(maintenant), jours);
+}
+
 /**
  * Envoie les rappels dus. Une séance n'est rappelée qu'une fois
  * (`rappelEnvoyeAt`), même si la fonction est appelée en boucle.
@@ -40,18 +88,21 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
     return { envoyes: 0, seances: 0, ignores: 0, message: "Rappels désactivés." };
   }
 
-  const maintenant = new Date();
-  const horizon = new Date(maintenant.getTime() + g.rappelHeuresAvant * 3600 * 1000);
+  const borne = borneDesRappels(g);
+  if (!borne) {
+    return {
+      envoyes: 0,
+      seances: 0,
+      ignores: 0,
+      message: `Rien à envoyer : les rappels partent à ${fmtHeure(heureDEnvoi(g))}.`,
+    };
+  }
 
   const seances = await prisma.seance.findMany({
     where: {
       statut: "PLANIFIEE",
       rappelEnvoyeAt: null,
-      // `date` est un jour calendaire : la borne basse est le jour courant
-      // dans le fuseau de la collectivité, et non la date UTC. Entre minuit et
-      // 2 h à Paris, celle-ci désigne encore la veille — et une séance d'hier
-      // restée non émargée déclenchait un « votre séance a lieu hier ».
-      date: { gte: aujourdhui(), lte: horizon },
+      date: { gte: aujourdhui(), lte: borne },
     },
     include: {
       creneau: {

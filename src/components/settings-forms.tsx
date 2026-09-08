@@ -427,14 +427,25 @@ export function GeneralForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label="Activités maximum par agent"
-          hint="Compté en activités : suivre deux créneaux d'une même activité n'en consomme qu'une. 0 = pas de limite."
+          label="Créneaux maximum par agent"
+          hint="Compté en créneaux : les deux séances hebdomadaires d'une même activité en consomment deux, car ce sont deux places sur le planning. La liste d'attente n'entre pas dans ce compte. 0 = pas de limite."
         >
           <Input
             name="maxInscriptionsParAgent"
             type="number"
             min={0}
             defaultValue={cfg.maxInscriptionsParAgent}
+          />
+        </Field>
+        <Field
+          label="Listes d'attente maximum par agent"
+          hint="En plus des créneaux ci-dessus : un agent dont le premier choix est complet peut ainsi prendre ce qui reste et rester dans la file de ce qu'il voulait. 0 = pas de limite."
+        >
+          <Input
+            name="maxListeAttenteParAgent"
+            type="number"
+            min={0}
+            defaultValue={cfg.maxListeAttenteParAgent}
           />
         </Field>
         <Field
@@ -553,19 +564,35 @@ export function GeneralForm({
           <span className="block font-medium">Rappel de séance par e-mail</span>
           <span className="block text-xs text-slate-500">
             Envoyé aux inscrits avant leur séance. Chaque séance n&apos;est
-            rappelée qu&apos;une fois. Déclenché par le trafic sur
-            l&apos;application — aucun ordonnanceur n&apos;est nécessaire.
+            rappelée qu&apos;une fois. Aucun ordonnanceur à installer :
+            l&apos;application tient l&apos;horaire elle-même.
           </span>
-          <span className="mt-2 flex items-center gap-2">
+          {/* Un jour et une heure plutôt qu'un nombre d'heures : « la veille à
+              midi » se règle sans calcul et se vérifie d'un coup d'œil, là où
+              « 24 heures avant » laissait partir le courriel à minuit passé —
+              en tête d'une boîte que l'agent ouvrirait huit heures plus tard. */}
+          <span className="mt-2 flex flex-wrap items-center gap-2">
+            <select
+              name="rappelJoursAvant"
+              defaultValue={cfg.rappelJoursAvant}
+              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-brand-500"
+            >
+              <option value={0}>Le jour même</option>
+              <option value={1}>La veille</option>
+              <option value={2}>2 jours avant</option>
+              <option value={3}>3 jours avant</option>
+              <option value={7}>Une semaine avant</option>
+            </select>
+            <span className="text-xs text-slate-500">à</span>
             <input
-              name="rappelHeuresAvant"
-              type="number"
-              min={1}
-              max={168}
-              defaultValue={cfg.rappelHeuresAvant}
-              className="w-20 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-brand-500"
+              name="rappelHeure"
+              type="time"
+              defaultValue={cfg.rappelHeure}
+              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-brand-500"
             />
-            <span className="text-xs text-slate-500">heures avant la séance</span>
+            <span className="text-xs text-slate-500">
+              heure de la collectivité, à cinq minutes près
+            </span>
           </span>
         </span>
       </label>

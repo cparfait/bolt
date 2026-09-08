@@ -1,6 +1,6 @@
 import type { InscriptionStatut } from "@prisma/client";
 import { prisma } from "./db";
-import { getGeneralSettings } from "./settings";
+import { getGeneralSettings, type GeneralSettings } from "./settings";
 import { audit } from "./audit";
 import { isoDate } from "./dates";
 import { adresseDeContact } from "./comptes";
@@ -315,6 +315,78 @@ export async function accuserReception(
   }
 }
 
+/**
+ * Ce qu'un agent occupe déjà sur la saison. Les dossiers clos — refusés,
+ * désistés — n'y sont pas : ils ne prennent plus de place.
+ */
+export type Engagements = { actifs: number; attente: number };
+
+export async function engagementsDeLaSaison(
+  userId: string,
+  saisonId: string,
+  /** Inscription en cours de reprise (désistée puis redemandée), à ne pas compter. */
+  sauf?: string,
+): Promise<Engagements> {
+  const lignes = await prisma.inscription.findMany({
+    where: {
+      userId,
+      statut: { in: ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"] },
+      creneau: { saisonId },
+      ...(sauf ? { NOT: { id: sauf } } : {}),
+    },
+    select: { statut: true },
+  });
+  return {
+    actifs: lignes.filter((l) => l.statut !== "LISTE_ATTENTE").length,
+    attente: lignes.filter((l) => l.statut === "LISTE_ATTENTE").length,
+  };
+}
+
+/**
+ * Le quota s'oppose-t-il à cette demande ? Renvoie le refus à afficher, ou
+ * `null` si la demande passe.
+ *
+ * Deux compteurs distincts, et c'est tout le propos :
+ *
+ *  • les inscriptions, comptées **par créneau**. Deux séances de musculation
+ *    par semaine, c'est deux places sur le planning et deux collègues qui ne
+ *    les auront pas — même si l'agent ne pratique qu'un seul sport. Le quota
+ *    comptait auparavant les activités, ce qui laissait un agent occuper tout
+ *    un planning sans jamais l'entamer ;
+ *
+ *  • la liste d'attente, comptée à part. Un agent limité à une activité et
+ *    dont le premier choix est complet doit pouvoir prendre ce qui reste ET
+ *    rester dans la file de ce qu'il voulait. Tant qu'attendre lui coûtait sa
+ *    place, il devait choisir entre faire du sport cette saison et espérer la
+ *    bonne activité — et le service perdait la seule information qui lui dit
+ *    quel créneau ouvrir en second.
+ *
+ * Une promotion depuis la file n'est pas soumise au quota : elle donne à
+ * l'agent ce qu'il attendait, et la lui refuser au moment où son tour arrive
+ * serait le pire des deux mondes. Le quota borne ce qu'on peut demander, pas
+ * ce que la file doit.
+ */
+export function refusDeQuota(
+  g: Pick<GeneralSettings, "maxInscriptionsParAgent" | "maxListeAttenteParAgent">,
+  engagements: Engagements,
+  versLaListeDAttente: boolean,
+): string | null {
+  if (versLaListeDAttente) {
+    const max = g.maxListeAttenteParAgent;
+    if (max > 0 && engagements.attente >= max) {
+      return max === 1
+        ? "Vous êtes déjà en liste d'attente sur un créneau, et l'on ne peut en attendre qu'un à la fois. Quittez cette file pour en rejoindre une autre."
+        : `Vous ne pouvez pas attendre sur plus de ${max} créneaux à la fois. Quittez une file pour en rejoindre une autre.`;
+    }
+    return null;
+  }
+  const max = g.maxInscriptionsParAgent;
+  if (max > 0 && engagements.actifs >= max) {
+    return `Vous êtes limité à ${max} créneau${max > 1 ? "x" : ""} par saison, liste d'attente non comprise. Désinscrivez-vous d'un créneau pour en choisir un autre.`;
+  }
+  return null;
+}
+
 export type Acceptation = {
   /** Version des textes affichés à l'agent (src/lib/declarations.ts). */
   version: string;
@@ -347,29 +419,18 @@ export async function demanderInscription(
     return { ok: false, message: "Vous avez déjà une demande sur ce créneau." };
   }
 
-  const g = await getGeneralSettings();
-  if (g.maxInscriptionsParAgent > 0) {
-    // Le quota porte sur les activités, pas sur les créneaux : suivre la
-    // musculation deux fois par semaine reste une seule activité pratiquée.
-    const engagements = await prisma.inscription.findMany({
-      where: {
-        userId,
-        statut: { in: ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"] },
-        creneau: { saisonId: creneau.saisonId },
-        ...(existante ? { NOT: { id: existante.id } } : {}),
-      },
-      select: { creneau: { select: { activiteId: true } } },
-    });
-    const activites = new Set(engagements.map((e) => e.creneau.activiteId));
-    if (!activites.has(creneau.activiteId) && activites.size >= g.maxInscriptionsParAgent) {
-      return {
-        ok: false,
-        message: `Vous êtes limité à ${g.maxInscriptionsParAgent} activité${g.maxInscriptionsParAgent > 1 ? "s" : ""} par saison. Désinscrivez-vous d'une activité pour en choisir une autre.`,
-      };
-    }
-  }
-
+  // Le quota se calcule après avoir su où la demande atterrit : une place en
+  // file d'attente et une place en salle ne se comptent pas ensemble.
   const complet = !(await placeDisponiblePour(creneauId, userId));
+
+  const g = await getGeneralSettings();
+  const refus = refusDeQuota(
+    g,
+    await engagementsDeLaSaison(userId, creneau.saisonId, existante?.id),
+    complet,
+  );
+  if (refus) return { ok: false, message: refus };
+
   let statut: InscriptionStatut;
   if (complet) statut = "LISTE_ATTENTE";
   else if (g.validationRequise) statut = "EN_ATTENTE";

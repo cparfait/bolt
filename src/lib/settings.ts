@@ -69,7 +69,32 @@ export type GeneralSettings = {
   /** Logo de l'opération en cours. Vide : rien ne s'affiche à cette place. */
   logo: string;
   contactEmail: string; // adresse du service des sports, affichée aux agents
-  maxInscriptionsParAgent: number; // 0 = illimité
+  /**
+   * Créneaux qu'un agent peut occuper en même temps sur la saison. 0 = illimité.
+   *
+   * Le décompte porte sur les créneaux et non sur les activités : deux séances
+   * de musculation par semaine, c'est deux places prises sur le planning, deux
+   * salles à dimensionner et deux collègues qui n'auront pas ces créneaux —
+   * quand bien même l'agent ne pratique qu'un seul sport. Compter par activité
+   * revenait à laisser un agent occuper tout un planning sans consommer son
+   * quota.
+   *
+   * La liste d'attente n'entre pas dans ce compte : voir
+   * `maxListeAttenteParAgent`.
+   */
+  maxInscriptionsParAgent: number;
+  /**
+   * Créneaux sur lesquels un agent peut attendre en plus de ses inscriptions.
+   * 0 = illimité.
+   *
+   * Compté à part, parce qu'attendre n'est pas pratiquer : un agent limité à
+   * une activité et dont le premier choix est complet doit pouvoir prendre ce
+   * qui reste ET rester dans la file de ce qu'il voulait. Tant que la file lui
+   * coûtait une place de son quota, il devait choisir entre faire du sport
+   * cette saison et espérer la bonne activité — et le service des sports
+   * perdait la seule information qui lui dit quel créneau ouvrir en second.
+   */
+  maxListeAttenteParAgent: number;
   validationRequise: boolean; // true : le service arbitre chaque demande
   absencesAvantRelance: number; // seuil de détection des décrocheurs
   // Connexion par lien envoyé sur l'adresse professionnelle, pour les agents
@@ -105,9 +130,27 @@ export type GeneralSettings = {
   //
   // Vide : on reprend le domaine de l'adresse de contact du service.
   domaineAgents: string;
-  // Rappel envoyé aux inscrits la veille de leur séance. Nécessite le SMTP.
+  // Rappel envoyé aux inscrits avant leur séance. Nécessite le SMTP.
   rappelsActifs: boolean;
-  rappelHeuresAvant: number; // fenêtre d'anticipation, en heures
+  /**
+   * Quand part le rappel : tant de jours avant la séance, à telle heure.
+   *
+   * Le réglage disait auparavant « 24 heures avant », et c'était une fenêtre,
+   * pas un rendez-vous : la séance devenait rappelable dès qu'elle entrait dans
+   * les vingt-quatre heures, donc dès minuit passé — le courriel arrivait au
+   * milieu de la nuit, en tête d'une boîte que l'agent ouvrirait huit heures
+   * plus tard, sous vingt autres messages.
+   *
+   * Un jour et une heure disent la même chose sans l'ambiguïté : « la veille à
+   * midi » se vérifie d'un coup d'œil, se règle sans calcul, et tombe sur la
+   * pause déjeuner — le moment où l'on décide si l'on ira demain.
+   *
+   * 0 jour = le jour même. L'heure est celle de la collectivité (Europe/Paris),
+   * au format « HH:MM » ; la précision réelle est celle du battement de
+   * l'ordonnanceur, cinq minutes.
+   */
+  rappelJoursAvant: number;
+  rappelHeure: string;
   /**
    * Durée de conservation des inscriptions et des présences, en mois, comptée
    * depuis la fin de la saison. Réglable, et non figée dans le code, parce
@@ -130,7 +173,8 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   logoVille: "",
   logo: "",
   contactEmail: "",
-  maxInscriptionsParAgent: 2,
+  maxInscriptionsParAgent: 1,
+  maxListeAttenteParAgent: 1,
   validationRequise: true,
   absencesAvantRelance: 3,
   lienMagiqueActif: false,
@@ -138,7 +182,8 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   frequenceAvisDemandes: "QUATRE_JOUR",
   domaineAgents: "",
   rappelsActifs: false,
-  rappelHeuresAvant: 24,
+  rappelJoursAvant: 1,
+  rappelHeure: "12:00",
   // 14 mois : la durée annoncée sur la fiche d'inscription papier.
   conservationMois: 14,
 };
@@ -166,9 +211,25 @@ export const getLdapSettings = () => getSetting<LdapSettings>("ldap");
 export const getSmtpSettings = () => getSetting<SmtpSettings>("smtp");
 
 export async function getGeneralSettings(): Promise<GeneralSettings> {
-  const stored = await getSetting<Partial<GeneralSettings>>("general");
-  return { ...DEFAULT_GENERAL, ...(stored ?? {}) };
+  const stored = await getSetting<Reglages>("general");
+  const g = { ...DEFAULT_GENERAL, ...(stored ?? {}) };
+
+  // Réglage d'avant le passage à « tant de jours avant, à telle heure » : une
+  // fenêtre en heures. On la convertit plutôt que de la perdre — une
+  // collectivité qui avait réglé 48 h voulait deux jours d'avance, et se
+  // retrouverait sinon rappelée la veille sans l'avoir demandé. L'heure
+  // d'envoi, elle, n'a pas d'équivalent à reprendre : il n'y en avait pas.
+  if (stored?.rappelJoursAvant === undefined && typeof stored?.rappelHeuresAvant === "number") {
+    g.rappelJoursAvant = Math.max(0, Math.min(7, Math.round(stored.rappelHeuresAvant / 24)));
+  }
+  return g;
 }
+
+/** Ce qu'on peut lire en base : les réglages du jour, et ceux d'hier. */
+type Reglages = Partial<GeneralSettings> & {
+  /** @deprecated remplacé par `rappelJoursAvant` + `rappelHeure`. */
+  rappelHeuresAvant?: number;
+};
 
 /**
  * Nom et description de l'application, pour les métadonnées de page.

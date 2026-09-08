@@ -50,16 +50,35 @@ export function jourUtc(input: Date | string): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
+const FMT_JOUR_PARIS = new Intl.DateTimeFormat("fr-CA", {
+  timeZone: "Europe/Paris",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 /** Date du jour, ramenée à minuit UTC dans le fuseau de la collectivité. */
-export function aujourdhui(): Date {
-  const now = new Date();
-  const paris = new Intl.DateTimeFormat("fr-CA", {
-    timeZone: "Europe/Paris",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now); // « 2026-09-28 »
-  return new Date(`${paris}T00:00:00Z`);
+export function aujourdhui(now: Date = new Date()): Date {
+  return new Date(`${FMT_JOUR_PARIS.format(now)}T00:00:00Z`); // « 2026-09-28 »
+}
+
+const FMT_HEURE_PARIS = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: "Europe/Paris",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23", // minuit s'écrit « 00:00 », et non « 24:00 »
+});
+
+/**
+ * Heure qu'il est chez la collectivité, au format « HH:MM ».
+ *
+ * Le conteneur tourne en UTC : un rappel réglé sur midi partirait à 14 h en
+ * été si on lisait l'heure du serveur. Le format se compare directement à
+ * l'heure enregistrée dans les paramètres — deux chaînes « HH:MM » se rangent
+ * dans l'ordre chronologique.
+ */
+export function heureCourante(now: Date = new Date()): string {
+  return FMT_HEURE_PARIS.format(now);
 }
 
 export function ajouterJours(d: Date, n: number): Date {

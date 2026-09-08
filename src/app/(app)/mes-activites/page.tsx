@@ -14,7 +14,7 @@ import {
 import { DesinscrireForm, InscrireForm } from "@/components/inscription-agent";
 import { getTextesLegaux } from "@/lib/declarations";
 import { FiltreActivites } from "@/components/filtre-activites";
-import { effectifsParActivite } from "@/lib/inscriptions";
+import { effectifsParActivite, refusDeQuota } from "@/lib/inscriptions";
 import {
   ETAT_COLORS,
   ETAT_COURT,
@@ -81,13 +81,17 @@ export default async function MesActivitesPage({
   ]);
   const parCreneau = new Map(mesInscriptions.map((i) => [i.creneauId, i]));
 
-  // Le quota se compte en activités pratiquées : suivre la musculation le lundi
-  // et le jeudi reste une seule activité, et un créneau supplémentaire sur une
-  // activité déjà suivie ne consomme rien.
-  const activitesEngagees = new Set(mesInscriptions.map((i) => i.creneau.activiteId));
-  const nbEngagements = activitesEngagees.size;
-  const quotaAtteint =
-    g.maxInscriptionsParAgent > 0 && nbEngagements >= g.maxInscriptionsParAgent;
+  // Même règle qu'au serveur, et par le même code : un catalogue qui propose un
+  // bouton que l'action refusera ensuite est pire qu'un catalogue qui grise.
+  // Le quota se compte par créneau, et la liste d'attente à part (voir
+  // `refusDeQuota`) — d'où deux verdicts, selon que le créneau visé a de la
+  // place ou non.
+  const engagements = {
+    actifs: mesInscriptions.filter((i) => i.statut !== "LISTE_ATTENTE").length,
+    attente: mesInscriptions.filter((i) => i.statut === "LISTE_ATTENTE").length,
+  };
+  const quotaAtteint = refusDeQuota(g, engagements, false) !== null;
+  const filesEpuisees = refusDeQuota(g, engagements, true) !== null;
 
   // Activités où l'agent occupe déjà une place : en groupe unique, il peut y
   // ajouter une séance même si le groupe est complet.
@@ -154,9 +158,12 @@ export default async function MesActivitesPage({
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <p className="text-sm text-amber-800">
-            Vous êtes positionné sur {nbEngagements} activité
-            {nbEngagements > 1 ? "s" : ""}, soit le maximum autorisé cette saison.
-            Désinscrivez-vous d&apos;une activité pour en choisir une autre.
+            Vous occupez {engagements.actifs} créneau
+            {engagements.actifs > 1 ? "x" : ""}, soit le maximum autorisé cette
+            saison. Désinscrivez-vous d&apos;un créneau pour en choisir un autre
+            {filesEpuisees
+              ? "."
+              : " — vous pouvez en revanche vous mettre en liste d'attente sur un créneau complet."}
           </p>
         </div>
       )}
@@ -203,7 +210,6 @@ export default async function MesActivitesPage({
               groupe !== null &&
               groupe.inscrits >= groupe.capacite &&
               !activitesAvecPlace.has(activite.id);
-            const bloqueParQuota = quotaAtteint && !activitesEngagees.has(activite.id);
             return (
               /* Même traitement que la page Inscriptions : liseré plus fond
                  très pâle aux couleurs de l'activité. Avec plusieurs activités
@@ -260,6 +266,10 @@ export default async function MesActivitesPage({
                     const inscrits = c._count.inscriptions;
                     const complet = groupe ? groupeComplet : inscrits >= c.capacite;
                     const mienne = parCreneau.get(c.id);
+                    // Un créneau complet mène à la file d'attente, qui a son
+                    // propre plafond : c'est celui-là qu'il faut interroger, et
+                    // non le quota d'inscriptions.
+                    const bloqueParQuota = complet ? filesEpuisees : quotaAtteint;
                     return (
                       <div
                         key={c.id}

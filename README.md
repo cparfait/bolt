@@ -228,7 +228,8 @@ tous), synchronisation en lecture seule, gestion des rôles, journal d'audit
 complet. Les erreurs SMTP courantes sont traduites en conseil actionnable
 plutôt qu'en message OpenSSL.
 
-**Rappels de séance** — facultatifs, envoyés aux inscrits N heures avant.
+**Rappels de séance** — facultatifs, envoyés aux inscrits à un moment fixé :
+tant de jours avant la séance, à telle heure (par défaut la veille à midi).
 
 Le déclenchement vient d'un **ordonnanceur interne au conteneur**
 (`src/lib/ordonnanceur.ts`, démarré par `src/instrumentation.ts`), qui bat
@@ -274,8 +275,15 @@ au contraire n'ouvrir **qu'un seul groupe réparti sur plusieurs créneaux** —
 la musculation prend douze agents, qui viennent le lundi, le jeudi ou les deux.
 L'option se coche sur la fiche de l'activité, qui porte alors l'effectif : la
 place appartient à l'agent, suivre deux séances n'en consomme qu'une, et la
-liste d'attente est commune aux créneaux. Le quota d'inscriptions par agent se
-compte lui aussi en activités, jamais en créneaux.
+liste d'attente est commune aux créneaux.
+
+Le **quota par agent**, lui, se compte en créneaux : les deux séances
+hebdomadaires d'une même activité en consomment deux, car ce sont deux places
+sur le planning et deux collègues qui ne les auront pas. La **liste d'attente
+est comptée à part**, avec son propre plafond — un agent limité à une activité
+et dont le premier choix est complet peut ainsi prendre ce qui reste *et* rester
+dans la file de ce qu'il voulait. Les deux plafonds se règlent dans
+Paramètres → Général ; par défaut, une inscription et une attente.
 
 Une activité peut se pratiquer **sans émargement** — salle de musculation en
 libre accès, sans animateur pour pointer. La case se décoche sur la fiche de
@@ -349,11 +357,19 @@ npx prisma migrate deploy && npm run db:seed && npm run dev
 
 Le jeu de démonstration crée une saison **calée sur la date du jour** (quatre
 mois derrière, huit devant — sans quoi les statistiques seraient vides ou il n'y
-aurait aucune séance à émarger aujourd'hui), les cinq activités, six créneaux,
-quatre animateurs (un par mode d'accès), trente agents fictifs répartis sur
-quatre directions, et un historique de fréquentation. La dernière séance passée
-de chaque créneau reste volontairement non émargée, pour illustrer le
+aurait aucune séance à émarger aujourd'hui), quatre activités, cinq créneaux,
+quatre animateurs (un par mode d'accès), trente et un agents fictifs répartis
+sur quatre directions, et un historique de fréquentation. La dernière séance
+passée de chaque créneau reste volontairement non émargée, pour illustrer le
 rattrapage côté animateur et l'alerte « feuilles non transmises ».
+
+Le même jeu se charge **depuis l'application** — Paramètres → Remise à zéro →
+*Jeu de test* — sur une base vide, sans passer par la ligne de commande : c'est
+la façon de faire essayer l'outil au service des sports sur son propre serveur.
+Le générateur est partagé (`src/lib/jeu-de-test.ts`), et crée exactement ce que
+la remise à zéro efface : charger puis remettre à zéro rend la base telle qu'on
+l'avait trouvée. Le mot de passe des comptes créés y est tiré au hasard et
+affiché une seule fois, au lieu du `bolt` de la ligne de commande.
 
 **Comptes de démonstration**, mot de passe `bolt` :
 
@@ -563,13 +579,22 @@ plutôt qu'une case à cocher, et laisse dans le journal vidé une première lig
 `REINITIALISATION` qui dit qui, quand, et combien. Aucune sauvegarde n'est faite
 au passage : l'instantané de base, s'il est voulu, se prend avant.
 
+Le même écran porte le **jeu de test** (`src/lib/jeu-de-test.ts`), qui remplit
+la base de ce que la remise à zéro vient d'en retirer — une collectivité
+fictive complète, pour essayer les écrans qui n'ont rien à montrer à vide. Il
+refuse de s'installer tant qu'il reste des données d'exploitation : mêlés à de
+vrais agents, ces comptes fictifs ne se distingueraient plus dans les listes ni
+dans les statistiques.
+
 ---
 
 ## Structure du code
 
 ```
 prisma/schema.prisma           modèle de données
-prisma/seed.ts                 jeu de démonstration
+prisma/seed.ts                 amorçage d'une base neuve, en ligne de commande
+src/lib/jeu-de-test.ts         jeu de démonstration (seed et bouton d'administration)
+src/lib/reinitialisation.ts    remise à zéro : ce qui s'efface, ce qui reste
 src/proxy.ts                   cloisonnement réseau (INTERNAL_CIDRS)
 src/lib/ldap.ts                LDAPS, groupes imbriqués, synchronisation
 src/lib/coach-access.ts        jeton + PIN des animateurs

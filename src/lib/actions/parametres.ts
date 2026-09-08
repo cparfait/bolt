@@ -6,10 +6,17 @@ import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { reduireLogo } from "@/lib/logo";
 import { FREQUENCES_AVIS, type FrequenceAvis } from "@/lib/frequences";
+import { normaliserHeure } from "@/lib/dates";
 import { ldapSearchGroups, ldapTest } from "@/lib/ldap";
 import { synchroniserAnnuaire as synchroniserAnnuaireDepuisAd } from "@/lib/annuaire";
 import { desactiverCompte } from "@/lib/departs";
 import { reinitialiser } from "@/lib/reinitialisation";
+import {
+  chargerJeuDeTest,
+  donneesDejaPresentes,
+  type ResultatJeuDeTest,
+} from "@/lib/jeu-de-test";
+import { attribuerLien, lienEmargement } from "@/lib/coach-access";
 import { envoyerMail } from "@/lib/mail";
 import { exemplesMail } from "@/lib/mail-exemples";
 import {
@@ -251,6 +258,7 @@ export async function enregistrerGeneral(
     logo,
     contactEmail: texte(formData, "contactEmail"),
     maxInscriptionsParAgent: Math.max(0, Number(texte(formData, "maxInscriptionsParAgent")) || 0),
+    maxListeAttenteParAgent: Math.max(0, Number(texte(formData, "maxListeAttenteParAgent")) || 0),
     // 0 = aucune purge. Le champ vide vaut donc « on ne purge pas », pas
     // « on purge tout » : le sens le moins destructeur gagne.
     conservationMois: Math.max(0, Number(texte(formData, "conservationMois")) || 0),
@@ -263,10 +271,10 @@ export async function enregistrerGeneral(
       ? texte(formData, "frequenceAvisDemandes")
       : actuel.frequenceAvisDemandes) as FrequenceAvis,
     rappelsActifs: formData.get("rappelsActifs") === "on",
-    rappelHeuresAvant: Math.min(
-      168,
-      Math.max(1, Number(texte(formData, "rappelHeuresAvant")) || 24),
-    ),
+    rappelJoursAvant: Math.min(7, Math.max(0, Number(texte(formData, "rappelJoursAvant")) || 0)),
+    // Une heure illisible garderait celle en place plutôt que d'en inventer
+    // une : le rappel est attendu à un moment précis, pas approximativement.
+    rappelHeure: normaliserHeure(texte(formData, "rappelHeure")) ?? actuel.rappelHeure,
   };
 
   const smtpConfigure = Boolean((await getSmtpSettings())?.host);
@@ -434,6 +442,71 @@ export async function reinitialiserDonneesAction(
   return succes(
     `Remise à zéro effectuée : ${efface.activites} activité(s), ${efface.creneaux} créneau(x), ${efface.inscriptions} inscription(s) et ${efface.presences} présence(s) effacés. Paramètres, services et déclarations conservés.`,
   );
+}
+
+/**
+ * Le jeu de test, et de quoi s'en servir : les comptes créés, leur mot de
+ * passe, et un lien d'émargement prêt à ouvrir sur un téléphone.
+ */
+export type JeuDeTestState =
+  | { error: string; jeu?: undefined; lien?: undefined }
+  | { error?: undefined; jeu: ResultatJeuDeTest; lien: { url: string; pin: string } | null }
+  | null;
+
+/**
+ * Installe le jeu de test — administrateurs seuls, et sur une base vide.
+ *
+ * La condition n'est pas une précaution de façade. Ce jeu crée une trentaine
+ * de comptes fictifs et une saison entière ; versés dans une base qui tourne,
+ * ils se mêleraient aux vrais agents dans les listes, les statistiques et les
+ * exports, et rien ne permettrait ensuite de les distinguer autrement qu'un à
+ * un. On demande donc une remise à zéro d'abord : les deux gestes sont sur le
+ * même écran, dans cet ordre.
+ *
+ * Le journal fait exception au décompte, faute de quoi la ligne écrite par la
+ * remise à zéro interdirait le chargement qui la suit immédiatement.
+ */
+export async function chargerJeuDeTestAction(
+  _prev: JeuDeTestState,
+  formData: FormData,
+): Promise<JeuDeTestState> {
+  const admin = await requireUser("ADMIN");
+  if (formData.get("confirmation") !== "on") {
+    return { error: "Cochez la case de confirmation. Rien n'a été créé." };
+  }
+
+  const deja = await donneesDejaPresentes();
+  if (deja > 0) {
+    return {
+      error: `La base contient déjà ${deja} enregistrement(s) d'exploitation — activités, inscriptions, comptes agents. Le jeu de test ne s'installe que sur une base vide : faites d'abord une remise à zéro ci-dessus.`,
+    };
+  }
+
+  const jeu = await chargerJeuDeTest();
+
+  // Un accès distant tout prêt pour l'animatrice sans compte : l'émargement
+  // depuis un téléphone est ce qui se démontre le plus mal — il faut un lien,
+  // un code, et un appareil qui n'est pas sur le réseau. Le code n'est lisible
+  // qu'ici, il est stocké haché comme n'importe quel autre.
+  const parLien = await prisma.coach.findFirst({
+    where: { acces: "LIEN" },
+    orderBy: { nom: "asc" },
+  });
+  let lien: { url: string; pin: string } | null = null;
+  if (parLien) {
+    const { token, pin } = await attribuerLien(parLien.id, null);
+    const g = await getGeneralSettings();
+    lien = { url: lienEmargement(token, g.pointageUrl || g.appUrl), pin };
+  }
+
+  await audit("JEU_DE_TEST_CHARGE", {
+    userId: admin.id,
+    cible: `saison ${jeu.saison}`,
+    details: `${jeu.agents} agents, ${jeu.creneaux} créneaux, ${jeu.inscriptions} inscriptions, ${jeu.presences} présences`,
+  });
+
+  revalidatePath("/", "layout");
+  return { jeu, lien };
 }
 
 /** Une valeur de formulaire, sans le `trim` qui mangerait la mise en forme. */

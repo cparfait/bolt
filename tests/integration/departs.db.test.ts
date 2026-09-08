@@ -78,7 +78,11 @@ beforeEach(async () => {
   await prisma.saison.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.user.deleteMany();
-  await setSetting("general", { validationRequise: false, maxInscriptionsParAgent: 0 });
+  await setSetting("general", {
+    validationRequise: false,
+    maxInscriptionsParAgent: 0,
+    maxListeAttenteParAgent: 0,
+  });
 });
 
 after(async () => {
