@@ -7,7 +7,7 @@ Internet ──443──> Apache (DMZ) ──80/tcp (pare-feu)──> NPM (LAN) 
 ```
 
 Apache porte le cloisonnement (`deploy/apache-chatbouge.conf`) : refus par défaut,
-puis réouverture de quatre préfixes. NPM n'a donc qu'un rôle de relais — mais il
+puis réouverture d'une poignée de préfixes. NPM n'a donc qu'un rôle de relais — mais il
 doit être réglé correctement sur trois points, sans quoi le pointage se bloque de
 lui-même en production.
 
@@ -94,7 +94,7 @@ trafic par un autre chemin que l'Apache en DMZ :
 
 ```nginx
 set $bolt_public 0;
-if ($request_uri ~ "^/(emargement|icones|_next/static)/") { set $bolt_public 1; }
+if ($request_uri ~ "^/(emargement|courriel|icones|_next/static)/") { set $bolt_public 1; }
 if ($request_uri = "/favicon.ico")                        { set $bolt_public 1; }
 if ($bolt_public = 0) { return 404; }
 ```

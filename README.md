@@ -430,7 +430,7 @@ par le client : c'est cette adresse que `src/proxy.ts` compare à
 
 Pour Apache, une configuration complète et commentée est fournie :
 [`deploy/apache-chatbouge.conf`](deploy/apache-chatbouge.conf). Elle refuse tout
-par défaut, puis rouvre les quatre seuls préfixes nécessaires.
+par défaut, puis rouvre les seuls préfixes nécessaires.
 
 Exemple nginx, exposition minimale (émargement seul sur Internet) :
 
