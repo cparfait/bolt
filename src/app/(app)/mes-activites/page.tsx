@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarCheck, CalendarOff, Info, MapPin, Users } from "lucide-react";
 import { prisma } from "@/lib/db";
-import { estGestionnaire, requireAgent } from "@/lib/session";
+import { requireAgent } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import { aujourdhui, ajouterJours, fmtDateLongue, JOUR_LABELS } from "@/lib/dates";
@@ -87,20 +87,10 @@ export default async function MesActivitesPage({
     }),
   ]);
 
-  // Le service des sports et les animateurs pratiquent aussi, et leur tableau
-  // de bord est celui de la gestion : la carte des prochaines séances — donc le
-  // seul endroit où déclarer une absence — ne s'y affiche pas. Sans cette
-  // reprise ici, un gestionnaire inscrit à l'aquagym n'avait aucun moyen de
-  // prévenir qu'il ne viendrait pas, sur téléphone comme ailleurs.
-  //
-  // Un agent simple, lui, l'a déjà sur son tableau de bord : la répéter ici
-  // ferait deux écrans à tenir à jour pour la même chose.
-  const agenda = estGestionnaire(user) || user.role === "COACH";
-
   const [nbFermetures, effectifs, prochaines] = await Promise.all([
     prisma.fermeture.count({ where: { saisonId: saison.id } }),
     effectifsParActivite(saison.id),
-    agenda ? prochainesSeancesDe(user.id, 60) : Promise.resolve([]),
+    prochainesSeancesDe(user.id, 60),
   ]);
   const parCreneau = new Map(mesInscriptions.map((i) => [i.creneauId, i]));
 
@@ -139,10 +129,6 @@ export default async function MesActivitesPage({
         subtitle={`Saison ${saison.nom} — ${creneaux.length} créneaux proposés`}
       />
 
-      {/* Cette page sert d'abord à choisir une activité : l'agenda vit au
-          tableau de bord, l'écran qu'un agent ouvre pour « voir ce qui
-          m'attend ». Il ne remonte ici que pour ceux dont le tableau de bord
-          est celui de la gestion — voir `agenda` plus haut. */}
       {mesInscriptions.length > 0 && (
         <Card title="Mes inscriptions" className="mb-6">
           <ul className="divide-y divide-slate-100">
@@ -179,7 +165,17 @@ export default async function MesActivitesPage({
         </Card>
       )}
 
-      {agenda && prochaines.length > 0 && (
+      {/* L'agenda est ici ET sur le tableau de bord, délibérément.
+          Il n'a d'abord vécu que sur le tableau de bord, où l'agent va « voir ce
+          qui m'attend » — un bon raisonnement, démenti à l'usage. Le service des
+          sports et les animateurs n'ont pas ce tableau de bord mais celui de la
+          gestion, et n'avaient donc aucun moyen de se déclarer absents. Et
+          l'agent lui-même cherche ses séances dans « Mes activités », puisque
+          c'est là qu'il vient de s'inscrire — sur téléphone surtout, où l'on ne
+          voit qu'un écran à la fois et où le menu est replié.
+          Le même composant, la même source : ce n'est pas un doublon à tenir à
+          jour, c'est une seconde porte sur la même pièce. */}
+      {prochaines.length > 0 && (
         <div className="mb-6">
           <MesSeances seances={prochaines} />
         </div>
