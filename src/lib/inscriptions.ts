@@ -23,6 +23,18 @@ import { envoyerMail } from "./mail";
 export type Resultat = { ok: boolean; message: string };
 
 /**
+ * Jour où l'agent entre dans le créneau.
+ *
+ * La décision fait foi quand elle existe — une demande arbitrée trois semaines
+ * plus tard fait rejoindre l'activité le jour de l'arbitrage, pas celui de la
+ * demande. À défaut (inscription posée directement par le service, qui n'a rien
+ * à arbitrer), la demande elle-même.
+ */
+export function dateEntree(inscription: { decisionAt: Date | null; demandeAt: Date }): Date {
+  return inscription.decisionAt ?? inscription.demandeAt;
+}
+
+/**
  * Vrai si l'inscription fait participer l'agent à une séance de cette date.
  *
  * On rejoint une activité à partir du jour de son inscription, pas depuis le
@@ -33,8 +45,7 @@ export function participeALaSeance(
   inscription: { decisionAt: Date | null; demandeAt: Date },
   dateSeance: Date,
 ): boolean {
-  const debut = inscription.decisionAt ?? inscription.demandeAt;
-  return isoDate(debut) <= isoDate(dateSeance);
+  return isoDate(dateEntree(inscription)) <= isoDate(dateSeance);
 }
 
 /**

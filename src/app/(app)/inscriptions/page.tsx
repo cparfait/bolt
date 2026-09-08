@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
-import { fmtDate } from "@/lib/dates";
+import { fmtDate, fmtHorodatage } from "@/lib/dates";
 import { JOUR_LABELS } from "@/lib/dates";
 import {
   Badge,
@@ -17,7 +17,7 @@ import { FiltreActivites } from "@/components/filtre-activites";
 import { DecisionForm, RetirerForm } from "@/components/inscription-actions";
 import { RechercheAgent } from "@/components/recherche-agent";
 import { AgentHorsAnnuaireForm } from "@/components/agent-hors-annuaire-form";
-import { effectifsParActivite } from "@/lib/inscriptions";
+import { dateEntree, effectifsParActivite } from "@/lib/inscriptions";
 import { servicesProposes } from "@/lib/services";
 import {
   INSCRIPTION_STATUT_COLORS,
@@ -75,7 +75,11 @@ export default async function InscriptionsPage({
         inscriptions: {
           where: { statut: { in: ["VALIDEE", "LISTE_ATTENTE"] } },
           include: { user: true },
-          orderBy: [{ statut: "asc" }, { rang: "asc" }],
+          // Les inscrits dans l'ordre où ils sont entrés, la file d'attente
+          // dans l'ordre de son rang — qui est le même ordre, écrit autrement.
+          // `rang` d'abord ne suffisait pas : il ne vaut que pour la file, et
+          // laissait les inscrits sans ordre défini.
+          orderBy: [{ statut: "asc" }, { rang: "asc" }, { decisionAt: "asc" }, { demandeAt: "asc" }],
         },
       },
       orderBy: [{ activite: { nom: "asc" } }, { jour: "asc" }, { heureDebut: "asc" }],
@@ -384,7 +388,19 @@ export default async function InscriptionsPage({
                             </span>
                           )}
                         </Link>
-                        <RetirerForm id={i.id} nom={i.user.displayName} />
+                        <div className="flex shrink-0 items-center gap-3">
+                          {/* La date rend l'ordre lisible : sans elle, une
+                              liste chronologique ressemble à une liste dans le
+                              désordre. C'est aussi ce qu'on cherche quand on
+                              remonte une inscription — « depuis quand ? ». */}
+                          <span
+                            className="text-xs tabular-nums text-slate-500"
+                            title={`Inscrit le ${fmtHorodatage(dateEntree(i))}`}
+                          >
+                            {fmtDate(dateEntree(i))}
+                          </span>
+                          <RetirerForm id={i.id} nom={i.user.displayName} />
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -413,7 +429,13 @@ export default async function InscriptionsPage({
                             </span>
                             {i.user.displayName}
                           </Link>
-                          <div className="flex items-center gap-2">
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span
+                              className="text-xs tabular-nums text-slate-500"
+                              title={`Demandé le ${fmtHorodatage(i.demandeAt)}`}
+                            >
+                              {fmtDate(i.demandeAt)}
+                            </span>
                             <Badge color={INSCRIPTION_STATUT_COLORS[i.statut]}>
                               {INSCRIPTION_STATUT_LABELS[i.statut]}
                             </Badge>
