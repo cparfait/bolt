@@ -7,7 +7,8 @@ import {
   JOURS_CONSERVATION_JOURNAL,
 } from "@/lib/purge";
 import { getGeneralSettings } from "@/lib/settings";
-import { Card, EmptyState, PageHeader, Select, btnSecondary } from "@/components/ui";
+import { Card, EmptyState, PageHeader, Select } from "@/components/ui";
+import { Pagination, tranche } from "@/components/pagination";
 import { FiltreForm } from "@/components/filtre-form";
 import { PurgeForm } from "@/components/purge-form";
 
@@ -20,21 +21,20 @@ export default async function JournalPage({
 }) {
   await requireUser("ADMIN");
   const { action, page: pageBrute } = await searchParams;
-  const page = Math.max(1, Number(pageBrute) || 1);
 
-  const [lignes, total, actions] = await Promise.all([
+  const total = await prisma.auditLog.count({ where: action ? { action } : {} });
+  const { page, pages, skip, take } = tranche(pageBrute, total, PAGE);
+
+  const [lignes, actions] = await Promise.all([
     prisma.auditLog.findMany({
       where: action ? { action } : {},
       include: { user: { select: { displayName: true, login: true } } },
       orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PAGE,
-      take: PAGE,
+      skip,
+      take,
     }),
-    prisma.auditLog.count({ where: action ? { action } : {} }),
     prisma.auditLog.groupBy({ by: ["action"], _count: true, orderBy: { action: "asc" } }),
   ]);
-
-  const pages = Math.ceil(total / PAGE);
 
   // Le journal se purge tout seul ; les inscriptions et les présences, non —
   // c'est un effacement irréversible qui doit rester un geste délibéré.
@@ -110,31 +110,14 @@ export default async function JournalPage({
             </table>
           </div>
 
-          {pages > 1 && (
-            <div className="mt-4 flex items-center justify-between text-sm">
-              <span className="text-slate-400">
-                Page {page} sur {pages}
-              </span>
-              <div className="flex gap-2">
-                {page > 1 && (
-                  <a
-                    href={`/parametres/journal?page=${page - 1}${action ? `&action=${action}` : ""}`}
-                    className={btnSecondary}
-                  >
-                    Précédent
-                  </a>
-                )}
-                {page < pages && (
-                  <a
-                    href={`/parametres/journal?page=${page + 1}${action ? `&action=${action}` : ""}`}
-                    className={btnSecondary}
-                  >
-                    Suivant
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
+          <Pagination
+            base="/parametres/journal"
+            params={{ action }}
+            page={page}
+            pages={pages}
+            total={total}
+            unite="événement"
+          />
         </Card>
       )}
     </>

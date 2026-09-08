@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { Badge, Card, EmptyState, Input, PageHeader, btnSecondary } from "@/components/ui";
 import { ROLE_LABELS, pluriel } from "@/lib/constants";
+import { Pagination, tranche } from "@/components/pagination";
 
 /**
  * Annuaire des comptes, et atterrissage de la barre du tableau de bord.
@@ -31,15 +32,21 @@ const FILTRES = {
 
 type Filtre = keyof typeof FILTRES;
 
-/** Au-delà, la liste cesse d'être lisible : c'est la recherche qui prend le relais. */
-const PLAFOND = 200;
+/**
+ * Comptes par page. La liste remplaçait auparavant les suivants par « les 200
+ * premiers affichés — affinez par la recherche » : un plafond n'est pas une
+ * pagination, et l'annuaire d'une collectivité en compte douze cents. On ne
+ * peut pas affiner quand on cherche justement à parcourir.
+ */
+const PAR_PAGE = 50;
+
 export default async function AgentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; f?: string; service?: string }>;
+  searchParams: Promise<{ q?: string; f?: string; service?: string; page?: string }>;
 }) {
   await requireUser("GESTIONNAIRE");
-  const { q, f, service } = await searchParams;
+  const { q, f, service, page: pageBrute } = await searchParams;
   const terme = (q ?? "").trim();
   const filtre: Filtre = f && f in FILTRES ? (f as Filtre) : "actifs";
   // Filtre par service : « __aucun » désigne les comptes sans rattachement,
@@ -69,11 +76,17 @@ export default async function AgentsPage({
             : {}),
       };
 
-  const [agents, total, compteurs, services, repartition] = await Promise.all([
+  // Le total d'abord : il borne le numéro de page, et l'on ne demande pas une
+  // tranche avant de savoir combien il y en a.
+  const total = await prisma.user.count({ where });
+  const { page, pages, skip, take } = tranche(pageBrute, total, PAR_PAGE);
+
+  const [agents, compteurs, services, repartition] = await Promise.all([
     prisma.user.findMany({
       where,
       orderBy: { displayName: "asc" },
-      take: PLAFOND,
+      skip,
+      take,
       include: {
         _count: {
           select: {
@@ -83,7 +96,6 @@ export default async function AgentsPage({
         },
       },
     }),
-    prisma.user.count({ where }),
     Promise.all(
       (Object.keys(FILTRES) as Filtre[]).map((cle) =>
         prisma.user.count({ where: FILTRES[cle].where }),
@@ -298,10 +310,6 @@ export default async function AgentsPage({
               >
                 <X className="h-3.5 w-3.5" /> Tous les services
               </Link>
-            ) : total > agents.length ? (
-              <span className="text-xs text-slate-400">
-                {agents.length} premiers affichés — affinez par la recherche
-              </span>
             ) : undefined
           }
         >
@@ -347,6 +355,14 @@ export default async function AgentsPage({
               </li>
             ))}
           </ul>
+          <Pagination
+            base="/agents"
+            params={{ q, f, service }}
+            page={page}
+            pages={pages}
+            total={total}
+            unite="compte"
+          />
         </Card>
       )}
     </>
