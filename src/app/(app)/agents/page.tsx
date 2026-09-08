@@ -16,7 +16,7 @@ import {
   btnSecondary,
 } from "@/components/ui";
 import { ROLE_LABELS, pluriel } from "@/lib/constants";
-import { JOUR_LABELS } from "@/lib/dates";
+import { JOUR_LABELS, fmtHorodatage } from "@/lib/dates";
 import { Pagination, tranche } from "@/components/pagination";
 
 /**
@@ -369,6 +369,12 @@ export default async function AgentsPage({
             ) : undefined
           }
         >
+          {/* Une pastille sans légende se devine ; la deviner de travers coûte
+              plus cher que la ligne qui l'explique. */}
+          <p className="mb-1 flex items-center gap-1.5 text-xs text-slate-400">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+            s&apos;est déjà connecté à Bolt
+          </p>
           <ul className="divide-y divide-slate-100">
             {agents.map((a) => (
               <li key={a.id}>
@@ -378,6 +384,29 @@ export default async function AgentsPage({
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-medium">
+                      {/* Pastille de compte activé : « untel n'arrive pas à se
+                          connecter » est la première question posée au service,
+                          et la réponse — s'est-il déjà connecté une fois ? —
+                          demandait jusqu'ici d'ouvrir chaque fiche. Vert dit
+                          que l'accès a fonctionné au moins une fois, pas que la
+                          personne est en ligne : la session tient dans un
+                          cookie, rien côté serveur ne sait qui est là. */}
+                      <span
+                        role="img"
+                        aria-label={
+                          a.lastLoginAt
+                            ? `Dernière connexion le ${fmtHorodatage(a.lastLoginAt)}`
+                            : "Ne s'est jamais connecté"
+                        }
+                        title={
+                          a.lastLoginAt
+                            ? `Dernière connexion le ${fmtHorodatage(a.lastLoginAt)}`
+                            : "Ne s'est jamais connecté"
+                        }
+                        className={`mr-2 inline-block h-2 w-2 rounded-full align-middle ${
+                          a.lastLoginAt ? "bg-emerald-500" : "bg-slate-200 ring-1 ring-slate-300"
+                        }`}
+                      />
                       {a.displayName}
                       {a.anonymiseAt ? (
                         <span className="ml-2">
