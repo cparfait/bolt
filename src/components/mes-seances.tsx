@@ -117,65 +117,69 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
 
       <ul className="divide-y divide-slate-100">
         {visibles.map((s) => (
-          <li key={s.id} className="py-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                {/* Le nom porte la couleur de son activité, comme au catalogue
-                    et sur « Mes inscriptions » : c'est le même repère d'un
-                    écran à l'autre, et sur une liste de séances qui se
-                    ressemblent toutes, c'est lui qu'on suit du regard. La
-                    pastille qui la portait jusqu'ici faisait le travail à
-                    moitié — il fallait encore lire le nom pour savoir laquelle.
-                    Une séance annulée retombe en gris : elle n'a plus lieu. */}
-                <p
-                  className={`text-sm font-medium ${s.annulee ? "text-slate-400 line-through" : ""}`}
-                  style={s.annulee ? undefined : { color: s.couleur }}
-                >
-                  {s.activite}
+          /* La date d'abord, en tête et en noir.
+             Le nom de l'activité y figurait en premier, coloré : sur un agenda
+             où l'on suit une seule activité, il est identique d'une ligne à
+             l'autre et n'apprend rien, tandis que la date — la seule chose qui
+             distingue les lignes — se lisait en gris minuscule dessous. Sur
+             téléphone, cela donnait une colonne de « Yoga » empilés.
+             Le liseré coloré à gauche garde le repère de l'activité, et son nom
+             passe en seconde ligne avec le lieu. */
+          <li
+            key={s.id}
+            className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-l-2 py-3 pl-3"
+            style={{ borderLeftColor: s.annulee ? "#e2e8f0" : s.couleur }}
+          >
+            <div className="min-w-0">
+              <p
+                className={`text-sm font-medium ${s.annulee ? "text-slate-400 line-through" : "text-slate-900"}`}
+              >
+                <span className="first-letter:uppercase">{fmtDateLongue(s.date)}</span> ·{" "}
+                {s.heureDebut}–{s.heureFin}
+              </p>
+              <p className={`truncate text-xs text-slate-400 ${s.annulee ? "line-through" : ""}`}>
+                <span style={s.annulee ? undefined : { color: s.couleur }}>{s.activite}</span>
+                {s.lieu ? ` · ${s.lieu}` : ""}
+              </p>
+              {s.annulee && (
+                <p className="mt-1 text-xs font-medium text-red-600">
+                  Séance annulée
+                  {s.motifAnnulation ? ` — ${s.motifAnnulation}` : ""}
                 </p>
-                <p
-                  className={`text-xs text-slate-400 ${s.annulee ? "line-through" : ""}`}
-                >
-                  <span className="first-letter:uppercase">{fmtDateLongue(s.date)}</span> ·{" "}
-                  {s.heureDebut}–{s.heureFin}
-                  {s.lieu ? ` · ${s.lieu}` : ""}
+              )}
+              {s.absent && !s.annulee && (
+                <p className="mt-1 text-xs font-medium text-amber-700">
+                  Vous avez signalé votre absence
+                  {s.motif ? ` — « ${s.motif} »` : ""}
                 </p>
-                {s.annulee && (
-                  <p className="mt-1 text-xs font-medium text-red-600">
-                    Séance annulée
-                    {s.motifAnnulation ? ` — ${s.motifAnnulation}` : ""}
-                  </p>
-                )}
-                {s.absent && !s.annulee && (
-                  <p className="mt-1 text-xs font-medium text-amber-700">
-                    Vous avez signalé votre absence
-                    {s.motif ? ` — « ${s.motif} »` : ""}
-                  </p>
-                )}
-              </div>
-
-              {s.annulee ? null : s.absent ? (
-                <button
-                  type="button"
-                  onClick={() => start(async () => void (await annulerAbsence([s.id])))}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                >
-                  <Undo2 className="h-3.5 w-3.5" /> Finalement je viens
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOuvert(ouvert === s.id ? null : s.id);
-                    setPeriode(false);
-                  }}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50"
-                >
-                  <CalendarX2 className="h-3.5 w-3.5" />
-                  {ouvert === s.id ? "Fermer" : "Je serai absent"}
-                </button>
               )}
             </div>
+
+            {/* Pastilles plutôt que boutons encadrés : répétée à chaque ligne,
+                une bordure orange criait plus fort que le contenu qu'elle
+                accompagne. Le geste reste le même, il se voit simplement à sa
+                juste place. */}
+            {s.annulee ? null : s.absent ? (
+              <button
+                type="button"
+                onClick={() => start(async () => void (await annulerAbsence([s.id])))}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-200"
+              >
+                <Undo2 className="h-3.5 w-3.5" /> Je viens finalement
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setOuvert(ouvert === s.id ? null : s.id);
+                  setPeriode(false);
+                }}
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+              >
+                <CalendarX2 className="h-3.5 w-3.5" />
+                {ouvert === s.id ? "Fermer" : "Je serai absent"}
+              </button>
+            )}
 
             {/* Une seule séance : le formulaire de la ligne ne demande qu'un mot
                 pour l'animateur. Les congés se déclarent en haut, où l'on peut
@@ -184,7 +188,7 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
               <form
                 action={action}
                 onSubmit={() => setOuvert(null)}
-                className="mt-3 space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3"
+                className="mt-1 w-full space-y-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3"
               >
                 <input type="hidden" name="seanceId" value={s.id} />
                 <ChampMotif />
