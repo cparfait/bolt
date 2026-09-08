@@ -25,13 +25,35 @@ import {
   pluriel,
 } from "@/lib/constants";
 
+/**
+ * Filtres commandés par les tuiles d'indicateurs. Un chiffre affiché en haut de
+ * page pose aussitôt la question « lesquels ? » : chaque tuile réduit donc la
+ * liste des créneaux aux lignes qu'elle compte, plutôt que de laisser chercher.
+ */
+const VUES = {
+  inscrits: {
+    titre: "Créneaux ayant au moins un inscrit",
+    vide: "Aucun créneau n'a d'inscrit",
+  },
+  attente: {
+    titre: "Créneaux avec une liste d'attente",
+    vide: "Aucun créneau n'a de liste d'attente",
+  },
+  places: {
+    titre: "Créneaux où il reste des places",
+    vide: "Aucun créneau n'a de place libre",
+  },
+} as const;
+type Vue = keyof typeof VUES;
+
 export default async function InscriptionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ activite?: string }>;
+  searchParams: Promise<{ activite?: string; vue?: string }>;
 }) {
   await requireUser("GESTIONNAIRE");
-  const { activite: selection } = await searchParams;
+  const { activite: selection, vue: vueParam } = await searchParams;
+  const vue = vueParam && vueParam in VUES ? (vueParam as Vue) : undefined;
   const saison = await saisonCourante();
 
   if (!saison) {
@@ -101,11 +123,34 @@ export default async function InscriptionsPage({
   // volée) : « −3 disponibles » n'a pas de sens, il n'y a plus de place.
   const disponibles = Math.max(0, capaciteTotale - totalInscrits);
 
-  // Le filtre ne porte que sur la liste des créneaux : les demandes à arbitrer
-  // restent toutes visibles, c'est la file de travail du service.
-  const creneauxAffiches = selection
-    ? creneaux.filter((c) => c.activiteId === selection)
-    : creneaux;
+  // Places restantes d'un créneau, en suivant le même partage de capacité que
+  // les jauges : sur un groupe unique, ce sont celles de l'activité entière.
+  const placesRestantes = (c: (typeof creneaux)[number]) =>
+    c.activite.capacitePartagee
+      ? capaciteGroupe(c.activite) - (effectifs.get(c.activiteId) ?? 0)
+      : c.capacite - c.inscriptions.filter((i) => i.statut === "VALIDEE").length;
+
+  // Les filtres ne portent que sur la liste des créneaux : les demandes à
+  // arbitrer restent toutes visibles, c'est la file de travail du service.
+  const creneauxAffiches = creneaux.filter((c) => {
+    if (selection && c.activiteId !== selection) return false;
+    if (vue === "inscrits")
+      return c.inscriptions.some((i) => i.statut === "VALIDEE");
+    if (vue === "attente")
+      return c.inscriptions.some((i) => i.statut === "LISTE_ATTENTE");
+    if (vue === "places") return placesRestantes(c) > 0;
+    return true;
+  });
+
+  // Cliquer sur la tuile déjà active retire son filtre : la tuile fait
+  // l'aller comme le retour, sans bouton « annuler » à trouver ailleurs.
+  const lien = (v?: Vue) => {
+    const q = new URLSearchParams();
+    if (selection) q.set("activite", selection);
+    if (v && v !== vue) q.set("vue", v);
+    const suffixe = q.toString();
+    return `/inscriptions${suffixe ? `?${suffixe}` : ""}#creneaux`;
+  };
 
   const optionsCreneaux = creneaux.map((c) => ({
     id: c.id,
@@ -136,14 +181,29 @@ export default async function InscriptionsPage({
           accent={
             demandes.length > 0 ? "text-amber-600 bg-amber-50" : "text-slate-400 bg-slate-50"
           }
+          hint="voir la file"
+          href="#a-decider"
         />
-        <Stat label="Inscrits" value={totalInscrits} />
-        <Stat label="Liste d'attente" value={totalAttente} />
+        <Stat
+          label="Inscrits"
+          value={totalInscrits}
+          hint="voir les créneaux"
+          href={lien("inscrits")}
+          actif={vue === "inscrits"}
+        />
+        <Stat
+          label="Liste d'attente"
+          value={totalAttente}
+          hint="voir les créneaux"
+          href={lien("attente")}
+          actif={vue === "attente"}
+        />
         <Stat
           label="Places offertes"
           value={capaciteTotale}
           hint={`${disponibles} ${pluriel(disponibles, "disponible")}`}
-          href="/activites"
+          href={lien("places")}
+          actif={vue === "places"}
         />
       </div>
 
@@ -202,10 +262,30 @@ export default async function InscriptionsPage({
         </Panneau>
       </div>
 
-      <FiltreActivites base="/inscriptions" selection={selection} activites={palette} />
+      {/* Ancre des tuiles : elles filtrent la liste des créneaux, autant
+          déposer dessus plutôt qu'en haut de page. */}
+      <div id="creneaux" className="scroll-mt-6" />
+      <FiltreActivites
+        base="/inscriptions"
+        selection={selection}
+        activites={palette}
+        params={{ vue }}
+      />
+
+      {vue && (
+        <p className="-mt-3 mb-4 text-sm text-slate-500">
+          {VUES[vue].titre} ·{" "}
+          <Link href={lien()} className="font-medium text-brand-600 hover:underline">
+            tout afficher
+          </Link>
+        </p>
+      )}
 
       {creneauxAffiches.length === 0 ? (
-        <EmptyState title="Aucun créneau à afficher" />
+        <EmptyState
+          title={vue ? VUES[vue].vide : "Aucun créneau à afficher"}
+          hint={vue && selection ? "dans l'activité sélectionnée" : undefined}
+        />
       ) : (
         <div className="space-y-4">
           {creneauxAffiches.map((c) => {

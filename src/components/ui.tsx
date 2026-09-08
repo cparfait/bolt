@@ -365,6 +365,7 @@ export function Stat({
   icon,
   hint,
   href,
+  actif = false,
 }: {
   label: string;
   value: string | number;
@@ -373,6 +374,9 @@ export function Stat({
   icon?: ReactNode;
   hint?: string;
   href?: string;
+  // Tuile qui commande le filtre de la liste en dessous : sans marque visible,
+  // rien ne dit d'où vient le tri qu'on lit.
+  actif?: boolean;
 }) {
   const contenu = (
     <>
@@ -391,9 +395,17 @@ export function Stat({
       {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
     </>
   );
-  const classe = "block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm";
+  const classe = `block rounded-2xl border p-5 shadow-sm ${
+    actif
+      ? "border-brand-600 bg-brand-50/60 ring-1 ring-brand-600"
+      : "border-slate-200 bg-white"
+  }`;
   return href ? (
-    <Link href={href} className={`${classe} transition hover:border-slate-300 hover:shadow`}>
+    <Link
+      href={href}
+      aria-current={actif ? "true" : undefined}
+      className={`${classe} transition hover:shadow ${actif ? "" : "hover:border-slate-300"}`}
+    >
       {contenu}
     </Link>
   ) : (
