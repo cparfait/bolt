@@ -116,11 +116,15 @@ async function identifiantLibre(nom: string): Promise<string> {
  * — la connexion, si elle est utile, passe par le lien envoyé sur l'adresse
  * renseignée. Comme `chercherComptes`, ce helper ne porte aucun contrôle
  * d'accès : il incombe aux actions appelantes.
+ *
+ * Le service, et pas la direction : celle-ci se déduit du service pour les
+ * agents de la collectivité, et ne veut rien dire pour un élu ou un
+ * prestataire. La demander revenait à faire inventer un rattachement à qui
+ * remplit le formulaire.
  */
 export async function creerParticipantHorsAnnuaire(donnees: {
   nom: string;
   email?: string | null;
-  direction?: string | null;
   service?: string | null;
 }) {
   return prisma.user.create({
@@ -128,7 +132,6 @@ export async function creerParticipantHorsAnnuaire(donnees: {
       login: await identifiantLibre(donnees.nom),
       displayName: donnees.nom,
       email: donnees.email || null,
-      direction: donnees.direction || null,
       service: donnees.service || null,
       role: "AGENT",
       isLocal: false, // aucun mot de passe : ni AD, ni compte local
@@ -214,37 +217,26 @@ export async function chercherComptes(
 }
 
 /**
- * Directions et services tels qu'ils existent dans l'annuaire.
+ * Services tels qu'ils existent dans l'annuaire.
  *
  * Servent de suggestions là où un rattachement se saisit à la main — validation
  * d'une demande d'accès, création d'un participant hors annuaire. Sans elles,
  * chacun écrit « Dsi », « DSI » ou « Direction des systèmes d'information », et
- * la fréquentation par direction se répartit sur trois lignes qui désignent le
- * même service. Le champ reste libre : un vacataire peut relever d'un organisme
- * qui n'existe dans aucun annuaire.
+ * la fréquentation se répartit sur trois lignes qui désignent le même service.
+ * Le champ reste libre : un vacataire peut relever d'un organisme qui n'existe
+ * dans aucun annuaire.
+ *
+ * Les directions ne sont plus proposées nulle part : elles se déduisent du
+ * service, et ne veulent rien dire pour qui n'est pas de la collectivité.
  */
-export async function rattachementsConnus(): Promise<{
-  directions: string[];
-  services: string[];
-}> {
-  const [directions, services] = await Promise.all([
-    prisma.adAccount.findMany({
-      where: { direction: { not: null }, enabled: true },
-      select: { direction: true },
-      distinct: ["direction"],
-      orderBy: { direction: "asc" },
-    }),
-    prisma.adAccount.findMany({
-      where: { service: { not: null }, enabled: true },
-      select: { service: true },
-      distinct: ["service"],
-      orderBy: { service: "asc" },
-    }),
-  ]);
-  return {
-    directions: directions.map((d) => d.direction!).filter(Boolean),
-    services: services.map((s) => s.service!).filter(Boolean),
-  };
+export async function servicesDeLAnnuaire(): Promise<string[]> {
+  const lignes = await prisma.adAccount.findMany({
+    where: { service: { not: null }, enabled: true },
+    select: { service: true },
+    distinct: ["service"],
+    orderBy: { service: "asc" },
+  });
+  return lignes.map((l) => l.service!).filter(Boolean);
 }
 
 /**

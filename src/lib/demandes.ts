@@ -180,11 +180,11 @@ export async function declencherAvisDemandesSiBesoin(): Promise<void> {
 export async function validerDemande(
   demandeId: string,
   gestionnaire: { id: string; displayName: string },
-  // Rattachement choisi par le gestionnaire au moment de valider. Le service
-  // déclaré par le demandeur est un texte libre — « Dsi » ne se raccorde pas à
-  // « DSI » — et la fréquentation par direction se répartirait sur autant de
-  // lignes que d'orthographes. Absent : on retombe sur ce qui a été déclaré.
-  rattachement: { direction?: string | null; service?: string | null } = {},
+  // Service choisi par le gestionnaire au moment de valider. Celui qu'a déclaré
+  // le demandeur est un texte libre — « Dsi » ne se raccorde pas à « DSI » — et
+  // la fréquentation se répartirait sur autant de lignes que d'orthographes.
+  // Absent : on retombe sur ce qui a été déclaré.
+  rattachement: { service?: string | null } = {},
 ): Promise<{ ok: boolean; message: string }> {
   const demande = await prisma.demandeAcces.findUnique({ where: { id: demandeId } });
   if (!demande) return { ok: false, message: "Demande introuvable." };
@@ -224,7 +224,6 @@ export async function validerDemande(
   const user = await creerParticipantHorsAnnuaire({
     nom: demande.nom,
     email: demande.email,
-    direction: rattachement.direction?.trim() || null,
     service: rattachement.service?.trim() || demande.service,
   });
 

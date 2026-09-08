@@ -3,7 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { getGeneralSettings } from "@/lib/settings";
-import { rattachementsConnus } from "@/lib/comptes";
+import { servicesDeLAnnuaire } from "@/lib/comptes";
 import { servicesProposes } from "@/lib/services";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { DemandeAccesActions } from "@/components/demande-acces-actions";
@@ -37,7 +37,7 @@ export default async function DemandesAccesPage() {
   ]);
 
   const refusees = await prisma.demandeAcces.count({ where: { statut: "REFUSEE" } });
-  const { directions, services: servicesAnnuaire } = await rattachementsConnus();
+  const servicesAnnuaire = await servicesDeLAnnuaire();
 
   // Le référentiel prime sur l'annuaire quand il est rempli : c'est la liste que
   // la personne a vue sur le bon d'inscription, et proposer autre chose ici
@@ -115,7 +115,6 @@ export default async function DemandesAccesPage() {
                   id={d.id}
                   nom={d.nom}
                   serviceDeclare={d.service}
-                  directions={directions}
                   services={services}
                 />
               </div>

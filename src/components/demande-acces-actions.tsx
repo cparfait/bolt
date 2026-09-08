@@ -19,14 +19,12 @@ export function DemandeAccesActions({
   id,
   nom,
   serviceDeclare,
-  directions,
   services,
 }: {
   id: string;
   nom: string;
   /** Ce que la personne a tapé, proposé tel quel — à corriger si besoin. */
   serviceDeclare: string | null;
-  directions: string[];
   services: string[];
 }) {
   const [valider, actionValider] = useActionState<ActionState, FormData>(
@@ -70,10 +68,14 @@ export function DemandeAccesActions({
           </div>
         </form>
       ) : (
-        <div className="space-y-3">
+        // Tout sur une ligne : il ne reste qu'un champ, et la décision se prend
+        // en lisant la carte au-dessus. Un bloc de formulaire haut de cinq
+        // lignes pour un menu déroulant faisait tenir trois demandes à l'écran
+        // là où la file en compte parfois vingt.
+        <div className="flex flex-wrap items-end gap-2">
           <form
             action={actionValider}
-            className="space-y-3"
+            className="flex flex-wrap items-end gap-2"
             onSubmit={(e) => {
               if (
                 !window.confirm(
@@ -86,38 +88,31 @@ export function DemandeAccesActions({
           >
             <input type="hidden" name="id" value={id} />
 
-            {/* Le rattachement se choisit ICI, et pas plus tard sur la fiche.
-                Ce que la personne a tapé est un texte libre — « Dsi » ne se
-                raccorde pas à « DSI », et la fréquentation par direction se
-                répartirait sur autant de lignes que d'orthographes. Les
-                suggestions viennent de l'annuaire ; le champ reste libre, un
-                vacataire pouvant relever d'un organisme qui n'y figure pas. */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Direction" hint="Suggestions issues de l'annuaire">
-                <Input name="direction" list={`dir-${id}`} autoComplete="off" />
-                <datalist id={`dir-${id}`}>
-                  {directions.map((d) => (
-                    <option key={d} value={d} />
-                  ))}
-                </datalist>
-              </Field>
-              <Field
-                label="Service"
-                hint={serviceDeclare ? `Déclaré : « ${serviceDeclare} »` : "Facultatif"}
-              >
-                <Input
-                  name="service"
-                  list={`srv-${id}`}
-                  defaultValue={serviceDeclare ?? ""}
-                  autoComplete="off"
-                />
-                <datalist id={`srv-${id}`}>
-                  {services.map((s) => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
-              </Field>
-            </div>
+            {/* Le service se choisit ICI, et pas plus tard sur la fiche : ce
+                que la personne a tapé est un texte libre — « Dsi » ne se
+                raccorde pas à « DSI », et la fréquentation se répartirait sur
+                autant de lignes que d'orthographes. Les suggestions viennent du
+                référentiel ; le champ reste libre, un vacataire pouvant relever
+                d'un organisme qui n'y figure pas.
+
+                La direction a disparu, comme sur la création d'un participant
+                hors annuaire : elle se déduit du service pour les agents de la
+                collectivité, et ne veut rien dire pour un élu ou un prestataire.
+                Ce que la personne a déclaré s'affiche sur la carte au-dessus, et
+                n'a pas à être répété sous le champ qui le reprend déjà. */}
+            <Field label="Service" className="w-full sm:w-80">
+              <Input
+                name="service"
+                list={`srv-${id}`}
+                defaultValue={serviceDeclare ?? ""}
+                autoComplete="off"
+              />
+              <datalist id={`srv-${id}`}>
+                {services.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </Field>
 
             <SubmitButton className={btnPrimary} pendingLabel="Création…">
               <Check className="h-4 w-4" />
