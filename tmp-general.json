@@ -1,2 +1,0 @@
- {"appName":"Bolt","appDescription":"Gestion des activités sportives","orgName":"Ville de démonstration","appUrl":"http://localhost:3000","pointageUrl":"","logoVille":"","logo":"","contactEmail":"sports@collectivite.fr","maxInscriptionsParAgent":1,"maxListeAttenteParAgent":1,"conservationMois":14,"validationRequise":true,"absencesAvantRelance":3,"lienMagiqueActif":false,"demandeAccesActive":false,"domaineAgents":"","frequenceAvisDemandes":"QUATRE_JOUR","rappelsActifs":false,"rappelJoursAvant":1,"rappelHeure":"12:00"}
-
