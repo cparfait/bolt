@@ -383,7 +383,15 @@ export default async function MesActivitesPage({
             {mesPresences.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div>
-                  <p className="font-medium">{p.seance.creneau.activite.nom}</p>
+                  {/* Le nom porte sa couleur, comme partout ailleurs : sur un
+                      historique où les mêmes intitulés se répètent, c'est elle
+                      qu'on suit du regard plutôt que de relire chaque ligne. */}
+                  <p
+                    className="font-medium"
+                    style={{ color: p.seance.creneau.activite.couleur }}
+                  >
+                    {p.seance.creneau.activite.nom}
+                  </p>
                   <p className="text-xs text-slate-400">{fmtDateLongue(p.seance.date)}</p>
                 </div>
                 <Badge color={ETAT_COLORS[p.etat]}>{ETAT_COURT[p.etat]}</Badge>

@@ -98,7 +98,11 @@ export default async function TableauDeBord({
         where: { userId: user.id, statut: { in: ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"] } },
         include: { creneau: { include: { activite: true } } },
       }),
-      prochainesSeancesDe(user.id, 6),
+      // Bien au-delà de ce que la carte affiche : c'est sur cette liste que se
+      // calculent les séances couvertes par une absence de plusieurs semaines.
+      // Bornée à six, une déclaration de congés s'arrêtait silencieusement à la
+      // sixième séance — et l'animateur attendait quelqu'un pour les suivantes.
+      prochainesSeancesDe(user.id, 60),
     ]);
 
     const mesPresences = await prisma.presence.count({
