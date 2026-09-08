@@ -446,6 +446,9 @@ export async function demanderInscription(
     decisionAt: statut === "VALIDEE" ? new Date() : null,
     decidePar: statut === "VALIDEE" ? "automatique" : null,
     motif: null,
+    // Nouvelle demande sur une inscription désistée ou refusée : c'est un cycle
+    // qui recommence, la promotion du précédent ne le concerne pas.
+    promuAt: null,
     // Archivé seulement quand l'agent a réellement coché à l'écran. Une
     // inscription saisie par le service des sports laisse ces colonnes nulles :
     // la fiche papier signée reste alors la preuve, et un NULL ne doit jamais
@@ -527,6 +530,7 @@ export async function inscrireDirectement(
     decidePar,
     motif: null,
     commentaire: commentaire ?? null,
+    promuAt: null, // repositionnement à la main : cycle neuf (voir demanderInscription)
   };
   if (existante) {
     await prisma.inscription.update({ where: { id: existante.id }, data });
@@ -572,6 +576,10 @@ export async function promouvoirListeAttente(creneauId: string) {
       rang: null,
       decisionAt: new Date(),
       decidePar: "liste d'attente",
+      // Horodaté pour survivre à ce qui suit : un désistement réécrirait
+      // `decidePar` et effacerait le fait qu'une place a été prise à la file
+      // pour rien (voir `promuAt`, prisma/schema.prisma).
+      promuAt: new Date(),
     },
   });
 
@@ -589,6 +597,7 @@ export async function promouvoirListeAttente(creneauId: string) {
         rang: null,
         decisionAt: new Date(),
         decidePar: "liste d'attente",
+        promuAt: new Date(),
       },
     });
   }

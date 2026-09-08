@@ -470,6 +470,20 @@ model Inscription {
   demandeAt  DateTime  @default(now())
   decisionAt DateTime?
   decidePar  String?
+
+  /// Date de la promotion depuis la liste d'attente, quand il y en a eu une.
+  ///
+  /// Conservée après coup, y compris si l'inscription est ensuite désistée :
+  /// c'est ce qui permet de compter les places libérées qui repartent aussitôt
+  /// — quelqu'un qui a attendu des semaines, obtient sa place et la rend dans
+  /// la foulée. Sans cette colonne, l'information n'existe nulle part : la
+  /// ligne est mise à jour sur place, `decidePar` est réécrit par le
+  /// désistement, et le journal d'audit finit par être purgé.
+  ///
+  /// Remise à null quand un nouveau cycle commence — l'agent redemande le
+  /// créneau, ou le service l'y replace : la promotion précédente ne dit plus
+  /// rien de celle-ci.
+  promuAt    DateTime?
   motif      String? // motif de refus ou de désistement
   commentaire String? // message de l'agent (contrainte horaire, niveau…)
 

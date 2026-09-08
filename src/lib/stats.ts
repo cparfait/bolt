@@ -678,6 +678,22 @@ export type Fiabilite = {
   tauxAnnulation: number;
   motifs: { motif: string; nombre: number }[];
   desistements: number; // inscriptions abandonnées en cours de saison
+  /**
+   * Ce que devient une place rendue à la file.
+   *
+   * `promotions` : places libérées attribuées au premier de la liste d'attente.
+   * `promotionsRendues` : celles que l'intéressé a aussitôt refusées — il
+   * s'était inscrit des semaines plus tôt, et entre-temps ses horaires ont
+   * changé ou l'envie est passée.
+   *
+   * L'indicateur mesure la fraîcheur de la file, pas la fiabilité des gens :
+   * une part élevée dit qu'on y attend trop longtemps, et que la place fait
+   * deux tours de piste avant de trouver preneur — pendant lesquels le créneau
+   * paraît complet alors qu'il ne l'est pas.
+   */
+  promotions: number;
+  promotionsRendues: number;
+  tauxPromotionRendue: number;
 };
 
 /**
@@ -695,11 +711,16 @@ export async function fiabilite(f: Filtre): Promise<Fiabilite> {
       ...(f.activiteId ? { activiteId: f.activiteId } : {}),
     },
   };
-  const [seances, annoncees, desistements] = await Promise.all([
-    chargerSeances(f),
-    prisma.absenceAnnoncee.count({ where: { seance: perimetre } }),
-    prisma.inscription.count({ where: { statut: "DESISTEE", ...perimetre } }),
-  ]);
+  const [seances, annoncees, desistements, promotions, promotionsRendues] =
+    await Promise.all([
+      chargerSeances(f),
+      prisma.absenceAnnoncee.count({ where: { seance: perimetre } }),
+      prisma.inscription.count({ where: { statut: "DESISTEE", ...perimetre } }),
+      prisma.inscription.count({ where: { promuAt: { not: null }, ...perimetre } }),
+      prisma.inscription.count({
+        where: { promuAt: { not: null }, statut: "DESISTEE", ...perimetre },
+      }),
+    ]);
 
   const annulees = seances.filter((s) => s.statut === "ANNULEE");
   const constatees = seances
@@ -727,6 +748,10 @@ export async function fiabilite(f: Filtre): Promise<Fiabilite> {
       .sort((a, b) => b.nombre - a.nombre)
       .slice(0, 6),
     desistements,
+    promotions,
+    promotionsRendues,
+    tauxPromotionRendue:
+      promotions > 0 ? Math.round((promotionsRendues / promotions) * 100) : 0,
   };
 }
 

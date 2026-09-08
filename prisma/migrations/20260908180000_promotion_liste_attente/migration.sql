@@ -1,0 +1,12 @@
+-- Garder la trace d'une promotion depuis la liste d'attente.
+--
+-- Une place qui se libère part au premier de la file, qui n'a rien demandé ce
+-- jour-là : il s'est inscrit des semaines plus tôt, et entre-temps ses horaires
+-- ont changé, ou l'envie est passée. Il rend alors la place aussitôt reçue —
+-- et le service des sports ne le savait pas, faute de pouvoir le compter.
+--
+-- L'inscription est mise à jour sur place : le désistement réécrit `decidePar`
+-- et efface la promotion. Le journal d'audit la garderait, mais il est purgé au
+-- terme de la conservation, et une trace n'est pas une donnée de gestion.
+-- D'où cette colonne, qui survit au désistement et rend l'indicateur possible.
+ALTER TABLE "Inscription" ADD COLUMN "promuAt" TIMESTAMP(3);

@@ -265,6 +265,9 @@ export async function inscrireAgentAction(
     decisionAt: new Date(),
     decidePar: admin.displayName,
     motif: null,
+    // Le service repositionne quelqu'un : cycle neuf, la promotion éventuelle
+    // du précédent ne dit plus rien de celui-ci.
+    promuAt: null,
   };
 
   if (existante) {

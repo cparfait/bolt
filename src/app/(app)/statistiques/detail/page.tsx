@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { fmtDate } from "@/lib/dates";
 import { detail, TYPES_COUPE, type Coupe } from "@/lib/stats-detail";
-import { INSCRIPTION_STATUT_COLORS, INSCRIPTION_STATUT_LABELS, pluriel } from "@/lib/constants";
+import { INSCRIPTION_STATUT_COLORS, INSCRIPTION_STATUT_LABELS } from "@/lib/constants";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -221,10 +221,9 @@ export default async function DetailStatistiques({
               </tbody>
             </table>
           </div>
-          <p className="mt-3 text-xs text-slate-400">
-            {d.inscriptions.length} {pluriel(d.inscriptions.length, "demande")} sur cette
-            activité, hors inscriptions validées.
-          </p>
+          {d.noteInscriptions && (
+            <p className="mt-3 text-xs text-slate-400">{d.noteInscriptions}</p>
+          )}
         </Card>
       )}
     </>

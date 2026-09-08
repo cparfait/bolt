@@ -4,6 +4,7 @@ import {
   Download,
   FileSpreadsheet,
   TrendingUp,
+  Undo2,
   UserX,
   Users,
 } from "lucide-react";
@@ -439,7 +440,7 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
       </div>
 
       <Card title="Fiabilité de l'offre">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat
             label="Séances annulées"
             value={fiab.seancesAnnulees}
@@ -464,6 +465,28 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
             value={fiab.desistements}
             hint="inscriptions abandonnées en cours de saison"
             icon={<UserX className="h-4 w-4" />}
+          />
+          {/* Une place rendue aussitôt reçue ne dit rien de la personne : elle
+              dit qu'on a attendu trop longtemps pour l'obtenir. Le chiffre
+              n'existe que si la file a tourné — d'où la tuile muette tant
+              qu'aucune promotion n'a eu lieu, plutôt qu'un 0 % trompeur. */}
+          <Stat
+            label="Places rendues"
+            value={fiab.promotionsRendues}
+            hint={
+              fiab.promotions > 0
+                ? `sur ${fiab.promotions} ${pluriel(fiab.promotions, "place")} ${
+                    fiab.promotions > 1 ? "attribuées" : "attribuée"
+                  } depuis la file — ${fiab.tauxPromotionRendue} %`
+                : "aucune place n'a encore été attribuée depuis la liste d'attente"
+            }
+            accent={
+              fiab.tauxPromotionRendue > 30
+                ? "text-amber-600 bg-amber-50"
+                : "text-slate-400 bg-slate-50"
+            }
+            icon={<Undo2 className="h-4 w-4" />}
+            href={fiab.promotionsRendues > 0 ? vers("promotion", "rendues") : undefined}
           />
         </div>
 

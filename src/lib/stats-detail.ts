@@ -1,6 +1,7 @@
 import type { Jour } from "@prisma/client";
 import { prisma } from "./db";
-import { JOUR_LABELS } from "./dates";
+import { JOUR_LABELS, fmtDate } from "./dates";
+import { pluriel } from "./constants";
 import { participeALaSeance } from "./inscriptions";
 import {
   chargerSeances,
@@ -31,7 +32,8 @@ export type Coupe =
   | { type: "activite"; valeur: string } // identifiant d'activité
   | { type: "creneau"; valeur: string } // « MARDI-12 »
   | { type: "motif"; valeur: string }
-  | { type: "attente"; valeur: string }; // identifiant d'activité
+  | { type: "attente"; valeur: string } // identifiant d'activité
+  | { type: "promotion"; valeur: string }; // « rendues » | « toutes »
 
 export const TYPES_COUPE = [
   "direction",
@@ -41,6 +43,7 @@ export const TYPES_COUPE = [
   "creneau",
   "motif",
   "attente",
+  "promotion",
 ] as const;
 
 export type LigneAgentDetail = {
@@ -83,6 +86,14 @@ export type Detail = {
   agents: LigneAgentDetail[];
   seances: LigneSeanceDetail[];
   inscriptions: LigneInscriptionDetail[];
+  /**
+   * Ce que le tableau des demandes ne dit pas de lui-même : quel périmètre il
+   * couvre. La phrase dépend de la coupe — « hors inscriptions validées » est
+   * vrai d'une file d'attente et faux de places rendues, qui étaient validées
+   * jusqu'à la veille. Elle vit donc ici, avec la requête qui la justifie,
+   * plutôt qu'en dur sous le tableau.
+   */
+  noteInscriptions?: string;
 };
 
 /**
@@ -303,12 +314,55 @@ export async function detail(f: Filtre, coupe: Coupe): Promise<Detail> {
       ...VIDE,
       titre: activite?.nom ?? "Activité",
       sousTitre: "Demandes en file d'attente, à arbitrer, et refusées",
+      noteInscriptions: `${lignes.length} ${pluriel(lignes.length, "demande")} sur cette activité, hors inscriptions validées.`,
       inscriptions: lignes.map((i) => ({
         id: i.id,
         userId: i.userId,
         nom: i.user.displayName,
         situation: i.user.service ?? i.user.direction,
         creneau: `${JOUR_LABELS[i.creneau.jour]} ${i.creneau.heureDebut}–${i.creneau.heureFin}`,
+        statut: i.statut,
+        rang: i.rang,
+        motif: i.motif,
+      })),
+    };
+  }
+
+  if (coupe.type === "promotion") {
+    // Les places attribuées depuis la liste d'attente, et ce qu'elles sont
+    // devenues. « rendues » ne garde que celles refusées dans la foulée : c'est
+    // le chiffre qui pose question, et la liste répond « par qui, et quand ».
+    const rendues = coupe.valeur === "rendues";
+    const lignes = await prisma.inscription.findMany({
+      where: {
+        promuAt: { not: null },
+        ...(rendues ? { statut: "DESISTEE" as const } : {}),
+        creneau: {
+          saisonId: f.saisonId,
+          ...(f.activiteId ? { activiteId: f.activiteId } : {}),
+        },
+      },
+      include: {
+        user: { select: { displayName: true, service: true, direction: true } },
+        creneau: { include: { activite: { select: { nom: true } } } },
+      },
+      orderBy: { promuAt: "desc" },
+    });
+    return {
+      ...VIDE,
+      titre: rendues ? "Places rendues après promotion" : "Promotions depuis la liste d'attente",
+      sousTitre: rendues
+        ? "Agents qui ont refusé la place obtenue en attendant leur tour"
+        : "Places libérées attribuées au premier de la file",
+      noteInscriptions: rendues
+        ? "La place est repartie au suivant dès le refus. Une part élevée signale une file où l'on attend trop longtemps, pas des agents peu fiables."
+        : "Places attribuées automatiquement à la personne en tête de file, quel que soit ce qu'elle en a fait ensuite.",
+      inscriptions: lignes.map((i) => ({
+        id: i.id,
+        userId: i.userId,
+        nom: i.user.displayName,
+        situation: i.user.service ?? i.user.direction,
+        creneau: `${i.creneau.activite.nom} — ${JOUR_LABELS[i.creneau.jour]} ${i.creneau.heureDebut}–${i.creneau.heureFin} · promu le ${fmtDate(i.promuAt)}`,
         statut: i.statut,
         rang: i.rang,
         motif: i.motif,
