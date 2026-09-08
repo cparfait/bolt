@@ -26,6 +26,19 @@ import { getGeneralSettings } from "@/lib/settings";
 import { assurerCompteAgent } from "./agents";
 import { erreur, succes, type ActionState } from "./types";
 
+/**
+ * Les écrans qui montrent la même inscription, rafraîchis ensemble.
+ *
+ * La grille des créneaux et la fiche de l'agent portent les mêmes boutons.
+ * Ne rafraîchir que la grille laissait la fiche afficher un état révolu — et
+ * l'inverse serait tout aussi faux : on retire quelqu'un depuis l'écran où on
+ * l'a sous les yeux, pas depuis un seul des deux.
+ */
+function rafraichirInscription(userId: string): void {
+  revalidatePath("/inscriptions");
+  revalidatePath(`/agents/${userId}`);
+}
+
 /** Un agent demande son inscription à un créneau. */
 export async function inscrireAction(
   _prev: ActionState,
@@ -61,7 +74,7 @@ export async function inscrireAction(
     rgpdAccepte: true,
   });
   revalidatePath("/mes-activites");
-  revalidatePath("/inscriptions");
+  rafraichirInscription(user.id);
   return res.ok ? succes(res.message) : erreur(res.message);
 }
 
@@ -101,7 +114,7 @@ export async function desisterAction(
   });
 
   revalidatePath("/mes-activites");
-  revalidatePath("/inscriptions");
+  rafraichirInscription(inscription.userId);
   return succes(`Désinscription enregistrée.${promu}`);
 }
 
@@ -153,7 +166,7 @@ export async function deciderInscription(
         ].join("\n\n"),
       );
     }
-    revalidatePath("/inscriptions");
+    rafraichirInscription(inscription.userId);
     return succes(`${inscription.user.displayName} est inscrit.`);
   }
 
@@ -174,7 +187,7 @@ export async function deciderInscription(
     // Rétrograder un inscrit libère sa place : la file avance, comme sur un
     // désistement. Sans cela elle restait figée jusqu'au prochain départ.
     const promu = await promouvoirEtPrevenir(inscription.creneauId);
-    revalidatePath("/inscriptions");
+    rafraichirInscription(inscription.userId);
     return succes(`${inscription.user.displayName} placé en liste d'attente.${promu}`);
   }
 
@@ -209,7 +222,7 @@ export async function deciderInscription(
         ].join("\n\n"),
       );
     }
-    revalidatePath("/inscriptions");
+    rafraichirInscription(inscription.userId);
     return succes(`Demande refusée.${promu}`);
   }
 
@@ -270,7 +283,7 @@ export async function inscrireAgentAction(
   // le service des sports a saisie pour lui quand elle existe.
   await accuserReception(userId, creneauId, data.statut, data.rang, "service");
 
-  revalidatePath("/inscriptions");
+  rafraichirInscription(userId);
   return succes(
     complet
       ? `${agent.displayName} placé en liste d'attente (créneau complet).`
