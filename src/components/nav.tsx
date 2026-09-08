@@ -36,28 +36,16 @@ type Item = {
   optionnel?: "demandes";
 };
 
-// L'ordre compte : les écrans de gestion d'abord, l'espace personnel en
-// dernier, sous son propre intertitre.
+// L'ordre compte, et il suit le travail plutôt que l'arborescence : ce qui
+// attend une décision d'abord — inscriptions, demandes d'accès —, puis ce qu'on
+// consulte au fil de la semaine, puis le référentiel, et enfin ce qu'on règle
+// une fois. L'espace personnel reste en dernier, sous son propre intertitre.
 const items: Item[] = [
   { href: "/", label: "Tableau de bord", icon: LayoutDashboard },
-  {
-    href: "/seances",
-    label: "Planning",
-    icon: CalendarDays,
-    roles: ["ADMIN", "GESTIONNAIRE", "COACH"],
-    groupe: "gestion",
-  },
   {
     href: "/inscriptions",
     label: "Inscriptions",
     icon: ClipboardCheck,
-    roles: ["ADMIN", "GESTIONNAIRE"],
-    groupe: "gestion",
-  },
-  {
-    href: "/agents",
-    label: "Agents",
-    icon: Users,
     roles: ["ADMIN", "GESTIONNAIRE"],
     groupe: "gestion",
   },
@@ -68,6 +56,13 @@ const items: Item[] = [
     roles: ["ADMIN", "GESTIONNAIRE"],
     groupe: "gestion",
     optionnel: "demandes",
+  },
+  {
+    href: "/seances",
+    label: "Planning",
+    icon: CalendarDays,
+    roles: ["ADMIN", "GESTIONNAIRE", "COACH"],
+    groupe: "gestion",
   },
   {
     href: "/activites",
@@ -81,6 +76,13 @@ const items: Item[] = [
   // répond à « combien de comptes fermés traînent ? » et on y retrouve
   // quelqu'un dont on ne sait plus écrire le nom. La barre du tableau de bord
   // reste le chemin le plus court quand on connaît la personne.
+  {
+    href: "/agents",
+    label: "Agents",
+    icon: Users,
+    roles: ["ADMIN", "GESTIONNAIRE"],
+    groupe: "gestion",
+  },
   {
     href: "/animateurs",
     label: "Animateurs",
