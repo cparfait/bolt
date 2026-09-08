@@ -4,6 +4,7 @@ import { getGeneralSettings, type GeneralSettings } from "./settings";
 import { audit } from "./audit";
 import { isoDate } from "./dates";
 import { adresseDeContact } from "./comptes";
+import { lienPlace } from "./liens-courriel";
 import { nomPourSalutation } from "./constants";
 import { envoyerMail } from "./mail";
 
@@ -622,16 +623,26 @@ export async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
   const adresse = adresseDeContact(promu.user);
   if (adresse) {
     const g = await getGeneralSettings();
+    const base = g.pointageUrl || g.appUrl;
     await envoyerMail(
       adresse,
       `Une place s'est libérée en ${promu.creneau.activite.nom}`,
       [
         `Bonjour ${nomPourSalutation(promu.user.displayName)},`,
         `Une place vient de se libérer sur le créneau de ${promu.creneau.activite.nom} (**${promu.creneau.jour.toLowerCase()} ${promu.creneau.heureDebut}**). Votre inscription est confirmée.`,
+        // Une promotion arrive sans avoir été demandée, parfois des mois après
+        // l'inscription : entre-temps on a changé d'horaires, ou l'envie est
+        // passée. Sans bouton, la place restait tenue par quelqu'un qui ne
+        // viendrait pas, pendant que le suivant de la file attendait encore —
+        // et le service ne l'apprenait qu'au bout de trois absences.
+        `Si elle ne vous convient plus, rendez-la : elle repartira aussitôt à la personne suivante sur la liste d'attente.`,
+        base ? `[Je ne veux plus cette place](${lienPlace(promu.id, base)})` : null,
         g.contactEmail
-          ? `Si vous ne souhaitez plus participer, prévenez le service des sports : ${g.contactEmail}.`
-          : `Si vous ne souhaitez plus participer, prévenez le service des sports.`,
-      ].join("\n\n"),
+          ? `Le service des sports — ${g.contactEmail}`
+          : `Le service des sports`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     );
   }
   return ` ${promu.user.displayName} a été inscrit depuis la liste d'attente.`;

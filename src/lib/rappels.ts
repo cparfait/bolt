@@ -17,6 +17,7 @@ import {
   normaliserHeure,
 } from "./dates";
 import { nomPourSalutation } from "./constants";
+import { lienAbsence } from "./liens-courriel";
 import { audit } from "./audit";
 
 /**
@@ -121,6 +122,12 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
     take: 50, // garde-fou : jamais plus de 50 séances par passage
   });
 
+  // Nom public de l'application : la page qui porte le bouton est joignable
+  // depuis Internet, comme la feuille d'émargement, et c'est exactement là que
+  // le rappel se lit. Sans adresse configurée, le message part sans bouton
+  // plutôt qu'avec un lien qui ne mène nulle part.
+  const base = g.pointageUrl || g.appUrl;
+
   let envoyes = 0;
   let ignores = 0;
 
@@ -139,9 +146,16 @@ export async function envoyerRappels(): Promise<ResultatRappels> {
         [
           `Bonjour ${nomPourSalutation(i.user.displayName)},`,
           `Petit rappel : votre séance de ${s.creneau.activite.nom} a lieu **${fmtDateLongue(s.date)} de ${s.creneau.heureDebut} à ${s.creneau.heureFin}**${s.creneau.lieu ? `, **${s.creneau.lieu}**` : ""}.`,
-          `Un empêchement ? Prévenez le service des sports : votre place profitera à un collègue en liste d'attente.`,
+          // Un bouton, et non « prévenez le service des sports » : le rappel se
+          // lit sur un téléphone, et prévenir par courriel demandait d'ouvrir un
+          // nouveau message, de trouver quoi écrire et à qui. Personne ne le
+          // faisait, l'animateur attendait, et la place restait perdue.
+          `Un empêchement ? Signalez-le d'un clic : votre place profitera à un collègue en liste d'attente, et l'animateur ne vous attendra pas.`,
+          base ? `[Je ne pourrai pas venir](${lienAbsence(s.id, i.userId, base)})` : null,
           g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
-        ].join("\n\n"),
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       );
       if (res.ok) envoyes += 1;
     }

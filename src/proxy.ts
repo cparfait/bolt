@@ -31,8 +31,15 @@ import { cidrsInternes, clientIp, inCidr } from "@/lib/net";
 // animateurs, et rien d'autre par défaut.
 // `/icones` porte les icônes d'installation : sans elles, le téléphone d'un
 // animateur hors réseau ne peut pas poser l'application sur son écran d'accueil.
+// `/courriel` porte les pages à un seul bouton ouvertes depuis un message —
+// « je ne pourrai pas venir », « je laisse ma place ». Elles sont ici pour la
+// même raison que l'émargement : ces courriels se lisent sur un téléphone, hors
+// du réseau, par les agents qui n'ont justement pas de poste au bureau. Elles
+// n'ouvrent aucune session et ne servent rien sans une signature valable pour
+// cet agent et cet objet précis (src/lib/liens-courriel.ts) ; sans elle, un 404.
 const PUBLIC_PREFIXES = [
   "/emargement",
+  "/courriel",
   "/icones",
   "/_next",
   "/favicon.ico",

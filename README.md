@@ -45,8 +45,9 @@ réseau**, et le contrôleur de domaine n'est joignable que depuis le serveur
 applicatif. C'est ce qu'un SaaS ne permet pas.
 
 Le cloisonnement est appliqué à deux niveaux : par le reverse proxy, et par le
-proxy applicatif `src/proxy.ts` (`INTERNAL_CIDRS`), qui refuse tout ce qui n'est pas
-`/emargement/*` aux requêtes venues d'une IP hors des plages internes.
+proxy applicatif `src/proxy.ts` (`INTERNAL_CIDRS`), qui refuse tout ce qui n'est
+pas `/emargement/*` ni `/courriel/*` aux requêtes venues d'une IP hors des
+plages internes.
 
 ### Accès des animateurs — trois modes au choix
 
@@ -229,7 +230,32 @@ complet. Les erreurs SMTP courantes sont traduites en conseil actionnable
 plutôt qu'en message OpenSSL.
 
 **Rappels de séance** — facultatifs, envoyés aux inscrits à un moment fixé :
-tant de jours avant la séance, à telle heure (par défaut la veille à midi).
+tant de jours avant la séance, à telle heure (par défaut la veille à midi). Le
+message porte un bouton **« Je ne pourrai pas venir »**.
+
+### Deux boutons dans les courriels, et pourquoi ils ne demandent pas de compte
+
+Prévenir d'une absence, ou rendre une place dont on ne veut plus, n'a de valeur
+que fait vite : la place profite au suivant de la file, et l'animateur n'attend
+pas. Or ces messages se lisent sur un téléphone, hors du réseau, et souvent par
+ceux-là mêmes qui n'ont pas de poste au bureau. Exiger une connexion — réclamer
+un lien, attendre un second courriel, retrouver la bonne séance dans une liste —
+revient à ne rien demander : personne ne prévient, et l'information n'existe pas.
+
+Le lien porte donc son autorisation : une **signature HMAC** (192 bits, dérivée
+de `SESSION_SECRET`) qui ne vaut que pour un agent et un objet précis, et
+n'ouvre aucune session. Aucune table, aucun jeton à expirer — c'est l'objet visé
+qui périme le lien, une séance passée ou une place déjà rendue refusant l'action.
+Rien ne se produit à l'ouverture de l'adresse : les passerelles de sécurité des
+messageries visitent tous les liens d'un message avant de le remettre, le geste
+demande donc un clic sur la page. Voir `src/lib/liens-courriel.ts`.
+
+Deux usages aujourd'hui : **« Je ne pourrai pas venir »** sur le rappel de
+séance, réversible d'un second clic ; et **« Je ne veux plus cette place »** sur
+le courriel de promotion depuis la liste d'attente — une place attribuée sans
+avoir été demandée, parfois des mois après l'inscription, restait sinon tenue
+par quelqu'un qui ne viendrait pas pendant que le suivant attendait toujours.
+Rendue, elle repart au suivant dans la seconde.
 
 Le déclenchement vient d'un **ordonnanceur interne au conteneur**
 (`src/lib/ordonnanceur.ts`, démarré par `src/instrumentation.ts`), qui bat
@@ -409,9 +435,10 @@ par défaut, puis rouvre les quatre seuls préfixes nécessaires.
 Exemple nginx, exposition minimale (émargement seul sur Internet) :
 
 ```nginx
-# Les trois préfixes publics : la feuille, ses icônes d'installation, ses
-# fichiers JS/CSS. Sans les deux derniers, la page s'affiche sans mise en forme.
-location ~ ^/(emargement|icones|_next/static)/ {
+# Les préfixes publics : la feuille d'émargement, les pages à un bouton
+# ouvertes depuis un courriel, les icônes d'installation et les fichiers JS/CSS.
+# Sans les deux derniers, la page s'affiche sans mise en forme.
+location ~ ^/(emargement|courriel|icones|_next/static)/ {
     proxy_pass http://127.0.0.1:3100;
     proxy_set_header Host              $host;
     proxy_set_header X-Forwarded-For   $remote_addr;   # écrase, ne concatène pas
@@ -598,6 +625,8 @@ src/lib/reinitialisation.ts    remise à zéro : ce qui s'efface, ce qui reste
 src/proxy.ts                   cloisonnement réseau (INTERNAL_CIDRS)
 src/lib/ldap.ts                LDAPS, groupes imbriqués, synchronisation
 src/lib/coach-access.ts        jeton + PIN des animateurs
+src/lib/liens-courriel.ts      signature des boutons envoyés par courriel
+src/lib/secret.ts              le secret dont dérivent cookies et signatures
 src/lib/seances.ts             génération du calendrier
 src/lib/emargement.ts          construction et écriture des feuilles
 src/lib/inscriptions.ts        capacité, liste d'attente, promotions
@@ -614,6 +643,7 @@ src/lib/markup.ts              mise en forme restreinte des textes (gras, soulig
 src/lib/net.ts                 adresse cliente et plages internes (estInterne)
 src/lib/actions/               actions serveur, par domaine
 src/app/emargement/            feuille publique des animateurs (mobile)
+src/app/courriel/              pages à un bouton ouvertes depuis un message
 src/app/(app)/                 back-office et espace agent
 tests/                         règles de calcul, en fonctions pures
 tests/integration/             moteur d'inscription, sur une vraie base

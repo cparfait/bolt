@@ -117,7 +117,9 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       corps: [
         `Bonjour ${PRENOM},`,
         `Une place vient de se libérer sur le créneau de Aquagym (**mardi 12:15**). Votre inscription est confirmée.`,
-        `Si vous ne souhaitez plus participer, prévenez le service des sports : ${contact}.`,
+        `Si elle ne vous convient plus, rendez-la : elle repartira aussitôt à la personne suivante sur la liste d'attente.`,
+        `[Je ne veux plus cette place](${base}/courriel/place/exemple/exemple)`,
+        signature,
       ].join("\n\n"),
     },
     {
@@ -141,7 +143,8 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       corps: [
         `Bonjour ${PRENOM},`,
         `Petit rappel : votre séance de Aquagym a lieu **mardi 15 septembre de 12:15 à 13:00**, **Piscine municipale**.`,
-        `Un empêchement ? Prévenez le service des sports : votre place profitera à un collègue en liste d'attente.`,
+        `Un empêchement ? Signalez-le d'un clic : votre place profitera à un collègue en liste d'attente, et l'animateur ne vous attendra pas.`,
+        `[Je ne pourrai pas venir](${base}/courriel/absence/exemple/exemple/exemple)`,
         signature,
       ].join("\n\n"),
     },
