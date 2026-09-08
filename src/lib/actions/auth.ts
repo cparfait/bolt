@@ -191,7 +191,12 @@ export async function demanderLienAction(
   // `externe` commande la règle de rôle de `envoyerLienConnexion` : depuis
   // Internet, un compte ADMIN ne reçoit pas de lien.
   await envoyerLienConnexion(email, { externe: !estInterne(ip) });
+  // L'adresse revient avec le message : l'écran la réaffiche pour qu'on
+  // vérifie ce qu'on a tapé. Ce n'est pas une fuite — c'est ce qui vient
+  // d'être saisi —, et le message reste le même que l'adresse soit enregistrée
+  // ou non.
   return {
+    email,
     success:
       `Si cette adresse est enregistrée, le lien vient de partir. Regardez votre messagerie — il est valable ${LIEN_VALIDITE_LIBELLE}.`,
   };

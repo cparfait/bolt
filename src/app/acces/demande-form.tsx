@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { MailCheck } from "lucide-react";
 import { demanderLienAction, type AccesState } from "@/lib/actions/auth";
 import { LIEN_VALIDITE_LIBELLE } from "@/lib/constants";
 import { Alert, Field, Input, btnPrimary } from "@/components/ui";
@@ -25,6 +26,7 @@ export function DemandeLienForm({ services = [] }: { services?: string[] }) {
     demanderLienAction,
     null,
   );
+  const [recommence, setRecommence] = useState(false);
 
   if (state?.inconnue) {
     // L'explication passe en `intro` du formulaire, et non à côté : elle doit
@@ -50,12 +52,52 @@ export function DemandeLienForm({ services = [] }: { services?: string[] }) {
     );
   }
 
+  // Le lien est parti : le formulaire disparaît, remplacé par ce qu'il faut
+  // faire maintenant. Il restait auparavant à l'écran, l'adresse encore dans le
+  // champ et un bandeau vert au-dessus — on ne savait plus si la demande était
+  // partie ou s'il fallait encore appuyer, et beaucoup redemandaient un second
+  // lien, ce qui périme le premier.
+  if (state?.success && !recommence) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+        <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+          <MailCheck className="h-5 w-5" />
+        </span>
+        <p className="mt-3 text-base font-semibold text-slate-900">
+          Regardez votre messagerie
+        </p>
+        {/* Fin de phrase assemblée en JavaScript : entre une accolade et le
+            mot qui la suit, l'espace se perd à la compilation, et « valable
+            1 heureet ne sert » ne se remarque qu'une fois à l'écran. */}
+        <p className="mt-1 text-sm text-slate-500">
+          Si <strong className="font-medium text-slate-700">{state.email}</strong>
+          {` est enregistrée, le lien vient de partir. Il est valable ${LIEN_VALIDITE_LIBELLE} et ne sert qu'une fois.`}
+        </p>
+        <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2.5 text-xs leading-relaxed text-slate-500">
+          Rien ne vous parvient ? Regardez vos indésirables. Ne redemandez pas de
+          lien tout de suite : un nouveau lien annule le précédent, et si les
+          deux arrivent, c&apos;est le dernier qui fonctionne.
+        </p>
+        <button
+          type="button"
+          onClick={() => setRecommence(true)}
+          className="mt-4 text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+        >
+          Ce n&apos;est pas la bonne adresse ? En essayer une autre
+        </button>
+      </div>
+    );
+  }
+
   return (
     <form
       action={action}
+      // Retour au formulaire depuis l'écran de confirmation : la prochaine
+      // réponse doit le remplacer à son tour.
+      onSubmit={() => setRecommence(false)}
       className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
-      <Alert state={state} />
+      <Alert state={state?.success ? null : state} />
 
       {/* L'adresse professionnelle d'abord, parce que c'est le cas de la
           plupart des agents et que c'est elle que porte l'annuaire. Mais elle ne
