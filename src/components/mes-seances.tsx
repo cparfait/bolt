@@ -123,12 +123,15 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
              l'autre et n'apprend rien, tandis que la date — la seule chose qui
              distingue les lignes — se lisait en gris minuscule dessous. Sur
              téléphone, cela donnait une colonne de « Yoga » empilés.
-             Le liseré coloré à gauche garde le repère de l'activité, et son nom
-             passe en seconde ligne avec le lieu. */
+             Le nom passe en seconde ligne avec le lieu, et garde sa couleur :
+             c'est elle qui identifie l'activité, sans rien décaler. Un liseré à
+             gauche l'a fait un temps — il poussait chaque ligne de trois
+             millimètres vers la droite, si bien qu'aucune ne s'alignait plus ni
+             sur le titre de la carte ni sur les cartes voisines. Une colonne
+             qu'on lit de haut en bas ne supporte pas ce décalage. */
           <li
             key={s.id}
-            className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-l-2 py-3 pl-3"
-            style={{ borderLeftColor: s.annulee ? "#e2e8f0" : s.couleur }}
+            className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-3"
           >
             <div className="min-w-0">
               <p
