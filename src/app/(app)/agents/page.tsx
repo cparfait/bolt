@@ -1,11 +1,22 @@
 import Link from "next/link";
-import { ChevronRight, Search, X } from "lucide-react";
+import { ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { mentionCompte } from "@/lib/comptes";
 import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
-import { Badge, Card, EmptyState, Input, PageHeader, btnSecondary } from "@/components/ui";
+import {
+  Badge,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  PageHeader,
+  Select,
+  btnSecondary,
+} from "@/components/ui";
 import { ROLE_LABELS, pluriel } from "@/lib/constants";
+import { JOUR_LABELS } from "@/lib/dates";
 import { Pagination, tranche } from "@/components/pagination";
 
 /**
@@ -43,10 +54,17 @@ const PAR_PAGE = 50;
 export default async function AgentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; f?: string; service?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    f?: string;
+    service?: string;
+    activite?: string;
+    creneau?: string;
+    page?: string;
+  }>;
 }) {
   await requireUser("GESTIONNAIRE");
-  const { q, f, service, page: pageBrute } = await searchParams;
+  const { q, f, service, activite, creneau, page: pageBrute } = await searchParams;
   const terme = (q ?? "").trim();
   const filtre: Filtre = f && f in FILTRES ? (f as Filtre) : "actifs";
   // Filtre par service : « __aucun » désigne les comptes sans rattachement,
@@ -57,31 +75,52 @@ export default async function AgentsPage({
   // La recherche porte sur TOUS les comptes, filtre compris : chercher
   // quelqu'un dont on ne sait plus s'il est encore là ne doit pas renvoyer
   // « aucun résultat » parce qu'on se trouvait sur le mauvais onglet.
-  const where = terme.length >= 2
-    ? {
-        OR: [
-          { displayName: { contains: terme, mode: "insensitive" as const } },
-          { login: { contains: terme, mode: "insensitive" as const } },
-          { email: { contains: terme, mode: "insensitive" as const } },
-          { service: { contains: terme, mode: "insensitive" as const } },
-          { direction: { contains: terme, mode: "insensitive" as const } },
-        ],
-      }
-    : {
-        ...FILTRES[filtre].where,
-        ...(parService === "__aucun"
-          ? { service: null }
-          : parService
-            ? { service: parService }
-            : {}),
-      };
+  const parActivite = (activite ?? "").trim();
+  const parCreneau = (creneau ?? "").trim();
+
+  // Les critères se cumulent, un par condition : c'est ce qui permet de
+  // combiner « inscrits en aquagym » et « du service Voirie » sans réécrire une
+  // requête par croisement possible.
+  //
+  // Le statut, lui, ne s'applique pas pendant une recherche : chercher
+  // quelqu'un dont on ne sait plus s'il est encore là ne doit pas renvoyer
+  // « aucun résultat » parce qu'on se trouvait sur le mauvais onglet.
+  const conditions: Prisma.UserWhereInput[] = [];
+  if (terme.length >= 2) {
+    conditions.push({
+      OR: [
+        { displayName: { contains: terme, mode: "insensitive" } },
+        { login: { contains: terme, mode: "insensitive" } },
+        { email: { contains: terme, mode: "insensitive" } },
+        { service: { contains: terme, mode: "insensitive" } },
+        { direction: { contains: terme, mode: "insensitive" } },
+      ],
+    });
+  } else {
+    conditions.push(FILTRES[filtre].where);
+  }
+  if (parService === "__aucun") conditions.push({ service: null });
+  else if (parService) conditions.push({ service: parService });
+  // Inscrit, et pas seulement candidat : une liste d'attente ne dit pas qui
+  // pratique. Bornée à la saison affichée, sans quoi un ancien inscrit de la
+  // saison passée remonterait dans le public d'aujourd'hui.
+  if (parCreneau) {
+    conditions.push({ inscriptions: { some: { statut: "VALIDEE", creneauId: parCreneau } } });
+  } else if (parActivite && saison) {
+    conditions.push({
+      inscriptions: {
+        some: { statut: "VALIDEE", creneau: { activiteId: parActivite, saisonId: saison.id } },
+      },
+    });
+  }
+  const where: Prisma.UserWhereInput = { AND: conditions };
 
   // Le total d'abord : il borne le numéro de page, et l'on ne demande pas une
   // tranche avant de savoir combien il y en a.
   const total = await prisma.user.count({ where });
   const { page, pages, skip, take } = tranche(pageBrute, total, PAR_PAGE);
 
-  const [agents, compteurs, services, repartition] = await Promise.all([
+  const [agents, compteurs, services, repartition, creneauxSaison] = await Promise.all([
     prisma.user.findMany({
       where,
       orderBy: { displayName: "asc" },
@@ -107,6 +146,16 @@ export default async function AgentsPage({
     // Effectif par service sur la catégorie courante, pour que les compteurs
     // répondent à la même question que la liste.
     prisma.user.groupBy({ by: ["service"], where: FILTRES[filtre].where, _count: true }),
+    // De quoi peupler les deux listes de la recherche avancée. Les créneaux
+    // portent le nom de leur activité : « mardi 12:15 » ne désigne rien tout
+    // seul quand trois activités se tiennent le même jour.
+    saison
+      ? prisma.creneau.findMany({
+          where: { saisonId: saison.id, archiveAt: null },
+          include: { activite: { select: { id: true, nom: true, couleur: true } } },
+          orderBy: [{ activite: { ordre: "asc" } }, { jour: "asc" }, { heureDebut: "asc" }],
+        })
+      : Promise.resolve([]),
   ]);
 
   const effectifs = new Map(repartition.map((r) => [r.service, r._count]));
@@ -118,7 +167,6 @@ export default async function AgentsPage({
   const servicesPeuples = services
     .filter((s) => (effectifs.get(s.nom) ?? 0) > 0 || parService === s.nom)
     .sort((a, b) => (effectifs.get(b.nom) ?? 0) - (effectifs.get(a.nom) ?? 0));
-  const servicesVides = services.length - servicesPeuples.length;
   // Libellés portés par des comptes sans figurer au référentiel : ils se
   // rattachent dans Paramètres → Services, mais on doit pouvoir voir qui.
   const horsReferentiel = repartition
@@ -126,12 +174,19 @@ export default async function AgentsPage({
     .map((r) => ({ nom: r.service as string, effectif: r._count }))
     .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
   const sansService = effectifs.get(null) ?? 0;
+  // Activités de la saison, déduites des créneaux : une activité sans créneau
+  // n'a personne à filtrer, et l'afficher promettrait une liste vide.
+  const activitesSaison = [
+    ...new Map(creneauxSaison.map((c) => [c.activite.id, c.activite])).values(),
+  ];
+  // Nombre de critères avancés posés, pour le dire sur le repli du panneau :
+  // sans ce compte, une liste courte se lit comme un annuaire vide.
+  const criteres = [parService, parActivite, parCreneau].filter(Boolean).length;
+
   const lienAgents = (params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
     return qs ? `/agents?${qs}` : "/agents";
   };
-  const lienService = (nom: string) =>
-    lienAgents({ ...(filtre !== "actifs" ? { f: filtre } : {}), service: nom });
   const lienCategorie = lienAgents(filtre !== "actifs" ? { f: filtre } : {});
   const libelleService = parService === "__aucun" ? "Sans service" : parService;
 
@@ -147,20 +202,108 @@ export default async function AgentsPage({
       />
 
       <Card className="mb-6">
-        <form className="flex flex-wrap gap-2">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              name="q"
-              defaultValue={terme}
-              autoFocus
-              placeholder="Nom, identifiant, e-mail, service ou direction"
-              className="pl-9"
-            />
+        {/* Un seul formulaire : la recherche et les critères avancés partent
+            ensemble. Deux formulaires distincts se seraient effacés l'un
+            l'autre à chaque envoi. */}
+        <form className="space-y-3">
+          {/* L'onglet de statut voyage caché : ouvrir la recherche avancée
+              depuis « Accès fermés » ne doit pas ramener aux comptes actifs. */}
+          {filtre !== "actifs" && <input type="hidden" name="f" value={filtre} />}
+          <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                name="q"
+                defaultValue={terme}
+                autoFocus
+                placeholder="Nom, identifiant, e-mail, service ou direction"
+                className="pl-9"
+              />
+            </div>
+            <button type="submit" className={btnSecondary}>
+              Rechercher
+            </button>
           </div>
-          <button type="submit" className={btnSecondary}>
-            Rechercher
-          </button>
+
+          {/* Les services s'affichaient en pastilles, une par service : un
+              référentiel de collectivité en compte cent, et la liste occupait
+              tout l'écran avant la première ligne de résultat. Ils rejoignent
+              une recherche avancée, avec les deux critères qui manquaient — le
+              public d'une activité, celui d'un créneau —, dépliée seulement
+              quand on s'en sert. Ouverte d'office si un critère est posé, sans
+              quoi on ne saurait pas d'où vient une liste courte. */}
+          <details open={Boolean(parService || parActivite || parCreneau)} className="group">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Recherche avancée
+              {criteres > 0 && (
+                <span className="rounded-full bg-brand-50 px-1.5 text-[11px] font-semibold text-brand-700">
+                  {criteres}
+                </span>
+              )}
+            </summary>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <Field label="Service">
+                <Select name="service" defaultValue={parService}>
+                  <option value="">Tous les services</option>
+                  {sansService > 0 && <option value="__aucun">Sans service ({sansService})</option>}
+                  {servicesPeuples.map((s) => (
+                    <option key={s.id} value={s.nom}>
+                      {s.nom} ({effectifs.get(s.nom) ?? 0}){s.actif ? "" : " — retiré"}
+                    </option>
+                  ))}
+                  {horsReferentiel.length > 0 && (
+                    <optgroup label="Hors référentiel — à rattacher">
+                      {horsReferentiel.map((h) => (
+                        <option key={h.nom} value={h.nom}>
+                          {h.nom} ({h.effectif})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </Select>
+              </Field>
+
+              <Field label="Inscrits à l'activité">
+                <Select name="activite" defaultValue={parActivite}>
+                  <option value="">Toutes les activités</option>
+                  {activitesSaison.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nom}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              <Field label="Inscrits au créneau">
+                <Select name="creneau" defaultValue={parCreneau}>
+                  <option value="">Tous les créneaux</option>
+                  {creneauxSaison.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.activite.nom} — {JOUR_LABELS[c.jour]} {c.heureDebut}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button type="submit" className={btnSecondary}>
+                Appliquer
+              </button>
+              {criteres > 0 && (
+                <Link href={lienCategorie} className="text-xs text-slate-500 hover:text-slate-800">
+                  Tout effacer
+                </Link>
+              )}
+              {parCreneau && parActivite && (
+                <span className="text-xs text-slate-400">
+                  Le créneau l&apos;emporte : il désigne déjà son activité.
+                </span>
+              )}
+            </div>
+          </details>
         </form>
       </Card>
 
@@ -175,6 +318,8 @@ export default async function AgentsPage({
               href={lienAgents({
                 ...(cle !== "actifs" ? { f: cle } : {}),
                 ...(parService ? { service: parService } : {}),
+                ...(parActivite ? { activite: parActivite } : {}),
+                ...(parCreneau ? { creneau: parCreneau } : {}),
               })}
               className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
                 filtre === cle
@@ -191,95 +336,6 @@ export default async function AgentsPage({
             </Link>
           ))}
         </div>
-      )}
-
-      {/* Répartition par service. La liste du référentiel, avec qui s'y trouve :
-          c'est la question à laquelle l'annuaire ne répondait pas — on savait
-          chercher une personne, pas voir un service. */}
-      {terme.length < 2 && (servicesPeuples.length > 0 || horsReferentiel.length > 0 || sansService > 0) && (
-        <Card
-          title="Par service"
-          className="mb-4"
-          action={
-            <Link
-              href="/parametres/services"
-              className="text-xs text-slate-400 hover:text-brand-600"
-            >
-              Gérer le référentiel
-            </Link>
-          }
-        >
-          <div className="flex flex-wrap gap-1.5">
-            {servicesPeuples.map((s) => {
-              const n = effectifs.get(s.nom) ?? 0;
-              const actif = parService === s.nom;
-              return (
-                <Link
-                  key={s.id}
-                  href={actif ? lienCategorie : lienService(s.nom)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
-                    actif
-                      ? "bg-brand-600 text-white"
-                      : "bg-slate-50 text-slate-700 hover:bg-slate-100"
-                  } ${!s.actif ? "line-through decoration-slate-300" : ""}`}
-                  title={!s.actif ? "Service retiré du référentiel" : undefined}
-                >
-                  {s.nom}
-                  <span
-                    className={`tabular-nums ${actif ? "text-brand-100" : "text-slate-400"}`}
-                  >
-                    {n}
-                  </span>
-                </Link>
-              );
-            })}
-            {horsReferentiel.map((h) => {
-              const actif = parService === h.nom;
-              return (
-                <Link
-                  key={h.nom}
-                  href={actif ? lienCategorie : lienService(h.nom)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
-                    actif
-                      ? "bg-amber-600 text-white"
-                      : "bg-amber-50 text-amber-800 hover:bg-amber-100"
-                  }`}
-                  title="Libellé hors référentiel — à rattacher dans Paramètres → Services"
-                >
-                  {h.nom}
-                  <span className={`tabular-nums ${actif ? "text-amber-100" : "text-amber-500"}`}>
-                    {h.effectif}
-                  </span>
-                </Link>
-              );
-            })}
-            {sansService > 0 && (
-              <Link
-                href={parService === "__aucun" ? lienCategorie : lienService("__aucun")}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm italic transition ${
-                  parService === "__aucun"
-                    ? "bg-slate-700 text-white"
-                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-                }`}
-              >
-                Sans service
-                <span
-                  className={`tabular-nums ${parService === "__aucun" ? "text-slate-300" : "text-slate-400"}`}
-                >
-                  {sansService}
-                </span>
-              </Link>
-            )}
-          </div>
-          {(horsReferentiel.length > 0 || servicesVides > 0) && (
-            <p className="mt-3 text-xs text-slate-400">
-              {horsReferentiel.length > 0 &&
-                "En orange, des libellés portés par des comptes sans figurer au référentiel : ils se rattachent dans Paramètres → Services. "}
-              {servicesVides > 0 &&
-                `${servicesVides} ${pluriel(servicesVides, "autre service du référentiel n'a", "autres services du référentiel n'ont")} encore personne dans cette catégorie.`}
-            </p>
-          )}
-        </Card>
       )}
 
       {agents.length === 0 ? (
@@ -357,7 +413,7 @@ export default async function AgentsPage({
           </ul>
           <Pagination
             base="/agents"
-            params={{ q, f, service }}
+            params={{ q, f, service, activite, creneau }}
             page={page}
             pages={pages}
             total={total}
