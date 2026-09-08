@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CalendarCheck, CalendarOff, Info, MapPin, Users } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireAgent } from "@/lib/session";
@@ -137,12 +138,13 @@ export default async function MesActivitesPage({
                   {/* Le nom porte la couleur de l'activité, comme au catalogue
                       en dessous et sur la page Inscriptions : c'est le même
                       repère d'un écran à l'autre. */}
-                  <p
-                    className="text-sm font-medium"
+                  <Link
+                    href={`/mes-activites?activite=${i.creneau.activiteId}`}
+                    className="text-sm font-medium hover:underline"
                     style={{ color: i.creneau.activite.couleur }}
                   >
                     {i.creneau.activite.nom}
-                  </p>
+                  </Link>
                   <p className="text-xs text-slate-400">
                     {JOUR_LABELS[i.creneau.jour]} {i.creneau.heureDebut}–
                     {i.creneau.heureFin}
@@ -385,13 +387,19 @@ export default async function MesActivitesPage({
                 <div>
                   {/* Le nom porte sa couleur, comme partout ailleurs : sur un
                       historique où les mêmes intitulés se répètent, c'est elle
-                      qu'on suit du regard plutôt que de relire chaque ligne. */}
-                  <p
-                    className="font-medium"
+                      qu'on suit du regard plutôt que de relire chaque ligne.
+
+                      Et il filtre l'écran sur son activité : devant une liste
+                      qui mélange trois sports, la question suivante est
+                      toujours « et celui-là, ça donne quoi ? ». Le nom est déjà
+                      ce qu'on vise du doigt — autant qu'il réponde. */}
+                  <Link
+                    href={`/mes-activites?activite=${p.seance.creneau.activiteId}`}
+                    className="font-medium hover:underline"
                     style={{ color: p.seance.creneau.activite.couleur }}
                   >
                     {p.seance.creneau.activite.nom}
-                  </p>
+                  </Link>
                   <p className="text-xs text-slate-400">{fmtDateLongue(p.seance.date)}</p>
                 </div>
                 <Badge color={ETAT_COLORS[p.etat]}>{ETAT_COURT[p.etat]}</Badge>
