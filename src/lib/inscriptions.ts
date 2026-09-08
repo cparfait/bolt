@@ -606,8 +606,9 @@ export async function promouvoirListeAttente(creneauId: string) {
   // « vous êtes n° 3 » reste vrai côté agent.
   await renumeroterFile(creneauId);
   await audit("INSCRIPTION_PROMUE", {
-    userId: suivant.userId,
+    cibleId: suivant.userId,
     cible: suivant.creneau.activite.nom,
+    details: "depuis la liste d'attente",
   });
   return suivant;
 }

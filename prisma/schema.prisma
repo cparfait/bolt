@@ -545,9 +545,19 @@ model AdAccount {
 model AuditLog {
   id        String   @id @default(cuid())
   action    String // CONNEXION, EMARGEMENT, INSCRIPTION_VALIDEE…
+  // Qui a agi. Nul quand personne n'était connecté : tâche de fond, animateur
+  // par lien, lien reçu par courriel — `acteur` prend alors le relais.
   userId    String?
   acteur    String? // libellé lisible quand il n'y a pas d'utilisateur (animateur par lien)
   cible     String?
+  // Sur QUI l'action a porté, quand c'est quelqu'un de connu.
+  //
+  // Distinct de `userId` — l'acteur — et de `cible`, qui n'est qu'un libellé
+  // lisible : « Camille MARTIN → Yoga » ne se retrouve par aucune requête. Sans
+  // cette colonne, le journal ne répondait qu'à « qu'a fait cette personne ? »,
+  // jamais à « que lui a-t-on fait ? » — or c'est la seconde question qu'on se
+  // pose devant une fiche : qui l'a retirée de son créneau, et quand.
+  cibleId   String?
   details   String?
   ip        String?
   createdAt DateTime @default(now())
@@ -556,6 +566,7 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([action])
+  @@index([cibleId])
 }
 
 enum DemandeAccesStatut {

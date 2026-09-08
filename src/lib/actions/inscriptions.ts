@@ -110,6 +110,7 @@ export async function desisterAction(
 
   await audit("INSCRIPTION_DESISTEE", {
     userId: user.id,
+    cibleId: inscription.userId,
     cible: inscription.creneau.activite.nom,
   });
 
@@ -152,6 +153,7 @@ export async function deciderInscription(
     });
     await audit("INSCRIPTION_VALIDEE", {
       userId: admin.id,
+      cibleId: inscription.userId,
       cible: `${inscription.user.displayName} → ${inscription.creneau.activite.nom}`,
     });
     const adresse = adresseDeContact(inscription.user);
@@ -182,7 +184,8 @@ export async function deciderInscription(
     });
     await audit("INSCRIPTION_EN_ATTENTE", {
       userId: admin.id,
-      cible: inscription.user.displayName,
+      cibleId: inscription.userId,
+      cible: `${inscription.user.displayName} → ${inscription.creneau.activite.nom}`,
     });
     // Rétrograder un inscrit libère sa place : la file avance, comme sur un
     // désistement. Sans cela elle restait figée jusqu'au prochain départ.
@@ -205,7 +208,8 @@ export async function deciderInscription(
     await renumeroterFile(inscription.creneauId);
     await audit("INSCRIPTION_REFUSEE", {
       userId: admin.id,
-      cible: inscription.user.displayName,
+      cibleId: inscription.userId,
+      cible: `${inscription.user.displayName} → ${inscription.creneau.activite.nom}`,
       details: motif,
     });
     // Refuser une inscription déjà validée rend sa place au groupe.
@@ -278,6 +282,7 @@ export async function inscrireAgentAction(
 
   await audit("INSCRIPTION_MANUELLE", {
     userId: admin.id,
+    cibleId: userId,
     cible: `${agent.displayName} → ${creneau.activite.nom}`,
   });
 

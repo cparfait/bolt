@@ -320,6 +320,7 @@ export async function changerRole(userId: string, role: string): Promise<void> {
   });
   await audit("ROLE_MODIFIE", {
     userId: admin.id,
+    cibleId: userId,
     cible: cible.login,
     details: `${cible.role} → ${role}`,
   });
@@ -348,7 +349,7 @@ export async function basculerUtilisateur(userId: string): Promise<void> {
     });
   } else {
     await prisma.user.update({ where: { id: userId }, data: { active: true } });
-    await audit("COMPTE_ACTIVE", { userId: admin.id, cible: cible.login });
+    await audit("COMPTE_ACTIVE", { userId: admin.id, cibleId: userId, cible: cible.login });
   }
   revalidatePath("/parametres/utilisateurs");
 }

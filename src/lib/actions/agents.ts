@@ -282,6 +282,7 @@ export async function creerAgentHorsAnnuaire(
 
   await audit("AGENT_HORS_ANNUAIRE_CREE", {
     userId: admin.id,
+    cibleId: user.id,
     cible: nom,
     details: user.login,
   });
@@ -367,6 +368,7 @@ export async function modifierEmailAgent(
   });
   await audit("AGENT_EMAIL_MODIFIE", {
     userId: admin.id,
+    cibleId: agent.id,
     cible: agent.displayName,
     details: email || "adresse retirée",
   });
@@ -497,6 +499,7 @@ export async function rattacherCompteAd(
     });
     await audit("AGENT_RATTACHE_AD", {
       userId: admin.id,
+      cibleId: source.id,
       cible: source.displayName,
       details: `${source.login} → ${ad.login} (renommage, historique conservé)`,
     });
@@ -617,6 +620,7 @@ export async function rattacherCompteAd(
 
   await audit("AGENT_FUSIONNE_AD", {
     userId: admin.id,
+    cibleId: existant.id,
     cible: existant.displayName,
     details: `${source.login} fusionné dans ${existant.login} — ${bilan.inscriptions} inscription(s), ${bilan.presences} présence(s), ${bilan.absences} absence(s), ${bilan.doublons} doublon(s) écarté(s)`,
   });
@@ -751,7 +755,7 @@ export async function reactiverAgent(userId: string): Promise<void> {
   const cible = await prisma.user.findUnique({ where: { id: userId } });
   if (!cible || cible.active) return;
   await prisma.user.update({ where: { id: userId }, data: { active: true } });
-  await audit("COMPTE_ACTIVE", { userId: admin.id, cible: cible.login });
+  await audit("COMPTE_ACTIVE", { userId: admin.id, cibleId: userId, cible: cible.login });
   revalidatePath(`/agents/${userId}`);
   revalidatePath("/agents");
 }
@@ -837,6 +841,7 @@ export async function modifierServiceAgent(
     });
     await audit("AGENT_SERVICE_MODIFIE", {
       userId: admin.id,
+      cibleId: agent.id,
       cible: agent.displayName,
       details: service ? `repris de l'annuaire : ${service}` : "repris de l'annuaire : aucun",
     });
@@ -862,6 +867,7 @@ export async function modifierServiceAgent(
   });
   await audit("AGENT_SERVICE_MODIFIE", {
     userId: admin.id,
+    cibleId: agent.id,
     cible: agent.displayName,
     details: service ?? "aucun service",
   });

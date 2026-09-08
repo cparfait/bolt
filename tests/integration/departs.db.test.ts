@@ -8,6 +8,7 @@ import {
   desinscrireDeTout,
 } from "../../src/lib/departs";
 import { setSetting } from "../../src/lib/settings";
+import { journalDe } from "../../src/lib/journal";
 
 /**
  * Départs — désactivation d'un compte et retrait de ses activités.
@@ -241,6 +242,26 @@ describe("desactiverCompte", () => {
     assert.equal(ligne?.acteur, "Synchronisation");
     assert.match(ligne?.details ?? "", /compte absent de l'annuaire/);
     assert.match(ligne?.details ?? "", /1 inscription/);
+    // La personne visée doit être désignée par son identifiant, et pas
+    // seulement nommée : c'est ce qui rend la ligne retrouvable depuis sa fiche.
+    assert.equal(ligne?.cibleId, c.agents[0]);
+  });
+
+  it("fait remonter le départ au journal de l'agent, qui n'en est pas l'auteur", async () => {
+    const c = await contexte({ capacite: 2, agents: 1 });
+    await desactiverCompte(c.agents[0], {
+      acteur: "Synchronisation",
+      desinscrire: false,
+      motif: "compte absent de l'annuaire",
+    });
+
+    const lignes = await journalDe(c.agents[0]);
+    const depart = lignes.find((l) => l.action === "COMPTE_DESACTIVE");
+    assert.ok(depart, "la fiche doit montrer ce qu'on a fait au compte");
+    assert.equal(depart?.libelle, "Accès fermé");
+    // L'auteur est nommé parce que ce n'est pas l'agent : c'est précisément
+    // l'information qu'on vient chercher — « qui m'a fermé l'accès ? ».
+    assert.equal(depart?.acteur, "Synchronisation");
   });
 
   it("reste sans effet sur un compte inconnu", async () => {

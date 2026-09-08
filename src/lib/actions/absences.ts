@@ -71,6 +71,7 @@ export async function declarerAbsencePourAgent(
 
   await audit("ABSENCE_ANNONCEE", {
     userId: acteur.id,
+    cibleId: userId,
     cible: `${agent.displayName} — ${seance.creneau.activite.nom} ${seance.date.toISOString().slice(0, 10)}`,
     details: motif || "saisie par le service des sports",
   });
@@ -90,7 +91,7 @@ export async function annulerAbsencePourAgent(
   const acteur = await requireUser("GESTIONNAIRE");
   const supprimees = await prisma.absenceAnnoncee.deleteMany({ where: { seanceId, userId } });
   if (supprimees.count === 0) return;
-  await audit("ABSENCE_ANNULEE", { userId: acteur.id, cible: userId });
+  await audit("ABSENCE_ANNULEE", { userId: acteur.id, cibleId: userId });
   revalidatePath(`/agents/${userId}`);
   revalidatePath(`/seances/${seanceId}`);
 }
@@ -143,6 +144,7 @@ export async function declarerAbsence(
 
   await audit("ABSENCE_ANNONCEE", {
     userId: user.id,
+    cibleId: user.id,
     cible: retenues.length === 1 ? retenues[0].libelle : `${retenues.length} séances`,
     details: motif || undefined,
   });
@@ -184,6 +186,7 @@ export async function annulerAbsence(seanceIds: string[]): Promise<void> {
 
   await audit("ABSENCE_ANNULEE", {
     userId: user.id,
+    cibleId: user.id,
     cible:
       supprimees.count === 1
         ? `${seances[0].creneau.activite.nom} ${seances[0].date.toISOString().slice(0, 10)}`

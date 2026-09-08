@@ -115,6 +115,7 @@ export async function desactiverCompte(
 
   await audit("COMPTE_DESACTIVE", {
     acteur: options.acteur,
+    cibleId: userId,
     cible: user.login,
     details: options.desinscrire
       ? `${options.motif} — ${depart.inscriptionsRetirees} inscription(s) retirée(s)`
@@ -200,6 +201,6 @@ export async function anonymiserCompte(
     }),
   ]);
 
-  await audit("COMPTE_ANONYMISE", { cible: nom, details: `par ${auteur}` });
+  await audit("COMPTE_ANONYMISE", { cibleId: userId, cible: nom, details: `par ${auteur}` });
   return { applique: true, nom };
 }

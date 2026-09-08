@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarX2, Mail } from "lucide-react";
+import { ArrowLeft, CalendarX2, History, Mail } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
@@ -29,6 +29,7 @@ import {
   SupprimerIdentite,
 } from "@/components/fiche-agent-actions";
 import { compterInscriptionsVivantes } from "@/lib/departs";
+import { journalDe } from "@/lib/journal";
 import { servicesProposes } from "@/lib/services";
 import {
   ETAT_COLORS,
@@ -39,7 +40,30 @@ import {
   pluriel,
 } from "@/lib/constants";
 
-/** Fiche d'un agent : ce à quoi il est inscrit, et s'il vient réellement. */
+/**
+ * Fiche d'un agent : ce à quoi il est inscrit, et s'il vient réellement.
+ *
+ * ── L'ordre de l'écran ────────────────────────────────────────────────────
+ *
+ * Ce qu'on vient lire d'abord, ce qu'on vient faire ensuite, ce qui est rare
+ * tout en bas. La fiche présentait l'inverse : sept blocs dépliables — service,
+ * adresse, rattachement, inscrire, absence, départ, suppression — empilés sur
+ * toute la largeur avant la moindre information, si bien qu'il fallait faire
+ * défiler un mur de titres gris pour apprendre à quoi la personne est inscrite.
+ * Or on ouvre une fiche pour savoir, et seulement ensuite pour agir.
+ *
+ * Les inscriptions, les présences et le journal passent donc devant, et les
+ * sept panneaux se rangent dans une seule zone « Gérer ce compte », en grille :
+ * un bloc visuel au lieu de sept barres. Aucun n'a été retiré — ils gardent
+ * leur titre et leur sous-titre, qui disent déjà ce qu'ils font.
+ */
+/**
+ * Lignes de journal affichées. Assez pour couvrir la vie récente d'un compte —
+ * une inscription, quelques absences, une correction de service — sans faire de
+ * la fiche un écran de journal : le journal complet est dans Paramètres.
+ */
+const JOURNAL_AFFICHE = 25;
+
 export default async function FicheAgent({
   params,
   searchParams,
@@ -76,6 +100,7 @@ export default async function FicheAgent({
     seancesAVenir,
     servicesReferentiel,
     miroirAd,
+    journal,
   ] = await Promise.all([
     prisma.inscription.findMany({
       where: { userId: id, ...(saison ? { creneau: { saisonId: saison.id } } : {}) },
@@ -125,6 +150,7 @@ export default async function FicheAgent({
       where: { samAccountName: { equals: agent.login, mode: "insensitive" } },
       select: { service: true },
     }),
+    journalDe(id, JOURNAL_AFFICHE),
   ]);
 
   const dejaPositionne = new Set(
@@ -221,108 +247,6 @@ export default async function FicheAgent({
           Fiches fusionnées. L&apos;historique du participant hors annuaire a été
           repris sur ce compte, et l&apos;agent le retrouvera à sa prochaine
           connexion.
-        </div>
-      )}
-
-      {/* Le service d'abord : c'est la question qu'on se pose devant une fiche
-          (« il est de quel service ? »), et le sous-titre y répond sans ouvrir
-          le bloc. Le formulaire sert quand l'annuaire se trompe ou retarde. */}
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
-        <Panneau
-          titre="Service"
-          sousTitre={
-            agent.service
-              ? `${agent.service}${agent.serviceForce ? " — décidé à la main" : ""}`
-              : "Aucun service connu"
-          }
-        >
-          <ServiceAgentForm
-            userId={agent.id}
-            service={agent.service}
-            force={agent.serviceForce}
-            brut={miroirAd?.service ?? null}
-            services={servicesReferentiel}
-          />
-        </Panneau>
-        {/* Modifiable pour les seuls participants hors annuaire. L'adresse d'un
-            compte AD vient de l'annuaire : la saisir ici permettrait de détourner
-            son lien de connexion — voir modifierEmailAgent. */}
-        <Panneau
-          titre="Adresse de contact"
-          sousTitre={
-            !horsAnnuaire
-              ? "Celle de l'annuaire, en lecture seule"
-              : agent.emailContact || agent.email
-                ? "Elle commande tout ce que l'application lui envoie"
-                : "Aucune adresse connue : sans elle, l'application ne peut rien lui envoyer"
-          }
-        >
-          <EmailAgentForm
-            userId={agent.id}
-            emailContact={agent.emailContact}
-            emailAnnuaire={agent.email}
-            modifiable={adresseModifiable}
-          />
-        </Panneau>
-        {horsAnnuaire && (
-          <Panneau
-            titre="Rattacher à un compte Active Directory"
-            sousTitre="Son compte a fini par être créé"
-          >
-            <RattacherAdForm userId={agent.id} />
-          </Panneau>
-        )}
-      </div>
-
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
-        <Panneau
-          titre="Inscrire à une activité"
-          sousTitre="Pour une demande reçue par un autre canal"
-        >
-          <InscrireDepuisFiche login={agent.login} creneaux={creneauxProposables} />
-        </Panneau>
-        <Panneau
-          titre="Signaler une absence"
-          sousTitre="L'agent a prévenu par téléphone ou au bureau"
-        >
-          <AbsencePourAgent userId={agent.id} seances={seancesProposables} />
-        </Panneau>
-      </div>
-
-      {/* Départ. En bas de fiche, après tout ce qui sert au quotidien : c'est un
-          geste rare, et sa place ne doit pas être sous le pouce. */}
-      <div className="mb-6">
-        <Panneau
-          titre={agent.active ? "Départ de l'agent" : "Compte désactivé"}
-          sousTitre={
-            agent.active
-              ? "Fermer son accès, et rendre ses places"
-              : "Il ne peut plus se connecter"
-          }
-        >
-          {agent.active ? (
-            <DesactiverAgent
-              userId={agent.id}
-              nom={agent.displayName}
-              inscriptions={inscriptionsVivantes}
-            />
-          ) : (
-            <ReactiverAgent userId={agent.id} />
-          )}
-        </Panneau>
-      </div>
-
-      {/* Suppression de l'identité : après le départ, parce qu'elle vient après
-          dans la vie du compte, et réservée à l'ADMIN. Une fiche déjà anonymisée
-          n'affiche rien — il n'y a plus d'identité à effacer. */}
-      {estAdmin && !agent.anonymiseAt && (
-        <div className="mb-6">
-          <Panneau
-            titre="Supprimer l'identité"
-            sousTitre="À la demande de la personne, ou au terme de la conservation"
-          >
-            <SupprimerIdentite userId={agent.id} nom={agent.displayName} />
-          </Panneau>
         </div>
       )}
 
@@ -426,6 +350,157 @@ export default async function FicheAgent({
           )}
         </Card>
       </div>
+
+      {/* Le journal ferme la lecture : il explique ce que les cartes du dessus
+          montrent sans le dire — pourquoi une inscription est désistée, qui a
+          fermé l'accès, quand l'adresse a changé. Sans lui, la réponse à
+          « pourquoi ne suis-je plus inscrit ? » demandait d'ouvrir le journal
+          de la DSI et d'y chercher un nom à la main. */}
+      <Card
+        title="Journal du compte"
+        className="mt-6"
+        action={
+          <span className="flex items-center gap-1.5 text-xs text-slate-400">
+            <History className="h-3.5 w-3.5" />
+            {/* « les N derniers » n'a de sens que si la liste est tronquée :
+                trois lignes affichées sur trois, ce sont les trois, pas les
+                trois dernières. */}
+            {journal.length === JOURNAL_AFFICHE
+              ? `${JOURNAL_AFFICHE} derniers événements`
+              : `${journal.length} ${pluriel(journal.length, "événement")}`}
+          </span>
+        }
+      >
+        {journal.length === 0 ? (
+          <EmptyState
+            title="Rien au journal pour ce compte"
+            hint="Les connexions, inscriptions et décisions le concernant s'inscriront ici."
+          />
+        ) : (
+          <ul className="divide-y divide-slate-100 text-sm">
+            {journal.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2">
+                <span className="w-32 shrink-0 tabular-nums text-xs text-slate-400">
+                  {fmtHorodatage(l.quand)}
+                </span>
+                <span className="font-medium">{l.libelle}</span>
+                {l.cible && <span className="text-slate-500">{l.cible}</span>}
+                {l.details && (
+                  <span className="text-xs text-slate-400">{l.details}</span>
+                )}
+                {/* Nul quand c'est l'agent lui-même : le répéter à chaque ligne
+                    noierait les rares où quelqu'un d'autre est intervenu. */}
+                {l.acteur && (
+                  <span className="text-xs text-slate-400">par {l.acteur}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {/* Tout ce qui modifie le compte, en un seul endroit et en grille. Ces
+          panneaux étaient dispersés sur toute la hauteur de la fiche, chacun
+          sur sa propre ligne : sept barres grises fermées qu'il fallait
+          traverser avant d'atteindre la moindre information. */}
+      <section className="mt-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Gérer ce compte
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Panneau
+            titre="Inscrire à une activité"
+            sousTitre="Pour une demande reçue par un autre canal"
+          >
+            <InscrireDepuisFiche login={agent.login} creneaux={creneauxProposables} />
+          </Panneau>
+          <Panneau
+            titre="Signaler une absence"
+            sousTitre="L'agent a prévenu par téléphone ou au bureau"
+          >
+            <AbsencePourAgent userId={agent.id} seances={seancesProposables} />
+          </Panneau>
+
+          {/* Le service reste en tête des blocs d'identité : c'est la question
+              qu'on se pose devant une fiche, et le sous-titre y répond sans
+              même l'ouvrir. Le formulaire sert quand l'annuaire retarde. */}
+          <Panneau
+            titre="Service"
+            sousTitre={
+              agent.service
+                ? `${agent.service}${agent.serviceForce ? " — décidé à la main" : ""}`
+                : "Aucun service connu"
+            }
+          >
+            <ServiceAgentForm
+              userId={agent.id}
+              service={agent.service}
+              force={agent.serviceForce}
+              brut={miroirAd?.service ?? null}
+              services={servicesReferentiel}
+            />
+          </Panneau>
+          {/* Modifiable pour les seuls participants hors annuaire. L'adresse
+              d'un compte AD vient de l'annuaire : la saisir ici permettrait de
+              détourner son lien de connexion — voir modifierEmailAgent. */}
+          <Panneau
+            titre="Adresse de contact"
+            sousTitre={
+              !horsAnnuaire
+                ? "Celle de l'annuaire, en lecture seule"
+                : agent.emailContact || agent.email
+                  ? "Elle commande tout ce que l'application lui envoie"
+                  : "Aucune adresse connue : sans elle, l'application ne peut rien lui envoyer"
+            }
+          >
+            <EmailAgentForm
+              userId={agent.id}
+              emailContact={agent.emailContact}
+              emailAnnuaire={agent.email}
+              modifiable={adresseModifiable}
+            />
+          </Panneau>
+          {horsAnnuaire && (
+            <Panneau
+              titre="Rattacher à un compte Active Directory"
+              sousTitre="Son compte a fini par être créé"
+            >
+              <RattacherAdForm userId={agent.id} />
+            </Panneau>
+          )}
+
+          {/* Départ et suppression en dernier : gestes rares, et l'un vient
+              après l'autre dans la vie d'un compte. La suppression d'identité
+              est irréversible et reste à la DSI ; une fiche déjà anonymisée
+              n'affiche rien, il n'y a plus d'identité à effacer. */}
+          <Panneau
+            titre={agent.active ? "Départ de l'agent" : "Compte désactivé"}
+            sousTitre={
+              agent.active
+                ? "Fermer son accès, et rendre ses places"
+                : "Il ne peut plus se connecter"
+            }
+          >
+            {agent.active ? (
+              <DesactiverAgent
+                userId={agent.id}
+                nom={agent.displayName}
+                inscriptions={inscriptionsVivantes}
+              />
+            ) : (
+              <ReactiverAgent userId={agent.id} />
+            )}
+          </Panneau>
+          {estAdmin && !agent.anonymiseAt && (
+            <Panneau
+              titre="Supprimer l'identité"
+              sousTitre="À la demande de la personne, ou au terme de la conservation"
+            >
+              <SupprimerIdentite userId={agent.id} nom={agent.displayName} />
+            </Panneau>
+          )}
+        </div>
+      </section>
     </>
   );
 }

@@ -68,6 +68,7 @@ export async function basculerAbsenceParLien(
     await prisma.absenceAnnoncee.delete({ where: { id: dejaAnnoncee.id } });
     await audit("ABSENCE_ANNULEE", {
       userId,
+      cibleId: userId,
       cible: seance.creneau.activite.nom,
       details: "depuis le courriel de rappel",
     });
@@ -75,6 +76,7 @@ export async function basculerAbsenceParLien(
     await prisma.absenceAnnoncee.create({ data: { seanceId, userId } });
     await audit("ABSENCE_ANNONCEE", {
       userId,
+      cibleId: userId,
       cible: seance.creneau.activite.nom,
       details: "depuis le courriel de rappel",
     });
@@ -127,6 +129,7 @@ export async function rendreSaPlaceParLien(
 
   await audit("INSCRIPTION_DESISTEE", {
     userId: inscription.userId,
+    cibleId: inscription.userId,
     cible: inscription.creneau.activite.nom,
     details: "place rendue depuis le courriel de promotion",
   });

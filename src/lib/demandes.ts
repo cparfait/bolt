@@ -239,6 +239,7 @@ export async function validerDemande(
 
   await audit("DEMANDE_ACCES_VALIDEE", {
     userId: gestionnaire.id,
+    cibleId: user.id,
     cible: demande.nom,
     details: user.login,
   });
