@@ -143,6 +143,41 @@ export async function enregistrerPresence(
   });
 }
 
+/**
+ * Porte sur la feuille les absences que les agents avaient annoncées, pour ceux
+ * que l'animateur n'a pas pointés.
+ *
+ * Une absence annoncée n'est qu'une intention : elle ne crée pas de présence,
+ * et c'est voulu — la poser à l'avance ferait basculer la séance en « émargée »
+ * des semaines avant qu'elle ait lieu, et créditerait un constat que personne
+ * n'a fait (voir `AbsenceAnnoncee`, prisma/schema.prisma). Mais au moment de
+ * clore la feuille, l'intention est devenue un fait : la personne avait prévenu
+ * qu'elle ne viendrait pas, et l'animateur ne l'a pas pointée.
+ *
+ * Sans cette reprise, l'agent qui prévient disparaissait purement et simplement
+ * du bilan de la séance — ni présent, ni absent —, si bien que prévenir revenait
+ * à se faire oublier des statistiques, tandis que celui qui ne disait rien était
+ * pointé absent. Exactement l'inverse de ce qu'on veut encourager.
+ *
+ * Ne touche à personne d'autre : un inscrit sans pointage et sans annonce reste
+ * sans ligne, parce que là, on ne sait effectivement pas.
+ */
+export async function reprendreAbsencesAnnoncees(
+  seanceId: string,
+  saisiPar: string,
+): Promise<number> {
+  const [annoncees, deja] = await Promise.all([
+    prisma.absenceAnnoncee.findMany({ where: { seanceId }, select: { userId: true } }),
+    prisma.presence.findMany({ where: { seanceId }, select: { userId: true } }),
+  ]);
+  const pointes = new Set(deja.map((p) => p.userId));
+  const aReprendre = annoncees.filter((a) => !pointes.has(a.userId));
+  for (const a of aReprendre) {
+    await enregistrerPresence(seanceId, a.userId, "ABSENT", saisiPar);
+  }
+  return aReprendre.length;
+}
+
 /** Retire une ligne de la feuille (correction d'un pointage erroné). */
 export async function retirerPresence(seanceId: string, userId: string): Promise<void> {
   await prisma.presence.deleteMany({ where: { seanceId, userId } });

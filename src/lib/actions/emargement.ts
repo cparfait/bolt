@@ -14,7 +14,11 @@ import {
 } from "@/lib/coach-access";
 import { rateLimit } from "@/lib/rate-limit";
 import { aujourdhui, jourUtc } from "@/lib/dates";
-import { enregistrerPresence, saisieOuverte } from "@/lib/emargement";
+import {
+  enregistrerPresence,
+  reprendreAbsencesAnnoncees,
+  saisieOuverte,
+} from "@/lib/emargement";
 import { participeALaSeance } from "@/lib/inscriptions";
 import { notifierSeanceRetablie, notifierSeancesAnnulees } from "@/lib/notifications";
 import { clientIp } from "@/lib/net";
@@ -144,6 +148,11 @@ export async function cloturerEmargement(
   const { coach, seance } = ctx;
   if (seance.clotureeAt) return succes("Feuille déjà transmise.");
 
+  // Avant de figer : ceux qui avaient prévenu et que l'animateur n'a pas
+  // pointés passent absents. Prévenir ne doit pas revenir à se faire oublier
+  // du bilan (voir `reprendreAbsencesAnnoncees`).
+  const reprises = await reprendreAbsencesAnnoncees(seanceId, "absence annoncée");
+
   const pointes = await prisma.presence.count({ where: { seanceId } });
   if (pointes === 0) {
     return erreur("Pointez au moins un participant avant de transmettre la feuille.");
@@ -160,6 +169,7 @@ export async function cloturerEmargement(
   await audit("SEANCE_CLOTUREE", {
     acteur: `${coach.prenom} ${coach.nom}`,
     cible: `${seance.creneau.activite.nom} ${seance.date.toISOString().slice(0, 10)}`,
+    details: reprises > 0 ? `${reprises} absence(s) annoncée(s) reprise(s)` : undefined,
   });
 
   revalidatePath(`/emargement/${token}`);

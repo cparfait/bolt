@@ -6,7 +6,11 @@ import { prisma } from "@/lib/db";
 import { estGestionnaire, requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { aujourdhui } from "@/lib/dates";
-import { enregistrerPresence, retirerPresence } from "@/lib/emargement";
+import {
+  enregistrerPresence,
+  reprendreAbsencesAnnoncees,
+  retirerPresence,
+} from "@/lib/emargement";
 import { inscrireDirectement } from "@/lib/inscriptions";
 import { notifierSeancesAnnulees } from "@/lib/notifications";
 import { assurerCompteAgent } from "./agents";
@@ -212,11 +216,18 @@ export async function cloturerSeance(seanceId: string): Promise<void> {
   const acteur = await requireUser();
   const seance = await seanceAutorisee(seanceId, acteur.id, acteur.role);
   if (!seance) return;
+  // Même reprise que sur la feuille de l'animateur : les deux chemins de
+  // clôture doivent laisser la même feuille derrière eux.
+  const reprises = await reprendreAbsencesAnnoncees(seanceId, "absence annoncée");
   await prisma.seance.update({
     where: { id: seanceId },
     data: { clotureeAt: new Date(), clotureePar: acteur.displayName },
   });
-  await audit("SEANCE_CLOTUREE", { userId: acteur.id, cible: seanceId });
+  await audit("SEANCE_CLOTUREE", {
+    userId: acteur.id,
+    cible: seanceId,
+    details: reprises > 0 ? `${reprises} absence(s) annoncée(s) reprise(s)` : undefined,
+  });
   revalidatePath(`/seances/${seanceId}`);
 }
 

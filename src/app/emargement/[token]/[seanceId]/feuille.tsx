@@ -137,6 +137,11 @@ export function Feuille({
                 <p className="mb-2.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
                   A prévenu de son absence
                   {l.motifAbsence ? ` — « ${l.motifAbsence} »` : ""}
+                  {etat === null && (
+                    <span className="block text-amber-700">
+                      Comptée absente à la transmission, sans rien toucher.
+                    </span>
+                  )}
                 </p>
               )}
 
@@ -144,6 +149,12 @@ export function Feuille({
                 {CHOIX.map((c) => {
                   const Icone = c.icone;
                   const actif = etat === c.etat;
+                  // Personne qui a prévenu et que l'animateur n'a pas encore
+                  // touchée : « Absent(e) » s'affiche déjà retenu, en creux. Ce
+                  // n'est pas un pointage — rien n'est écrit tant que la feuille
+                  // n'est pas transmise —, mais l'animateur n'a rien à faire
+                  // pour que cette absence compte, et il le voit.
+                  const prevu = etat === null && l.absenceAnnoncee && c.etat === "ABSENT";
                   return (
                     <button
                       key={c.etat}
@@ -153,7 +164,11 @@ export function Feuille({
                       aria-pressed={actif}
                       aria-label={`${l.nom} — ${c.label}`}
                       className={`flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium transition active:scale-95 disabled:opacity-60 ${
-                        actif ? c.actif : "bg-slate-50 text-slate-500"
+                        actif
+                          ? c.actif
+                          : prevu
+                            ? "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200"
+                            : "bg-slate-50 text-slate-500"
                       }`}
                     >
                       <Icone className="h-4 w-4" />
