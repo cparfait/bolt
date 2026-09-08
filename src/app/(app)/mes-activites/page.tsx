@@ -175,11 +175,13 @@ export default async function MesActivitesPage({
           voit qu'un écran à la fois et où le menu est replié.
           Le même composant, la même source : ce n'est pas un doublon à tenir à
           jour, c'est une seconde porte sur la même pièce. */}
-      {prochaines.length > 0 && (
-        <div className="mb-6">
-          <MesSeances seances={prochaines} />
-        </div>
-      )}
+      {/* Affichée même vide, et c'est le point : masquée faute de séance, la
+          carte laissait croire que l'application ne sait pas prévenir d'une
+          absence — alors qu'elle dit seulement qu'on n'est inscrit à rien. Son
+          état vide renvoie au catalogue, qui est juste en dessous. */}
+      <div className="mb-6">
+        <MesSeances seances={prochaines} />
+      </div>
 
       {quotaAtteint && (
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
