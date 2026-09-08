@@ -14,6 +14,20 @@
 #
 #  Mise à jour : git pull + docker build (commandes ci-dessus), puis
 #  « Update the stack » avec « Re-pull image and redeploy » dans Portainer.
+#
+#  ⚠ `docker image prune -a` DÉTRUIT cette image.
+#
+#  C'est le prix d'une image construite sur place : aucun registre ne sait la
+#  restituer. Un élagage fait pendant que la stack est arrêtée l'emporte, et le
+#  redéploiement échoue ensuite sur « pull access denied for bolt » — Docker
+#  cherche à retrouver ailleurs ce qui n'existait qu'ici. La réparation tient en
+#  une ligne, celle du build ci-dessus.
+#
+#  Les données, elles, ne risquent rien : la base vit dans un répertoire de
+#  l'hôte (bind mount), qu'aucune commande d'élagage ne touche.
+#
+#  Préférez `docker image prune` sans `-a` : il ne retire que les couches
+#  orphelines, jamais une image portant un nom.
 # ============================================================================
 services:
   db:
