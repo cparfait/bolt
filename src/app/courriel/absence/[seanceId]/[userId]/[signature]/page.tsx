@@ -91,7 +91,7 @@ export default async function AbsencePage({
             {seance.creneau.lieu}
             {itineraire && (
               <>
-                {" · "}
+                {" "}
                 <Itineraire href={itineraire} />
               </>
             )}

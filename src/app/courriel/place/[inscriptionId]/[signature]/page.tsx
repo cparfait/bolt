@@ -64,7 +64,7 @@ export default async function PlacePage({
             {creneau.lieu}
             {itineraire && (
               <>
-                {" · "}
+                {" "}
                 <Itineraire href={itineraire} />
               </>
             )}

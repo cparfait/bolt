@@ -125,8 +125,8 @@ export default async function FeuillePage({
               {seance.creneau.lieu}
               {itineraire && (
                 <>
-                  {" · "}
-                  <Itineraire href={itineraire} className="!text-white underline" />
+                  {" "}
+                  <Itineraire href={itineraire} className="bg-white/20 text-white hover:bg-white/30" />
                 </>
               )}
             </p>

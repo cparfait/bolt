@@ -191,7 +191,7 @@ export default async function TableauDeBord({
                     {i.creneau.lieu ? ` · ${i.creneau.lieu}` : ""}
                     {itineraireDe(i.creneau.lieu, adresses) && (
                       <>
-                        {" · "}
+                        {" "}
                         <Itineraire href={itineraireDe(i.creneau.lieu, adresses)} />
                       </>
                     )}

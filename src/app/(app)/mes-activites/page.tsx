@@ -160,7 +160,7 @@ export default async function MesActivitesPage({
                     {i.creneau.lieu ? ` · ${i.creneau.lieu}` : ""}
                     {itineraireDe(i.creneau.lieu, adresses) && (
                       <>
-                        {" · "}
+                        {" "}
                         <Itineraire href={itineraireDe(i.creneau.lieu, adresses)} />
                       </>
                     )}
@@ -217,16 +217,6 @@ export default async function MesActivitesPage({
           </p>
         </div>
       )}
-
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Catalogue de la saison
-        </h2>
-        <p className="mt-0.5 text-sm text-slate-400">
-          Toutes les activités proposées, y compris celles où vous n&apos;êtes pas
-          inscrit.
-        </p>
-      </div>
 
       <FiltreActivites
         base="/mes-activites"
@@ -343,27 +333,22 @@ export default async function MesActivitesPage({
                         {/* Aussi lisible que le jour et l'heure au-dessus :
                             c'est l'information qu'on vient chercher, et le gris
                             clair la faisait passer pour une mention secondaire. */}
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-700">
-                          <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+                        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-700">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                           {c.lieu ?? "lieu à préciser"}
-                          {itineraireDe(c.lieu, adresses) && (
-                            <>
-                              {" · "}
-                              <Itineraire href={itineraireDe(c.lieu, adresses)} />
-                            </>
-                          )}
+                          <Itineraire href={itineraireDe(c.lieu, adresses)} />
                           {c.animateurs.length > 0 &&
                             ` · ${c.animateurs.map((a) => `${a.prenom} ${a.nom}`).join(", ")}`}
                         </p>
                         {/* L'agent doit savoir avant de s'inscrire si l'activité
                             s'arrête aux vacances : c'est un critère de choix. */}
                         {nbFermetures > 0 && (
-                          <p className="mt-0.5 flex items-center gap-1 text-xs">
+                          <p className="mt-1 flex items-center gap-1 text-xs text-slate-600">
                             <CalendarOff className="h-3 w-3 shrink-0" />
                             {c.fermeturesMaintenues.length === 0 ? (
-                              <span className="text-slate-400">
-                                pas de séance pendant les vacances scolaires
-                              </span>
+                              /* Gris foncé : en gris clair, la mention était
+                                 presque invisible sur un téléphone. */
+                              <span>pas de séance pendant les vacances scolaires</span>
                             ) : c.fermeturesMaintenues.length === nbFermetures ? (
                               <span className="font-medium text-emerald-700">
                                 séances maintenues pendant les vacances

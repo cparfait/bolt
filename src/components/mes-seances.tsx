@@ -152,7 +152,7 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
                 {s.lieu ? ` · ${s.lieu}` : ""}
                 {s.itineraire && !s.annulee && (
                   <>
-                    {" · "}
+                    {" "}
                     <Itineraire href={s.itineraire} />
                   </>
                 )}
