@@ -106,6 +106,7 @@ export async function reinitialiser(): Promise<DecompteReinitialisation> {
     prisma.presence.deleteMany(),
     prisma.participationPonctuelle.deleteMany(),
     prisma.absenceAnnoncee.deleteMany(),
+    prisma.alerteOuverture.deleteMany(),
     prisma.inscription.deleteMany(),
     prisma.seance.deleteMany(),
     prisma.creneau.deleteMany(),

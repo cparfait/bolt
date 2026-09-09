@@ -17,6 +17,7 @@ import { MesSeances } from "@/components/mes-seances";
 import { prochainesSeancesDe } from "@/lib/absences";
 import { adressesDesLieux, itineraireDe } from "@/lib/lieux";
 import { Itineraire } from "@/components/itineraire";
+import { AlerteOuverture } from "@/components/alerte-ouverture";
 import { getTextesLegaux } from "@/lib/declarations";
 import { FiltreActivites } from "@/components/filtre-activites";
 import { effectifsParActivite, refusDeQuota } from "@/lib/inscriptions";
@@ -130,6 +131,15 @@ export default async function MesActivitesPage({
     ]);
   const parCreneau = new Map(mesInscriptions.map((i) => [i.creneauId, i]));
   const prochaineSeanceDe = new Map(prochainesSeances.map((s) => [s.creneauId, s.date]));
+  // Créneaux fermés sur lesquels l'agent a demandé à être prévenu.
+  const mesAlertes = new Set(
+    (
+      await prisma.alerteOuverture.findMany({
+        where: { userId: user.id },
+        select: { creneauId: true },
+      })
+    ).map((a) => a.creneauId),
+  );
   const attenteParCreneau = new Map<string, number>();
   const attenteParActivite = new Map<string, Set<string>>();
   for (const a of attentes) {
@@ -337,10 +347,16 @@ export default async function MesActivitesPage({
                       )}
                       {/* Le lieu en tête seulement s'il vaut pour plusieurs
                           créneaux : avec un seul, il est déjà juste dessous. */}
-                      {liste.length > 1 && lieux.length === 1 && (
+                      {/* Un seul lieu pour toute l'activité : il se dit ici,
+                          avec son itinéraire, et pas sous chaque créneau. */}
+                      {lieux.length === 1 && (
                         <>
                           <span className="text-slate-300">·</span>
-                          <span>{lieux[0]}</span>
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            {lieux[0]}
+                          </span>
+                          <Itineraire href={itineraireDe(lieux[0], adresses)} />
                         </>
                       )}
                     </p>
@@ -386,14 +402,17 @@ export default async function MesActivitesPage({
                             Prochaine séance : {fmtDateLongue(prochaineSeanceDe.get(c.id)!)}
                           </p>
                         )}
-                        {/* Aussi lisible que le jour et l'heure au-dessus :
-                            c'est l'information qu'on vient chercher, et le gris
-                            clair la faisait passer pour une mention secondaire. */}
-                        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-700">
-                          <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          {c.lieu ?? "lieu à préciser"}
-                          <Itineraire href={itineraireDe(c.lieu, adresses)} />
-                        </p>
+                        {/* Le lieu par créneau seulement quand ils diffèrent :
+                            sinon il est déjà en tête de l'activité. Aussi
+                            lisible que le jour et l'heure au-dessus — c'est
+                            l'information qu'on vient chercher. */}
+                        {lieux.length !== 1 && (
+                          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-700">
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            {c.lieu ?? "lieu à préciser"}
+                            <Itineraire href={itineraireDe(c.lieu, adresses)} />
+                          </p>
+                        )}
                         {/* L'agent doit savoir avant de s'inscrire si l'activité
                             s'arrête aux vacances : c'est un critère de choix. */}
                         {nbFermetures > 0 && (
@@ -480,10 +499,15 @@ export default async function MesActivitesPage({
                              désinscrivant d'un autre. C'est un refus qui vient
                              du service des sports, pas une limite qu'on lève
                              soi-même — l'agent doit s'en apercevoir sans lire. */
-                          <p className="flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700">
-                            <Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
-                            Inscriptions fermées
-                          </p>
+                          <>
+                            <p className="flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700">
+                              <Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
+                              Inscriptions fermées
+                            </p>
+                            {/* « Revenez voir plus tard » ne marche pas ; un
+                                courriel à l'ouverture, si. */}
+                            <AlerteOuverture creneauId={c.id} posee={mesAlertes.has(c.id)} />
+                          </>
                         ) : bloqueParQuota ? (
                           /* Le quota expliqué là où il bloque, avec la sortie :
                              un « Quota atteint » grisé laissait l'agent sans

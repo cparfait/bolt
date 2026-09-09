@@ -11,6 +11,7 @@ import { aujourdhui, fmtDate, jourUtc, normaliserHeure, JOUR_LABELS } from "@/li
 import { genererSeancesCreneau } from "@/lib/seances";
 import { saisonCourante } from "@/lib/saison";
 import { promouvoirTantQuePossible } from "@/lib/inscriptions";
+import { decrireNotificationOuverture, notifierOuverture } from "@/lib/alertes-ouverture";
 import { notifierChangementCreneau } from "@/lib/notifications";
 import { erreur, succes, type ActionState } from "./types";
 
@@ -336,6 +337,7 @@ export async function enregistrerCreneau(
           jour: true,
           heureDebut: true,
           heureFin: true,
+          ouvertInscription: true,
           fermeturesMaintenues: { select: { id: true } },
         },
       })
@@ -364,6 +366,12 @@ export async function enregistrerCreneau(
   // Une capacité relevée libère des places d'un coup : la file avance autant
   // qu'elle le peut, pas d'une seule personne au prochain désistement.
   const promotions = id ? await promouvoirTantQuePossible(creneau.id) : "";
+  // Inscriptions rouvertes par le formulaire : ceux qui attendaient l'ouverture
+  // sont prévenus, comme depuis le bouton Ouvrir de la fiche.
+  const ouverture =
+    avant && !avant.ouvertInscription && data.ouvertInscription
+      ? decrireNotificationOuverture(await notifierOuverture(creneau.id))
+      : "";
 
   await audit(id ? "CRENEAU_MODIFIE" : "CRENEAU_CREE", {
     userId: user.id,
@@ -434,7 +442,7 @@ export async function enregistrerCreneau(
       .join(", ");
     calendrier = `${delta} — ${total} séance${s(total)} au calendrier`;
   }
-  return succes(`Créneau enregistré — ${calendrier}.${notification}${promotions}`);
+  return succes(`Créneau enregistré — ${calendrier}.${notification}${promotions}${ouverture}`);
 }
 
 /**
@@ -564,10 +572,16 @@ export async function basculerInscriptions(creneauId: string): Promise<void> {
     where: { id: creneauId },
     data: { ouvertInscription: !creneau.ouvertInscription },
   });
-  if (!creneau.ouvertInscription) await promouvoirTantQuePossible(creneauId);
+  if (!creneau.ouvertInscription) {
+    await promouvoirTantQuePossible(creneauId);
+    // Ceux qui avaient demandé à être prévenus le sont maintenant : c'est
+    // tout l'intérêt de l'alerte, et le seul moment où elle sert.
+    await notifierOuverture(creneauId);
+  }
   await audit(creneau.ouvertInscription ? "CRENEAU_FERME" : "CRENEAU_OUVERT", {
     userId: user.id,
     cible: creneauId,
   });
   revalidatePath("/activites");
+  revalidatePath("/mes-activites");
 }

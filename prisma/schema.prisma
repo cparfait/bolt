@@ -65,6 +65,7 @@ model User {
   participations ParticipationPonctuelle[]
   auditLogs    AuditLog[]
   magicTokens  MagicToken[]
+  alertesOuverture AlerteOuverture[]
 
   @@index([role])
   @@index([email])
@@ -330,6 +331,7 @@ model Creneau {
   animateurs   Coach[]       @relation("CreneauAnimateur")
   seances      Seance[]
   inscriptions Inscription[]
+  alertesOuverture AlerteOuverture[]
   // Périodes de fermeture pendant lesquelles ce créneau continue malgré tout.
   fermeturesMaintenues Fermeture[] @relation("CreneauMaintenu")
 
@@ -533,6 +535,26 @@ model Inscription {
 
   @@unique([creneauId, userId])
   @@index([statut])
+  @@index([userId])
+}
+
+// Demande d'être prévenu quand un créneau fermé aux inscriptions rouvre.
+//
+// Un créneau fermé, c'est souvent « pas encore » : le service attend un
+// animateur, une salle, une décision. L'agent qui le voit n'a aujourd'hui
+// qu'une option, revenir regarder. Cette ligne dit « prévenez-moi » ; elle
+// s'efface quand le courriel d'ouverture est parti. Ni statut ni rang : ce
+// n'est pas une inscription, c'est une intention.
+model AlerteOuverture {
+  id        String   @id @default(cuid())
+  creneauId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  creneau Creneau @relation(fields: [creneauId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([creneauId, userId])
   @@index([userId])
 }
 
