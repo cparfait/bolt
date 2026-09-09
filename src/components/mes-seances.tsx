@@ -143,7 +143,11 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
                 <span className="first-letter:uppercase">{fmtDateLongue(s.date)}</span> ·{" "}
                 {s.heureDebut}–{s.heureFin}
               </p>
-              <p className={`truncate text-xs text-slate-400 ${s.annulee ? "line-through" : ""}`}>
+              {/* Activité et lieu se lisent autant que la date au-dessus : en
+                  gris clair, on ne savait plus où se rendre sans s'approcher. */}
+              <p
+                className={`truncate text-xs ${s.annulee ? "text-slate-400 line-through" : "text-slate-700"}`}
+              >
                 <span style={s.annulee ? undefined : { color: s.couleur }}>{s.activite}</span>
                 {s.lieu ? ` · ${s.lieu}` : ""}
                 {s.itineraire && !s.annulee && (

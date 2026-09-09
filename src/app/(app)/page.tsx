@@ -185,7 +185,7 @@ export default async function TableauDeBord({
                         : INSCRIPTION_STATUT_LABELS[i.statut]}
                     </Badge>
                   </div>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-slate-700">
                     {JOUR_LABELS[i.creneau.jour]} {i.creneau.heureDebut}–
                     {i.creneau.heureFin}
                     {i.creneau.lieu ? ` · ${i.creneau.lieu}` : ""}

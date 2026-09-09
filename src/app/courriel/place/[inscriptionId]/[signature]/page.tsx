@@ -59,8 +59,8 @@ export default async function PlacePage({
           {fmtHeure(creneau.heureFin)}
         </p>
         {creneau.lieu && (
-          <p className="mt-0.5 flex items-center gap-1 text-sm text-slate-400">
-            <MapPin className="h-3.5 w-3.5 shrink-0" />
+          <p className="mt-0.5 flex items-center gap-1 text-sm text-slate-700">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
             {creneau.lieu}
             {itineraire && (
               <>

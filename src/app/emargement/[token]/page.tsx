@@ -251,7 +251,9 @@ function SectionSeances({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{s.creneau.activite.nom}</p>
-                  <p className="truncate text-[13px] text-slate-500">
+                  {/* Le lieu se lit au même niveau que la date : l'animateur
+                      consulte cet écran dehors, souvent en plein soleil. */}
+                  <p className="truncate text-[13px] text-slate-700">
                     {fmtDateLongue(s.date)} · {fmtHeure(s.creneau.heureDebut)}–
                     {fmtHeure(s.creneau.heureFin)}
                     {s.creneau.lieu ? ` · ${s.creneau.lieu}` : ""}

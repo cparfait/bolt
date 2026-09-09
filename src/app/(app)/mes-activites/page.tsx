@@ -154,7 +154,7 @@ export default async function MesActivitesPage({
                   >
                     {i.creneau.activite.nom}
                   </Link>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-700">
                     {JOUR_LABELS[i.creneau.jour]} {i.creneau.heureDebut}–
                     {i.creneau.heureFin}
                     {i.creneau.lieu ? ` · ${i.creneau.lieu}` : ""}
@@ -340,8 +340,11 @@ export default async function MesActivitesPage({
                         <p className="font-medium">
                           {JOUR_LABELS[c.jour]} · {c.heureDebut}–{c.heureFin}
                         </p>
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
-                          <MapPin className="h-3 w-3" />
+                        {/* Aussi lisible que le jour et l'heure au-dessus :
+                            c'est l'information qu'on vient chercher, et le gris
+                            clair la faisait passer pour une mention secondaire. */}
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-700">
+                          <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
                           {c.lieu ?? "lieu à préciser"}
                           {itineraireDe(c.lieu, adresses) && (
                             <>
