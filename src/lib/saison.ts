@@ -96,3 +96,32 @@ export async function reprendreCreneaux(
 
   return { repris: aReprendre.length, ecartes: creneaux.length - aReprendre.length };
 }
+
+/**
+ * Saison sur laquelle le service travaille : celle demandée par l'écran
+ * (`?saison=…`), sinon la courante.
+ *
+ * C'est ce qui permet de préparer la saison suivante — activités, créneaux,
+ * périodes de fermeture — pendant que l'actuelle tourne : les agents ne
+ * voient que la saison activée (`saisonOuverte`), le service voit celle
+ * qu'il choisit. Un identifiant inconnu retombe sur la courante plutôt que
+ * de produire une page vide.
+ */
+export async function saisonDeTravail(saisonId?: string) {
+  if (saisonId) {
+    const demandee = await prisma.saison.findUnique({ where: { id: saisonId } });
+    if (demandee) return demandee;
+  }
+  return saisonCourante();
+}
+
+export type EtatSaison = "active" | "preparation" | "close";
+
+/** Ce qu'une saison est pour le service, au regard de la date et du drapeau. */
+export function etatSaison(
+  s: { active: boolean; fin: Date },
+  aujourdHui: Date = new Date(),
+): EtatSaison {
+  if (s.active) return "active";
+  return s.fin < aujourdHui ? "close" : "preparation";
+}

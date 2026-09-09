@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Archive, ChevronRight, Plus, RotateCcw, Users } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { saisonCourante } from "@/lib/saison";
+import { saisonDeTravail } from "@/lib/saison";
+import { AvertissementPreparation, SelecteurSaison } from "@/components/selecteur-saison";
 import {
   Badge,
   Card,
@@ -31,11 +32,24 @@ import { BoutonAction } from "@/components/bouton-action";
 export default async function ActivitesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ activite?: string }>;
+  searchParams: Promise<{ activite?: string; saison?: string }>;
 }) {
   await requireUser("GESTIONNAIRE");
-  const { activite: selection } = await searchParams;
-  const saison = await saisonCourante();
+  const { activite: selection, saison: saisonParam } = await searchParams;
+  // La saison choisie dans l'adresse, sinon la courante : c'est ainsi qu'on
+  // prépare la rentrée pendant que la saison en cours tourne.
+  const saison = await saisonDeTravail(saisonParam);
+  const saisons = await prisma.saison.findMany({
+    orderBy: { debut: "desc" },
+    select: { id: true, nom: true, active: true, fin: true },
+  });
+  /** Lien vers une fiche d'activité, en gardant la saison choisie. */
+  const fiche = (activiteId: string, extra: Record<string, string> = {}, ancre = "") => {
+    const q = new URLSearchParams(extra);
+    if (saisonParam) q.set("saison", saisonParam);
+    const s = q.toString();
+    return `/activites/${activiteId}${s ? `?${s}` : ""}${ancre}`;
+  };
 
   if (!saison) {
     return (
@@ -96,14 +110,17 @@ export default async function ActivitesPage({
         title="Activités & créneaux"
         subtitle={`Saison ${saison.nom} — un créneau par séance hebdomadaire`}
       >
+        <SelecteurSaison saisons={saisons} selection={saison.id} base="/activites" />
         <Link href="/activites/nouvelle" className={btnPrimary}>
           <Plus className="h-4 w-4" /> Nouvelle activité
         </Link>
       </PageHeader>
+      <AvertissementPreparation saison={saison} />
 
       <FiltreActivites
         base="/activites"
         selection={selection}
+        params={{ saison: saisonParam }}
         activites={activites.map((a) => ({
           id: a.id,
           nom: a.nom,
@@ -172,7 +189,7 @@ export default async function ActivitesPage({
                       />
                     </div>
                   )}
-                  <Link href={`/activites/${a.id}`} className={btnSecondary}>
+                  <Link href={fiche(a.id)} className={btnSecondary}>
                     Gérer l&apos;activité <ChevronRight className="h-4 w-4" />
                   </Link>
                 </div>
@@ -180,7 +197,7 @@ export default async function ActivitesPage({
 
               {a.creneaux.length === 0 ? (
                 <Link
-                  href={`/activites/${a.id}`}
+                  href={fiche(a.id)}
                   className="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 transition hover:bg-slate-50"
                 >
                   <Plus className="h-4 w-4" /> Aucun créneau — en ajouter un
@@ -252,7 +269,7 @@ export default async function ActivitesPage({
 
               {a.creneaux.length > 0 && (
                 <Link
-                  href={`/activites/${a.id}?nouveau=1#nouveau`}
+                  href={fiche(a.id, { nouveau: "1" }, "#nouveau")}
                   className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-800"
                 >
                   <Plus className="h-3.5 w-3.5" /> Ajouter un créneau à {a.nom}

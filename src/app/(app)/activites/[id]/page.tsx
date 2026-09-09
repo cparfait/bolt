@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { saisonCourante } from "@/lib/saison";
+import { saisonDeTravail } from "@/lib/saison";
+import { AvertissementPreparation, SelecteurSaison } from "@/components/selecteur-saison";
 import {
   basculerActivite,
   basculerInscriptions,
@@ -50,12 +51,13 @@ export default async function ActiviteDetail({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ creneau?: string; nouveau?: string }>;
+  searchParams: Promise<{ creneau?: string; nouveau?: string; saison?: string }>;
 }) {
   await requireUser("GESTIONNAIRE");
   const { id } = await params;
-  const { creneau: enEdition, nouveau } = await searchParams;
-  const saison = await saisonCourante();
+  const { creneau: enEdition, nouveau, saison: saisonParam } = await searchParams;
+  // La saison choisie dans l'adresse, sinon la courante (voir la liste).
+  const saison = await saisonDeTravail(saisonParam);
 
   const activite = await prisma.activite.findUnique({
     where: { id },
@@ -133,7 +135,17 @@ export default async function ActiviteDetail({
     libelle: f.libelle,
     periode: `${fmtDate(f.debut)} → ${fmtDate(f.fin)}`,
   }));
-  const base = `/activites/${id}`;
+  const saisons = await prisma.saison.findMany({
+    orderBy: { debut: "desc" },
+    select: { id: true, nom: true, active: true, fin: true },
+  });
+  /** Adresse de cette fiche, en gardant la saison choisie. */
+  const ici = (extra: Record<string, string> = {}, ancre = "") => {
+    const q = new URLSearchParams(extra);
+    if (saisonParam) q.set("saison", saisonParam);
+    const s = q.toString();
+    return `/activites/${id}${s ? `?${s}` : ""}${ancre}`;
+  };
   const proprietesCreneau = {
     saisonId: saison.id,
     saisonDebut: fmtDate(saison.debut),
@@ -162,7 +174,7 @@ export default async function ActiviteDetail({
   return (
     <>
       <Link
-        href="/activites"
+        href={saisonParam ? `/activites?saison=${saisonParam}` : "/activites"}
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
       >
         <ArrowLeft className="h-4 w-4" /> Retour aux activités
@@ -172,6 +184,7 @@ export default async function ActiviteDetail({
         title={activite.nom}
         subtitle={`Saison ${saison.nom} — ${creneaux.length} ${pluriel(creneaux.length, "créneau", "créneaux")}`}
       >
+        <SelecteurSaison saisons={saisons} selection={saison.id} base={`/activites/${id}`} />
         {!activite.actif && <Badge>Désactivée</Badge>}
         {/* Vérifier les séances générées — et retirer celles qui n'auront pas
             lieu — sans quitter la mise en place de l'activité. */}
@@ -196,6 +209,7 @@ export default async function ActiviteDetail({
           <Trash2 className="h-4 w-4" /> Supprimer
         </BoutonAction>
       </PageHeader>
+      <AvertissementPreparation saison={saison} />
 
       <div className="mb-6 h-1.5 rounded-full" style={{ backgroundColor: activite.couleur }} />
 
@@ -311,7 +325,7 @@ export default async function ActiviteDetail({
                       )}
                     </div>
                     <Link
-                      href={enEdition === c.id ? base : `${base}?creneau=${c.id}#creneau`}
+                      href={enEdition === c.id ? ici() : ici({ creneau: c.id }, "#creneau")}
                       scroll={false}
                       className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${
                         enEdition === c.id
@@ -427,7 +441,7 @@ export default async function ActiviteDetail({
       </div>
 
       <div className="mt-4">
-        <Link href={`${base}?nouveau=1#nouveau`} className={btnSecondary} scroll={false}>
+        <Link href={ici({ nouveau: "1" }, "#nouveau")} className={btnSecondary} scroll={false}>
           <Plus className="h-4 w-4" /> Nouveau créneau
         </Link>
       </div>

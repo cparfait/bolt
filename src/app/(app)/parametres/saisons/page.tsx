@@ -12,6 +12,7 @@ import { BoutonAction } from "@/components/bouton-action";
 import { FermetureForm, SaisonForm } from "@/components/saison-forms";
 import { fmtDate, isoDate } from "@/lib/dates";
 import { pluriel } from "@/lib/constants";
+import { etatSaison } from "@/lib/saison";
 
 export default async function ParametresSaisons() {
   const saisons = await prisma.saison.findMany({
@@ -31,7 +32,11 @@ export default async function ParametresSaisons() {
 
   return (
     <div className="space-y-6">
-      <Panneau titre="Créer une saison" sousTitre="Par exemple septembre 2026 → juin 2027" ouvert={saisons.length === 0}>
+      <Panneau
+        titre="Créer une saison"
+        sousTitre="Par exemple septembre 2026 → juin 2027. Une saison reste invisible des agents tant qu'elle n'est pas activée : préparez la suivante pendant que l'actuelle tourne."
+        ouvert={saisons.length === 0}
+      >
         {/* Une saison sans créneau n'a rien à transmettre : la proposer comme
             modèle ferait espérer une reprise qui ne remplirait rien. */}
         <SaisonForm
@@ -56,6 +61,11 @@ export default async function ParametresSaisons() {
                   {s.active && (
                     <Badge color="bg-emerald-100 text-emerald-700 ring-emerald-500/20">
                       Active
+                    </Badge>
+                  )}
+                  {etatSaison(s) === "preparation" && (
+                    <Badge color="bg-sky-100 text-sky-700 ring-sky-500/20">
+                      En préparation — invisible des agents
                     </Badge>
                   )}
                 </div>
