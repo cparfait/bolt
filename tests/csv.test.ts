@@ -27,7 +27,9 @@ describe("politique de sécurité du contenu", () => {
     const { politiqueCsp, nonceAleatoire } = await import("../src/lib/csp");
     const nonce = nonceAleatoire();
     const csp = politiqueCsp(nonce, false);
-    assert.match(csp, new RegExp(`script-src 'self' 'nonce-${nonce.replace(/[+/=]/g, "\$&")}' 'strict-dynamic'`));
+    // Pas de RegExp : le nonce en base64 peut contenir « + », que le motif lirait
+    // comme un quantificateur — le test échouait une fois sur quatre.
+    assert.ok(csp.includes(`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`));
     assert.doesNotMatch(csp, /unsafe-inline'[^;]*;[^;]*script|script-src[^;]*unsafe-inline/);
     assert.doesNotMatch(csp, /unsafe-eval/);
     assert.match(politiqueCsp(nonce, true), /unsafe-eval/);
