@@ -26,9 +26,12 @@ export function InscrireForm({
   intitule,
   textes,
   conservationMois,
+  libelle,
 }: {
   creneauId: string;
   complet: boolean;
+  /** Texte du bouton quand « M'inscrire » ne dit pas le bon geste. */
+  libelle?: string;
   /** Teinte de l'activité, portée par le bouton — voir plus bas. */
   couleur: string;
   /** « Yoga · lundi 17h45–18h45 », rappelé en tête des déclarations. */
@@ -106,7 +109,7 @@ export function InscrireForm({
         }
       >
         <Plus className="h-4 w-4" />
-        {complet ? "Rejoindre la liste d'attente" : "M'inscrire"}
+        {libelle ?? (complet ? "Rejoindre la liste d'attente" : "M'inscrire")}
       </button>
       )}
 

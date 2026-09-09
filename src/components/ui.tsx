@@ -194,6 +194,7 @@ export function Card({
   children,
   className = "",
   style,
+  id,
 }: {
   title?: string;
   action?: ReactNode;
@@ -201,9 +202,12 @@ export function Card({
   className?: string;
   // Pour les couleurs d'activité, libres et donc hors palette Tailwind.
   style?: CSSProperties;
+  /** Ancre, pour qu'un lien de la page puisse y ramener. */
+  id?: string;
 }) {
   return (
     <div
+      id={id}
       style={style}
       className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${className}`}
     >
