@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { estGestionnaire, requireUser } from "@/lib/session";
-import { saisonCourante } from "@/lib/saison";
+import { saisonCourante, saisonOuverte } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import { decrocheurs, indicateurs, parActivite } from "@/lib/stats";
 import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
@@ -101,6 +101,24 @@ export default async function TableauDeBord({
 
   // ── Vue agent ────────────────────────────────────────────────────────────
   if (!estGestionnaire(user) && user.role !== "COACH") {
+    // Pour l'agent, seule la saison activée existe (voir `saisonOuverte`) :
+    // le repli sur la plus récente est réservé au service, qui la prépare.
+    const ouverte = await saisonOuverte();
+    if (!ouverte) {
+      return (
+        <>
+          <PageHeader title={`Bonjour ${prenomDe(user.displayName)}`} />
+          <EmptyState
+            title="Aucune saison n'est ouverte pour l'instant"
+            hint={
+              g.contactEmail
+                ? `Le service des sports ouvre les inscriptions en début de saison. Pour toute question : ${g.contactEmail}`
+                : "Le service des sports ouvre les inscriptions en début de saison."
+            }
+          />
+        </>
+      );
+    }
     const [inscriptions, prochaines, adresses] = await Promise.all([
       prisma.inscription.findMany({
         where: { userId: user.id, statut: { in: ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"] } },
@@ -122,7 +140,7 @@ export default async function TableauDeBord({
       <>
         <PageHeader
           title={`Bonjour ${prenomDe(user.displayName)}`}
-          subtitle={`Saison ${saison.nom}`}
+          subtitle={`Saison ${ouverte.nom}`}
         >
           <Link href="/mes-activites" className={btnPrimary}>
             Voir le catalogue
@@ -402,7 +420,7 @@ export default async function TableauDeBord({
             href="/parametres/saisons"
             icon={<CalendarDays className="h-5 w-5" />}
             titre={<>La saison {saison.nom} n&apos;est pas activée</>}
-            detail="Les agents la voient et peuvent s'y inscrire, parce que c'est la plus récente. Activez-la pour que ce soit un choix et non un repli — et pour qu'une prochaine saison puisse être préparée à côté."
+            detail="Tant qu'elle ne l'est pas, les agents ne voient aucun créneau et ne peuvent pas s'inscrire. Activez-la quand les créneaux sont prêts."
             action="Activer"
           />
         )}

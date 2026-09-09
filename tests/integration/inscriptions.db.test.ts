@@ -542,14 +542,14 @@ describe("créneau fermé ou hors saison", () => {
     assert.match(res.message, /saison en cours/);
   });
 
-  it("accepte sur la saison la plus récente même si personne ne l'a activée", async () => {
-    // C'est ce que voit l'agent : le catalogue affiche cette saison, il doit
-    // pouvoir s'y inscrire. Sinon le message « n'appartient pas à la saison en
-    // cours » tombe sur une saison que le service a juste oublié d'activer.
+  it("refuse tant que la saison n'est pas activée, même la plus récente", async () => {
+    // Le catalogue ne montre rien sans saison activée : l'inscription ne doit
+    // pas accepter ce que le catalogue ne propose pas.
     const c = await contexte({ capacites: [5], agents: 1 });
     await prisma.saison.update({ where: { id: c.saisonId }, data: { active: false } });
     const res = await demanderInscription(c.agents[0], c.creneaux[0]);
-    assert.ok(res.ok, res.message);
+    assert.equal(res.ok, false);
+    assert.match(res.message, /saison en cours/);
   });
 });
 

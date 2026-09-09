@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CalendarCheck, CalendarDays, CalendarOff, Check, Info, Lock, MapPin, Users } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireAgent } from "@/lib/session";
-import { saisonCourante } from "@/lib/saison";
+import { saisonOuverte } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import { aujourdhui, ajouterJours, fmtDateLongue, JOUR_LABELS } from "@/lib/dates";
 import {
@@ -44,7 +44,9 @@ export default async function MesActivitesPage({
 }) {
   const user = await requireAgent();
   const { activite: selection } = await searchParams;
-  const saison = await saisonCourante();
+  // La saison activée, et rien d'autre : une saison en préparation n'est pas
+  // un catalogue. Voir `saisonOuverte` (src/lib/saison.ts).
+  const saison = await saisonOuverte();
   const g = await getGeneralSettings();
   // Les déclarations et mentions présentées avant l'inscription, dans leur
   // version en vigueur (Paramètres → Déclarations).
@@ -54,7 +56,14 @@ export default async function MesActivitesPage({
     return (
       <>
         <PageHeader title="Activités" />
-        <EmptyState title="Aucune saison n'est ouverte pour l'instant" />
+        <EmptyState
+          title="Aucune saison n'est ouverte pour l'instant"
+          hint={
+            g.contactEmail
+              ? `Le service des sports ouvre les inscriptions en début de saison. Pour toute question : ${g.contactEmail}`
+              : "Le service des sports ouvre les inscriptions en début de saison."
+          }
+        />
       </>
     );
   }

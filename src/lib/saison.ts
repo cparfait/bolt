@@ -1,15 +1,32 @@
 import { prisma } from "./db";
 
 /**
- * Saison courante : celle marquée active, sinon la plus récente.
- * Le repli évite un outil vide juste après l'installation, avant que le service
- * des sports n'ait activé sa première saison.
+ * Saison courante, pour le BACK-OFFICE : celle marquée active, sinon la plus
+ * récente. Le repli évite un outil vide juste après l'installation, avant que
+ * le service des sports n'ait activé sa première saison — il prépare ses
+ * activités et ses créneaux sur la saison qu'il vient de créer.
+ *
+ * Les agents, eux, passent par `saisonOuverte`.
  */
 export async function saisonCourante() {
   return (
     (await prisma.saison.findFirst({ where: { active: true } })) ??
     (await prisma.saison.findFirst({ orderBy: { debut: "desc" } }))
   );
+}
+
+/**
+ * Saison ouverte aux AGENTS : la saison activée, et rien d'autre.
+ *
+ * Pas de repli ici : activer une saison est le geste par lequel le service
+ * des sports décide que le catalogue est prêt à être vu. Tant qu'il ne l'a
+ * pas fait, une saison en préparation — créneaux à moitié saisis, capacités
+ * provisoires — ne doit pas recevoir d'inscriptions. C'est la même règle pour
+ * ce que le catalogue montre et pour ce que l'inscription accepte : l'un ne
+ * doit jamais proposer ce que l'autre refuse.
+ */
+export async function saisonOuverte() {
+  return prisma.saison.findFirst({ where: { active: true } });
 }
 
 export type RepriseCreneaux = {

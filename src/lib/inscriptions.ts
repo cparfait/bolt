@@ -7,7 +7,7 @@ import { isoDate } from "./dates";
 import { adresseDeContact } from "./comptes";
 import { lienPlace } from "./liens-courriel";
 import { lienItineraireDuLieu } from "./lieux";
-import { saisonCourante } from "./saison";
+import { saisonOuverte } from "./saison";
 import { nomPourSalutation } from "./constants";
 import { envoyerMail } from "./mail";
 
@@ -492,13 +492,12 @@ export async function demanderInscription(
       message: "Les inscriptions sont fermées sur ce créneau.",
     };
   }
-  // Même règle que le catalogue (`saisonCourante`) : la saison activée, ou à
-  // défaut la plus récente. Exiger ici le drapeau « active » alors que le
-  // catalogue s'en passe affichait des créneaux qu'on ne pouvait pas prendre —
-  // « ce créneau n'appartient pas à la saison en cours » sur une saison que
-  // le service n'avait simplement pas encore activée.
-  const courante = await saisonCourante();
-  if (creneau.saisonId !== courante?.id) {
+  // Même règle que le catalogue (`saisonOuverte`) : la saison activée, et
+  // rien d'autre. Les deux doivent toujours choisir la même — un catalogue
+  // qui montre ce que l'inscription refuse produit « ce créneau n'appartient
+  // pas à la saison en cours » sur un créneau que l'agent a sous les yeux.
+  const ouverte = await saisonOuverte();
+  if (creneau.saisonId !== ouverte?.id) {
     return {
       ok: false,
       message: "Ce créneau n'appartient pas à la saison en cours.",
