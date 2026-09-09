@@ -57,7 +57,9 @@ export default async function ActivitesPage({
   const [activites, archivees, nbFermetures, effectifs] = await Promise.all([
     prisma.activite.findMany({
       where: { archiveAt: null },
-      orderBy: [{ actif: "desc" }, { ordre: "asc" }, { nom: "asc" }],
+      // Alphabétique : « ordre » n'est que le rang de création, qu'aucun écran
+      // ne permet de changer, et personne ne retrouve une activité à ce rang.
+      orderBy: [{ actif: "desc" }, { nom: "asc" }],
       include: {
         creneaux: {
           where: { saisonId: saison.id, archiveAt: null },

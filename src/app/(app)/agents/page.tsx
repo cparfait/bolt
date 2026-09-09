@@ -153,8 +153,12 @@ export default async function AgentsPage({
       ? prisma.creneau.findMany({
           where: { saisonId: saison.id, archiveAt: null },
           include: { activite: { select: { id: true, nom: true, couleur: true } } },
-          orderBy: [{ activite: { ordre: "asc" } }, { jour: "asc" }, { heureDebut: "asc" }],
-        })
+          orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
+        }).then((liste) =>
+          // Activités par ordre alphabétique, trié ici pour respecter les
+          // accents (voir le catalogue, src/app/(app)/mes-activites/page.tsx).
+          liste.sort((x, y) => x.activite.nom.localeCompare(y.activite.nom, "fr")),
+        )
       : Promise.resolve([]),
   ]);
 

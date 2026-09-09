@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarCheck, CalendarOff, Info, MapPin, Users } from "lucide-react";
+import { CalendarCheck, CalendarOff, Info, Lock, MapPin, Users } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireAgent } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
@@ -68,8 +68,14 @@ export default async function MesActivitesPage({
         fermeturesMaintenues: { select: { id: true } },
         _count: { select: { inscriptions: { where: { statut: "VALIDEE" } } } },
       },
-      orderBy: [{ activite: { ordre: "asc" } }, { jour: "asc" }, { heureDebut: "asc" }],
-    }),
+      orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
+    }).then((liste) =>
+      // Ordre alphabétique des activités, trié ici et non en base : la
+      // collation du conteneur PostgreSQL range les majuscules et les accents
+      // à sa façon (« Éveil » après « Zumba »), pas à celle d'un lecteur
+      // français. Le tri est stable : jour et heure restent ordonnés dedans.
+      liste.sort((a, b) => a.activite.nom.localeCompare(b.activite.nom, "fr")),
+    ),
     prisma.inscription.findMany({
       where: {
         userId: user.id,
@@ -187,13 +193,16 @@ export default async function MesActivitesPage({
           voit qu'un écran à la fois et où le menu est replié.
           Le même composant, la même source : ce n'est pas un doublon à tenir à
           jour, c'est une seconde porte sur la même pièce. */}
-      {/* Affichée même vide, et c'est le point : masquée faute de séance, la
-          carte laissait croire que l'application ne sait pas prévenir d'une
-          absence — alors qu'elle dit seulement qu'on n'est inscrit à rien. Son
-          état vide renvoie au catalogue, qui est juste en dessous. */}
-      <div className="mb-6">
-        <MesSeances seances={prochaines} />
-      </div>
+      {/* Affichée dès qu'une inscription existe, même sans séance à venir :
+          entre deux périodes de vacances, l'agent doit voir que l'application
+          sait prévenir d'une absence. Tant qu'il n'est inscrit à rien, elle
+          n'annonce qu'un vide, juste au-dessus d'un catalogue qui dit déjà
+          quoi faire — on la retire. */}
+      {mesInscriptions.length > 0 && (
+        <div className="mb-6">
+          <MesSeances seances={prochaines} />
+        </div>
+      )}
 
       {quotaAtteint && (
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
@@ -276,6 +285,15 @@ export default async function MesActivitesPage({
                     </h3>
                     {activite.description && (
                       <p className="mt-1 text-sm text-slate-500">{activite.description}</p>
+                    )}
+                    {/* Aucun créneau ouvert : le dire une fois en tête plutôt
+                        que de laisser l'agent lire « Inscriptions fermées »
+                        sur chaque créneau pour le comprendre. */}
+                    {liste.every((c) => !c.ouvertInscription) && (
+                      <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                        <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        Cette activité n&apos;accepte plus d&apos;inscription pour le moment.
+                      </p>
                     )}
                     {groupe && (
                       <p className="mt-1 text-xs text-slate-500">
@@ -383,7 +401,13 @@ export default async function MesActivitesPage({
                                 : INSCRIPTION_STATUT_LABELS.EN_ATTENTE}
                           </p>
                         ) : !c.ouvertInscription ? (
-                          <p className="rounded-lg bg-slate-50 px-3 py-2 text-center text-xs text-slate-400">
+                          /* En rouge, et non en gris comme le quota : un
+                             créneau fermé ne se rouvrira pas en se
+                             désinscrivant d'un autre. C'est un refus qui vient
+                             du service des sports, pas une limite qu'on lève
+                             soi-même — l'agent doit s'en apercevoir sans lire. */
+                          <p className="flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700">
+                            <Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
                             Inscriptions fermées
                           </p>
                         ) : bloqueParQuota ? (
