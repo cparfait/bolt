@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
+  Bell,
   CalendarDays,
   Archive,
   CalendarSync,
@@ -101,6 +102,12 @@ export default async function ActiviteDetail({
       include: {
         animateurs: { select: { id: true, nom: true, prenom: true } },
         fermeturesMaintenues: { select: { id: true, libelle: true } },
+        // Qui attend l'ouverture : c'est ce qui dit au service s'il vaut la
+        // peine de rouvrir, et à qui le courriel partira.
+        alertesOuverture: {
+          orderBy: { createdAt: "asc" },
+          select: { user: { select: { id: true, displayName: true } } },
+        },
         _count: {
           select: { seances: true, inscriptions: { where: { statut: "VALIDEE" } } },
         },
@@ -283,6 +290,28 @@ export default async function ActiviteDetail({
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
+                    {/* Les agents qui ont demandé à être prévenus de la
+                        réouverture : nommés, parce que le service les
+                        connaît, et liés à leur fiche. Ils recevront le
+                        courriel au clic sur « Ouvrir ». */}
+                    {!c.ouvertInscription && c.alertesOuverture.length > 0 && (
+                      <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-brand-700">
+                        <Bell className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        <span className="font-medium">
+                          {c.alertesOuverture.length}{" "}
+                          {pluriel(c.alertesOuverture.length, "agent attend", "agents attendent")}{" "}
+                          l&apos;ouverture :
+                        </span>
+                        {c.alertesOuverture.map((a, i) => (
+                          <span key={a.user.id}>
+                            <Link href={`/agents/${a.user.id}`} className="hover:underline">
+                              {a.user.displayName}
+                            </Link>
+                            {i < c.alertesOuverture.length - 1 ? "," : ""}
+                          </span>
+                        ))}
+                      </p>
+                    )}
                     {(c.dateDebut || c.dateFin) && (
                       <p className="text-xs font-medium text-amber-600">
                         {c.dateDebut ? `du ${fmtDate(c.dateDebut)}` : "dès l'ouverture"}
