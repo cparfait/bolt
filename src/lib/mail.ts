@@ -2,23 +2,79 @@ import nodemailer from "nodemailer";
 import { dimensionsImage, redimensionner } from "./images";
 import { getGeneralSettings, getSmtpSettings, type SmtpSettings } from "./settings";
 
-export type MailResult = { ok: boolean; message: string };
+export type MailResult = {
+  ok: boolean;
+  message: string;
+  /**
+   * Sur un échec : la messagerie a-t-elle refusé **ce destinataire**, ou
+   * a-t-elle refusé de servir tout court ? Une adresse inconnue est rejetée
+   * pour elle-même, la retenter ne changerait rien. Un plafond de débit, une
+   * authentification refusée, un réseau coupé valent pour tous les messages
+   * suivants — celui qui a échoué reste à faire, plus tard.
+   */
+  destinataireRefuse?: boolean;
+};
 
 /**
- * Envoi SMTP. Volontairement tolérant : une relance ou une notification qui
- * n'part pas ne doit jamais faire échouer l'action métier correspondante
- * (valider une inscription, clôturer une séance).
+ * Nombre de messages qu'une campagne accepte de soumettre par minute.
+ *
+ * C'est le plafond de Microsoft 365 en soumission SMTP authentifiée (trente
+ * par boîte et par minute), avec une marge pour sa fenêtre glissante. Une
+ * boucle sans cadence passait ce cap en quelques secondes : à partir du
+ * trente-et-unième, chaque message était refusé (« 4.4.2 message submission
+ * rate exceeded ») sans qu'aucun envoi ne s'arrête. Pour un relais interne
+ * sans plafond, la cadence ne coûte que du temps : trois cents messages en
+ * douze minutes, pendant lesquelles l'application sert ses pages comme
+ * d'habitude.
  */
+export const MESSAGES_PAR_MINUTE = 25;
+
+/**
+ * Une messagerie ouverte pour une série d'envois : même connexion, réglages
+ * et logo lus une fois, débit borné. À refermer avec `fermer()`.
+ */
+export type Messagerie = {
+  envoyer(to: string, subject: string, corps: string): Promise<MailResult>;
+  fermer(): void;
+};
+
+/** Envoi isolé — une relance, une notification. Ouvre et referme aussitôt. */
 export async function envoyerMail(
   to: string,
   subject: string,
   corps: string,
 ): Promise<MailResult> {
+  const m = await ouvrirMessagerie({ cadencer: false });
+  try {
+    return await m.envoyer(to, subject, corps);
+  } finally {
+    m.fermer();
+  }
+}
+
+/**
+ * Prépare une messagerie. Volontairement tolérante : une relance ou une
+ * notification qui ne part pas ne doit jamais faire échouer l'action métier
+ * correspondante (valider une inscription, clôturer une séance) — les échecs
+ * reviennent en résultat, jamais en exception.
+ *
+ * `cadencer` : file les messages dans une connexion unique en respectant
+ * `MESSAGES_PAR_MINUTE`. C'est le mode d'une campagne ; un envoi isolé s'en
+ * passe et n'attend pas.
+ */
+export async function ouvrirMessagerie(
+  { cadencer = true }: { cadencer?: boolean } = {},
+): Promise<Messagerie> {
   const smtp = await getSmtpSettings();
   if (!smtp?.host || !smtp?.from) {
-    return { ok: false, message: "Messagerie non configurée (Paramètres → Messagerie)." };
+    return {
+      envoyer: async () => ({
+        ok: false,
+        message: "Messagerie non configurée (Paramètres → Messagerie).",
+      }),
+      fermer: () => {},
+    };
   }
-  if (!to) return { ok: false, message: "Destinataire sans adresse e-mail." };
 
   const transport = nodemailer.createTransport({
     host: smtp.host,
@@ -26,6 +82,9 @@ export async function envoyerMail(
     secure: Boolean(smtp.secure),
     auth: smtp.user ? { user: smtp.user, pass: smtp.pass ?? "" } : undefined,
     tls: { rejectUnauthorized: smtp.tlsRejectUnauthorized !== false },
+    ...(cadencer
+      ? { pool: true, maxConnections: 1, rateDelta: 60_000, rateLimit: MESSAGES_PAR_MINUTE }
+      : {}),
   });
 
   const g = await getGeneralSettings();
@@ -36,29 +95,55 @@ export async function envoyerMail(
   // déjà le nom de l'application dans son en-tête, et c'est l'habillage en
   // cours qu'on y reconnaît.
   const logo = logoPourMail(g.logo || g.logoVille);
-  try {
-    await transport.sendMail({
-      from: smtp.from,
-      to,
-      subject,
-      text: sansNotation(corps),
-      html: gabarit(subject, corps, logo, g.appName, g.appDescription, g.orgName),
-      attachments: logo
-        ? [
-            {
-              filename: `logo.${logo.extension}`,
-              content: logo.contenu,
-              contentType: logo.mime,
-              cid: CID_LOGO,
-              contentDisposition: "inline",
-            },
-          ]
-        : undefined,
-    });
-    return { ok: true, message: `Message envoyé à ${to}.` };
-  } catch (e) {
-    return { ok: false, message: expliquer(e, smtp) };
-  }
+
+  return {
+    async envoyer(to, subject, corps) {
+      if (!to) return { ok: false, message: "Destinataire sans adresse e-mail." };
+      try {
+        await transport.sendMail({
+          from: smtp.from,
+          to,
+          subject,
+          text: sansNotation(corps),
+          html: gabarit(subject, corps, logo, g.appName, g.appDescription, g.orgName),
+          attachments: logo
+            ? [
+                {
+                  filename: `logo.${logo.extension}`,
+                  content: logo.contenu,
+                  contentType: logo.mime,
+                  cid: CID_LOGO,
+                  contentDisposition: "inline",
+                },
+              ]
+            : undefined,
+        });
+        return { ok: true, message: `Message envoyé à ${to}.` };
+      } catch (e) {
+        return { ok: false, message: expliquer(e, smtp), destinataireRefuse: destinataireRefuse(e) };
+      }
+    },
+    fermer: () => transport.close(),
+  };
+}
+
+/**
+ * L'échec vient-il du destinataire lui-même ? Nodemailer marque `EENVELOPE`
+ * les refus prononcés sur l'enveloppe (MAIL FROM, RCPT TO) ; avec un code
+ * 5xx, c'est un rejet définitif de l'adresse — inconnue, désactivée,
+ * interdite. Tout le reste (débit dépassé en 4xx, authentification, réseau,
+ * message refusé au DATA) vaut pour la messagerie entière et se retente.
+ */
+export function destinataireRefuse(e: unknown): boolean {
+  const err = e as { code?: unknown; responseCode?: unknown } | null;
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    err.code === "EENVELOPE" &&
+    typeof err.responseCode === "number" &&
+    err.responseCode >= 500 &&
+    err.responseCode < 600
+  );
 }
 
 const CID_LOGO = "logo-bolt";

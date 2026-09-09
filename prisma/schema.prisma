@@ -61,6 +61,7 @@ model User {
   inscriptions   Inscription[]
   presences      Presence[]
   absences       AbsenceAnnoncee[]
+  rappelsRecus   RappelEnvoye[]
   participations ParticipationPonctuelle[]
   auditLogs    AuditLog[]
   magicTokens  MagicToken[]
@@ -360,20 +361,49 @@ model Seance {
   clotureeAt  DateTime?
   clotureePar String?
 
-  // Rappel envoyé aux inscrits la veille. Horodaté pour garantir un seul envoi,
-  // quel que soit le nombre de déclenchements.
+  // Campagne de rappel terminée : chaque inscrit a reçu son message, ou a été
+  // définitivement écarté (voir RappelEnvoye). Tant que c'est vide, les
+  // passages suivants de l'ordonnanceur reprennent ce qui manque.
   rappelEnvoyeAt DateTime?
 
   creneau        Creneau                   @relation(fields: [creneauId], references: [id], onDelete: Cascade)
   presences      Presence[]
   absences       AbsenceAnnoncee[]
   participations ParticipationPonctuelle[]
+  rappels        RappelEnvoye[]
 
   createdAt DateTime @default(now())
 
   @@unique([creneauId, date])
   @@index([date])
   @@index([statut])
+}
+
+// Rappel de séance remis à un inscrit — ou refusé pour lui, définitivement.
+//
+// L'horodatage par séance ne suffisait pas : la campagne s'y marquait terminée
+// dès la fin de la boucle, même quand la messagerie avait rejeté la moitié des
+// envois. Microsoft 365 plafonne les soumissions SMTP à trente messages par
+// minute ; au-delà, chaque message était refusé, la boucle continuait, et les
+// agents suivants ne recevaient jamais leur rappel — sans qu'aucune trace ne
+// dise lesquels. En notant chaque remise, le passage suivant reprend
+// exactement où la messagerie s'est fermée.
+//
+// `erreur` : la messagerie a rejeté ce destinataire lui-même (adresse
+// inconnue, refusée). On ne réessaie pas, ce serait rejeter encore ; la ligne
+// garde la raison. Une panne de la messagerie, elle, n'écrit rien : elle vaut
+// pour tous, et se retente.
+model RappelEnvoye {
+  seanceId String
+  userId   String
+  envoyeAt DateTime @default(now())
+  erreur   String?
+
+  seance Seance @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([seanceId, userId])
+  @@index([userId])
 }
 
 // Absence prévenue à l'avance par l'agent lui-même.

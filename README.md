@@ -233,6 +233,17 @@ plutôt qu'en message OpenSSL.
 tant de jours avant la séance, à telle heure (par défaut la veille à midi). Le
 message porte un bouton **« Je ne pourrai pas venir »**.
 
+Chaque inscrit reçoit son propre message, jamais une liste de destinataires,
+et la campagne est cadencée à 25 messages par minute : c'est le plafond de
+Microsoft 365 en soumission SMTP (30 par boîte et par minute), sous lequel
+trois cents rappels partent en douze minutes sans qu'aucun ne soit refusé.
+Chaque remise est notée par inscrit (`RappelEnvoye`) : si la messagerie cesse
+de servir en cours de route — débit, authentification, réseau —, la campagne
+s'interrompt et reprend au battement suivant, cinq minutes plus tard, là où
+elle s'est arrêtée. Seule une adresse rejetée pour elle-même n'est pas
+retentée. Une messagerie en panne se lit dans le journal (`RAPPELS_INTERROMPUS`,
+au plus une ligne par heure).
+
 ### Deux boutons dans les courriels, et pourquoi ils ne demandent pas de compte
 
 Prévenir d'une absence, ou rendre une place dont on ne veut plus, n'a de valeur
@@ -272,8 +283,8 @@ n'échoue, les courriels sortent simplement trop tard.
 
 Si vous préférez un ordonnanceur externe, définissez `CRON_TOKEN` et appelez
 `GET /api/taches/rappels` — sans ce jeton la route reste fermée. Les deux voies
-coexistent sans risque : les verrous sont en base, et une séance n'est rappelée
-qu'une fois quelle que soit la voie.
+coexistent sans risque : les verrous sont en base, et un inscrit n'est rappelé
+qu'une fois par séance quelle que soit la voie.
 
 ---
 
