@@ -18,6 +18,7 @@ import {
 } from "./dates";
 import { nomPourSalutation } from "./constants";
 import { lienAbsence } from "./liens-courriel";
+import { adressesDesLieux, itineraireDe } from "./lieux";
 import { audit } from "./audit";
 import { rateLimit } from "./rate-limit";
 
@@ -180,9 +181,11 @@ async function campagne(): Promise<ResultatRappels> {
   const bilan = { ...VIDE };
   let interrompu: string | undefined;
 
+  const adresses = await adressesDesLieux();
   const messagerie = await ouvrirMessagerie();
   try {
     for (const s of seances) {
+      const itineraire = itineraireDe(s.creneau.lieu, adresses);
       const aEcarter = new Set([
         ...s.absences.map((a) => a.userId),
         ...s.rappels.map((r) => r.userId),
@@ -206,6 +209,9 @@ async function campagne(): Promise<ResultatRappels> {
             // faisait, l'animateur attendait, et la place restait perdue.
             `Un empêchement ? Signalez-le d'un clic : votre place profitera à un collègue en liste d'attente, et l'animateur ne vous attendra pas.`,
             base ? `[Je ne pourrai pas venir](${lienAbsence(s.id, i.userId, base)})` : null,
+            // Dans une phrase et non seul sur sa ligne : le gabarit n'en fait
+            // alors pas un second bouton, qui concurrencerait le premier.
+            itineraire ? `Pour vous y rendre : [itinéraire vers ${s.creneau.lieu}](${itineraire}).` : null,
             g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
           ]
             .filter(Boolean)

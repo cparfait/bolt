@@ -16,6 +16,8 @@ import { getGeneralSettings } from "@/lib/settings";
 import { decrocheurs, indicateurs, parActivite } from "@/lib/stats";
 import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
 import { prochainesSeancesDe } from "@/lib/absences";
+import { adressesDesLieux, itineraireDe } from "@/lib/lieux";
+import { Itineraire } from "@/components/itineraire";
 import { MesSeances } from "@/components/mes-seances";
 import { RechercheRapide } from "@/components/recherche-rapide";
 import {
@@ -99,7 +101,7 @@ export default async function TableauDeBord({
 
   // ── Vue agent ────────────────────────────────────────────────────────────
   if (!estGestionnaire(user) && user.role !== "COACH") {
-    const [inscriptions, prochaines] = await Promise.all([
+    const [inscriptions, prochaines, adresses] = await Promise.all([
       prisma.inscription.findMany({
         where: { userId: user.id, statut: { in: ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"] } },
         include: { creneau: { include: { activite: true } } },
@@ -109,6 +111,7 @@ export default async function TableauDeBord({
       // Bornée à six, une déclaration de congés s'arrêtait silencieusement à la
       // sixième séance — et l'animateur attendait quelqu'un pour les suivantes.
       prochainesSeancesDe(user.id, 60),
+      adressesDesLieux(),
     ]);
 
     const mesPresences = await prisma.presence.count({
@@ -186,6 +189,12 @@ export default async function TableauDeBord({
                     {JOUR_LABELS[i.creneau.jour]} {i.creneau.heureDebut}–
                     {i.creneau.heureFin}
                     {i.creneau.lieu ? ` · ${i.creneau.lieu}` : ""}
+                    {itineraireDe(i.creneau.lieu, adresses) && (
+                      <>
+                        {" · "}
+                        <Itineraire href={itineraireDe(i.creneau.lieu, adresses)} />
+                      </>
+                    )}
                   </p>
                 </div>
               ))}

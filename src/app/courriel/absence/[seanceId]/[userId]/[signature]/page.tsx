@@ -5,6 +5,8 @@ import { absenceAutorisee } from "@/lib/liens-courriel";
 import { aujourdhui, fmtDateLongue, fmtHeure } from "@/lib/dates";
 import { nomPourSalutation } from "@/lib/constants";
 import { CadreCourriel } from "@/app/courriel/cadre";
+import { Itineraire } from "@/components/itineraire";
+import { lienItineraireDuLieu } from "@/lib/lieux";
 import { BoutonAbsence } from "./bouton";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +42,7 @@ export default async function AbsencePage({
     prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } }),
   ]);
   if (!seance || !agent) notFound();
+  const itineraire = await lienItineraireDuLieu(seance.creneau.lieu);
 
   const [inscrit, absence] = await Promise.all([
     prisma.inscription.findFirst({
@@ -86,6 +89,12 @@ export default async function AbsencePage({
           <p className="mt-0.5 flex items-center gap-1 text-sm text-slate-400">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
             {seance.creneau.lieu}
+            {itineraire && (
+              <>
+                {" · "}
+                <Itineraire href={itineraire} />
+              </>
+            )}
           </p>
         )}
       </div>

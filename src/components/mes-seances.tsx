@@ -7,6 +7,7 @@ import type { ActionState } from "@/lib/actions/types";
 import { Alert, Card, EmptyState } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { fmtDateLongue } from "@/lib/dates";
+import { Itineraire } from "@/components/itineraire";
 
 export type SeanceAgent = {
   id: string;
@@ -14,6 +15,8 @@ export type SeanceAgent = {
   heureDebut: string;
   heureFin: string;
   lieu: string | null;
+  /** Lien vers le GPS, quand le lieu a une adresse (src/lib/lieux.ts). */
+  itineraire: string | null;
   activite: string;
   couleur: string;
   absent: boolean;
@@ -143,6 +146,12 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
               <p className={`truncate text-xs text-slate-400 ${s.annulee ? "line-through" : ""}`}>
                 <span style={s.annulee ? undefined : { color: s.couleur }}>{s.activite}</span>
                 {s.lieu ? ` · ${s.lieu}` : ""}
+                {s.itineraire && !s.annulee && (
+                  <>
+                    {" · "}
+                    <Itineraire href={s.itineraire} />
+                  </>
+                )}
               </p>
               {s.annulee && (
                 <p className="mt-1 text-xs font-medium text-red-600">

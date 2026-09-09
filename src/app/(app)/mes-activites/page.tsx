@@ -15,6 +15,8 @@ import {
 import { DesinscrireForm, InscrireForm } from "@/components/inscription-agent";
 import { MesSeances } from "@/components/mes-seances";
 import { prochainesSeancesDe } from "@/lib/absences";
+import { adressesDesLieux, itineraireDe } from "@/lib/lieux";
+import { Itineraire } from "@/components/itineraire";
 import { getTextesLegaux } from "@/lib/declarations";
 import { FiltreActivites } from "@/components/filtre-activites";
 import { effectifsParActivite, refusDeQuota } from "@/lib/inscriptions";
@@ -87,10 +89,11 @@ export default async function MesActivitesPage({
     }),
   ]);
 
-  const [nbFermetures, effectifs, prochaines] = await Promise.all([
+  const [nbFermetures, effectifs, prochaines, adresses] = await Promise.all([
     prisma.fermeture.count({ where: { saisonId: saison.id } }),
     effectifsParActivite(saison.id),
     prochainesSeancesDe(user.id, 60),
+    adressesDesLieux(),
   ]);
   const parCreneau = new Map(mesInscriptions.map((i) => [i.creneauId, i]));
 
@@ -149,6 +152,12 @@ export default async function MesActivitesPage({
                     {JOUR_LABELS[i.creneau.jour]} {i.creneau.heureDebut}–
                     {i.creneau.heureFin}
                     {i.creneau.lieu ? ` · ${i.creneau.lieu}` : ""}
+                    {itineraireDe(i.creneau.lieu, adresses) && (
+                      <>
+                        {" · "}
+                        <Itineraire href={itineraireDe(i.creneau.lieu, adresses)} />
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -316,6 +325,12 @@ export default async function MesActivitesPage({
                         <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
                           <MapPin className="h-3 w-3" />
                           {c.lieu ?? "lieu à préciser"}
+                          {itineraireDe(c.lieu, adresses) && (
+                            <>
+                              {" · "}
+                              <Itineraire href={itineraireDe(c.lieu, adresses)} />
+                            </>
+                          )}
                           {c.animateurs.length > 0 &&
                             ` · ${c.animateurs.map((a) => `${a.prenom} ${a.nom}`).join(", ")}`}
                         </p>

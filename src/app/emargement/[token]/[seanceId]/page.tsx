@@ -9,6 +9,8 @@ import { aujourdhui, fmtDateLongue, fmtHeure, fmtHorodatage, isoDate } from "@/l
 import { AjouterParticipantMobile } from "@/components/ajouter-participant-mobile";
 import { AnnulerSeanceCoach } from "@/components/annuler-seance-coach";
 import { RetablirSeanceCoach } from "@/components/retablir-seance-coach";
+import { Itineraire } from "@/components/itineraire";
+import { lienItineraireDuLieu } from "@/lib/lieux";
 import { Feuille } from "./feuille";
 import { ActionsSeance } from "./actions-seance";
 
@@ -53,6 +55,9 @@ export default async function FeuillePage({
 
   const { seance, lignes } = feuille;
   const activite = seance.creneau.activite;
+  // L'animateur se rend au gymnase avec son téléphone : le lieu doit ouvrir
+  // son GPS, pas seulement se lire.
+  const itineraire = await lienItineraireDuLieu(seance.creneau.lieu);
   const verrouillee =
     Boolean(seance.clotureeAt) || seance.statut === "ANNULEE" || !saisieOuverte(seance.date);
 
@@ -116,7 +121,15 @@ export default async function FeuillePage({
             {fmtHeure(seance.creneau.heureFin)}
           </p>
           {seance.creneau.lieu && (
-            <p className="text-sm opacity-80">{seance.creneau.lieu}</p>
+            <p className="text-sm opacity-80">
+              {seance.creneau.lieu}
+              {itineraire && (
+                <>
+                  {" · "}
+                  <Itineraire href={itineraire} className="!text-white underline" />
+                </>
+              )}
+            </p>
           )}
         </div>
 

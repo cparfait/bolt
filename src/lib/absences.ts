@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { aujourdhui } from "./dates";
+import { adressesDesLieux, itineraireDe } from "./lieux";
 
 /**
  * Lecture des prochaines séances d'un agent — hors des modules d'actions.
@@ -35,12 +36,14 @@ export async function prochainesSeancesDe(userId: string, limite = 12) {
     take: limite,
   });
 
+  const adresses = await adressesDesLieux();
   return seances.map((s) => ({
     id: s.id,
     date: s.date,
     heureDebut: s.creneau.heureDebut,
     heureFin: s.creneau.heureFin,
     lieu: s.creneau.lieu,
+    itineraire: itineraireDe(s.creneau.lieu, adresses),
     activite: s.creneau.activite.nom,
     couleur: s.creneau.activite.couleur,
     absent: s.absences.length > 0,

@@ -5,6 +5,8 @@ import { placeAutorisee } from "@/lib/liens-courriel";
 import { JOUR_LABELS, fmtHeure } from "@/lib/dates";
 import { nomPourSalutation } from "@/lib/constants";
 import { CadreCourriel } from "@/app/courriel/cadre";
+import { Itineraire } from "@/components/itineraire";
+import { lienItineraireDuLieu } from "@/lib/lieux";
 import { BoutonPlace } from "./bouton";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +43,7 @@ export default async function PlacePage({
   if (!inscription) notFound();
 
   const { creneau } = inscription;
+  const itineraire = await lienItineraireDuLieu(creneau.lieu);
 
   return (
     <CadreCourriel>
@@ -59,6 +62,12 @@ export default async function PlacePage({
           <p className="mt-0.5 flex items-center gap-1 text-sm text-slate-400">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
             {creneau.lieu}
+            {itineraire && (
+              <>
+                {" · "}
+                <Itineraire href={itineraire} />
+              </>
+            )}
           </p>
         )}
       </div>
