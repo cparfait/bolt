@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { InscriptionStatut } from "@prisma/client";
 import { prisma } from "./db";
 import { getGeneralSettings, type GeneralSettings } from "./settings";
@@ -30,7 +31,10 @@ export type Resultat = { ok: boolean; message: string };
  * demande. À défaut (inscription posée directement par le service, qui n'a rien
  * à arbitrer), la demande elle-même.
  */
-export function dateEntree(inscription: { decisionAt: Date | null; demandeAt: Date }): Date {
+export function dateEntree(inscription: {
+  decisionAt: Date | null;
+  demandeAt: Date;
+}): Date {
   return inscription.decisionAt ?? inscription.demandeAt;
 }
 
@@ -67,7 +71,9 @@ export type Perimetre = {
   creneauIds: string[]; // créneaux qui se partagent ces places
 };
 
-export async function perimetreCapacite(creneauId: string): Promise<Perimetre | null> {
+export async function perimetreCapacite(
+  creneauId: string,
+): Promise<Perimetre | null> {
   const creneau = await prisma.creneau.findUnique({
     where: { id: creneauId },
     select: {
@@ -110,6 +116,54 @@ export async function perimetreCapacite(creneauId: string): Promise<Perimetre | 
     capacite: creneau.activite.capacite ?? creneau.capacite,
     creneauIds: fratrie.map((c) => c.id),
   };
+}
+
+/**
+ * Sérialise tout ce qui attribue une place sur un même groupe.
+ *
+ * « Compter les inscrits, puis écrire » n'est pas atomique : deux agents qui
+ * cliquent sur la dernière place au même instant comptaient tous deux dix-neuf
+ * et finissaient tous deux inscrits — vingt et un sur vingt. Même course entre
+ * une promotion automatique et une validation à la main. La règle centrale de
+ * l'application, la capacité, n'était garantie par rien.
+ *
+ * Un verrou consultatif PostgreSQL, tenu le temps d'une transaction, sur la
+ * clé du périmètre : le créneau, ou l'activité entière quand elle mutualise
+ * ses places. Le second appelant attend que le premier ait fini, et recompte
+ * après lui. Les requêtes du corps passent par le client habituel, hors de la
+ * transaction : peu importe, ce n'est pas l'isolation qu'on cherche mais
+ * l'exclusion mutuelle, et elle tient tant que la transaction porteuse du
+ * verrou ne se termine qu'après elles.
+ *
+ * Réentrant : une décision qui promeut le suivant appelle la promotion depuis
+ * l'intérieur de son propre verrou. Le contexte asynchrone porte les clés déjà
+ * tenues, et un second passage sur la même clé ne reprend pas de verrou — deux
+ * connexions distinctes attendraient sinon l'une l'autre.
+ */
+const verrousTenus = new AsyncLocalStorage<Set<string>>();
+
+export async function verrouCapacite<T>(
+  creneauId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const p = await perimetreCapacite(creneauId);
+  const cle = !p
+    ? `creneau:${creneauId}`
+    : p.partagee
+      ? `activite:${p.activiteId}`
+      : `creneau:${creneauId}`;
+
+  const tenus = verrousTenus.getStore();
+  if (tenus?.has(cle)) return fn();
+
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${cle}))`;
+      return verrousTenus.run(new Set([...(tenus ?? []), cle]), fn);
+    },
+    // Un envoi de courriel peut se trouver dans le corps : on laisse le temps.
+    { maxWait: 15_000, timeout: 60_000 },
+  );
 }
 
 async function occupeesSur(p: Perimetre): Promise<number> {
@@ -182,7 +236,9 @@ export async function prochainRang(creneauId: string): Promise<number> {
  * tous créneaux confondus. Sert à afficher le remplissage d'un groupe mutualisé
  * sans recompter créneau par créneau à chaque ligne d'écran.
  */
-export async function effectifsParActivite(saisonId: string): Promise<Map<string, number>> {
+export async function effectifsParActivite(
+  saisonId: string,
+): Promise<Map<string, number>> {
   const inscrits = await prisma.inscription.findMany({
     where: { statut: "VALIDEE", creneau: { saisonId } },
     select: { userId: true, creneau: { select: { activiteId: true } } },
@@ -319,7 +375,9 @@ export async function accuserReception(
       [
         `Bonjour ${nomPourSalutation(user.displayName)},`,
         ...contenu.corps,
-        g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
+        g.contactEmail
+          ? `Le service des sports — ${g.contactEmail}`
+          : `Le service des sports`,
       ].join("\n\n"),
     );
   } catch {
@@ -343,7 +401,10 @@ export async function engagementsDeLaSaison(
     where: {
       userId,
       statut: { in: ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"] },
-      creneau: { saisonId },
+      // Un créneau archivé a quitté le planning : l'inscription qu'on y garde
+      // pour le bilan ne doit pas bloquer l'agent sur un quota qu'aucun écran
+      // ne lui montre plus.
+      creneau: { saisonId, archiveAt: null },
       ...(sauf ? { NOT: { id: sauf } } : {}),
     },
     select: { statut: true },
@@ -379,7 +440,10 @@ export async function engagementsDeLaSaison(
  * ce que la file doit.
  */
 export function refusDeQuota(
-  g: Pick<GeneralSettings, "maxInscriptionsParAgent" | "maxListeAttenteParAgent">,
+  g: Pick<
+    GeneralSettings,
+    "maxInscriptionsParAgent" | "maxListeAttenteParAgent"
+  >,
   engagements: Engagements,
   versLaListeDAttente: boolean,
 ): string | null {
@@ -418,83 +482,107 @@ export async function demanderInscription(
   });
   if (!creneau) return { ok: false, message: "Créneau introuvable." };
   if (!creneau.ouvertInscription) {
-    return { ok: false, message: "Les inscriptions sont fermées sur ce créneau." };
+    return {
+      ok: false,
+      message: "Les inscriptions sont fermées sur ce créneau.",
+    };
   }
   if (!creneau.saison.active) {
-    return { ok: false, message: "Ce créneau n'appartient pas à la saison en cours." };
+    return {
+      ok: false,
+      message: "Ce créneau n'appartient pas à la saison en cours.",
+    };
+  }
+  // Le catalogue cache déjà ces créneaux, mais une action serveur s'appelle
+  // avec n'importe quel identifiant : la règle doit tenir sans l'écran.
+  if (
+    !creneau.activite.actif ||
+    creneau.activite.archiveAt ||
+    creneau.archiveAt
+  ) {
+    return {
+      ok: false,
+      message: "Cette activité n'est plus ouverte aux inscriptions.",
+    };
   }
 
-  const existante = await prisma.inscription.findUnique({
-    where: { creneauId_userId: { creneauId, userId } },
+  return verrouCapacite(creneauId, async () => {
+    const existante = await prisma.inscription.findUnique({
+      where: { creneauId_userId: { creneauId, userId } },
+    });
+    if (existante && !["DESISTEE", "REFUSEE"].includes(existante.statut)) {
+      return {
+        ok: false,
+        message: "Vous avez déjà une demande sur ce créneau.",
+      };
+    }
+
+    // Le quota se calcule après avoir su où la demande atterrit : une place en
+    // file d'attente et une place en salle ne se comptent pas ensemble.
+    const complet = !(await placeDisponiblePour(creneauId, userId));
+
+    const g = await getGeneralSettings();
+    const refus = refusDeQuota(
+      g,
+      await engagementsDeLaSaison(userId, creneau.saisonId, existante?.id),
+      complet,
+    );
+    if (refus) return { ok: false, message: refus };
+
+    let statut: InscriptionStatut;
+    if (complet) statut = "LISTE_ATTENTE";
+    else if (g.validationRequise) statut = "EN_ATTENTE";
+    else statut = "VALIDEE";
+
+    const rang =
+      statut === "LISTE_ATTENTE" ? await prochainRang(creneauId) : null;
+    const data = {
+      statut,
+      rang,
+      commentaire: commentaire?.trim() || null,
+      demandeAt: new Date(),
+      decisionAt: statut === "VALIDEE" ? new Date() : null,
+      decidePar: statut === "VALIDEE" ? "automatique" : null,
+      motif: null,
+      // Nouvelle demande sur une inscription désistée ou refusée : c'est un cycle
+      // qui recommence, la promotion du précédent ne le concerne pas.
+      promuAt: null,
+      // Archivé seulement quand l'agent a réellement coché à l'écran. Une
+      // inscription saisie par le service des sports laisse ces colonnes nulles :
+      // la fiche papier signée reste alors la preuve, et un NULL ne doit jamais
+      // pouvoir se lire comme une acceptation supposée.
+      ...(acceptation
+        ? {
+            declarationsAt: new Date(),
+            declarationsVersion: acceptation.version,
+            consentementRgpdAt: acceptation.rgpdAccepte ? new Date() : null,
+          }
+        : {}),
+    };
+
+    if (existante) {
+      await prisma.inscription.update({ where: { id: existante.id }, data });
+    } else {
+      await prisma.inscription.create({ data: { creneauId, userId, ...data } });
+    }
+
+    await audit("INSCRIPTION_DEMANDE", {
+      userId,
+      cible: `${creneau.activite.nom} ${creneau.jour} ${creneau.heureDebut}`,
+      details: statut,
+    });
+
+    await accuserReception(userId, creneauId, statut, rang, "agent");
+
+    const messages: Record<InscriptionStatut, string> = {
+      VALIDEE: `Inscription confirmée pour ${creneau.activite.nom}.`,
+      EN_ATTENTE: `Demande envoyée au service des sports pour ${creneau.activite.nom}.`,
+      LISTE_ATTENTE: `Créneau complet : vous êtes en liste d'attente (position ${rang}).`,
+      REFUSEE: "",
+      DESISTEE: "",
+    };
+    return { ok: true, message: messages[statut] };
   });
-  if (existante && !["DESISTEE", "REFUSEE"].includes(existante.statut)) {
-    return { ok: false, message: "Vous avez déjà une demande sur ce créneau." };
-  }
-
-  // Le quota se calcule après avoir su où la demande atterrit : une place en
-  // file d'attente et une place en salle ne se comptent pas ensemble.
-  const complet = !(await placeDisponiblePour(creneauId, userId));
-
-  const g = await getGeneralSettings();
-  const refus = refusDeQuota(
-    g,
-    await engagementsDeLaSaison(userId, creneau.saisonId, existante?.id),
-    complet,
-  );
-  if (refus) return { ok: false, message: refus };
-
-  let statut: InscriptionStatut;
-  if (complet) statut = "LISTE_ATTENTE";
-  else if (g.validationRequise) statut = "EN_ATTENTE";
-  else statut = "VALIDEE";
-
-  const rang = statut === "LISTE_ATTENTE" ? await prochainRang(creneauId) : null;
-  const data = {
-    statut,
-    rang,
-    commentaire: commentaire?.trim() || null,
-    demandeAt: new Date(),
-    decisionAt: statut === "VALIDEE" ? new Date() : null,
-    decidePar: statut === "VALIDEE" ? "automatique" : null,
-    motif: null,
-    // Nouvelle demande sur une inscription désistée ou refusée : c'est un cycle
-    // qui recommence, la promotion du précédent ne le concerne pas.
-    promuAt: null,
-    // Archivé seulement quand l'agent a réellement coché à l'écran. Une
-    // inscription saisie par le service des sports laisse ces colonnes nulles :
-    // la fiche papier signée reste alors la preuve, et un NULL ne doit jamais
-    // pouvoir se lire comme une acceptation supposée.
-    ...(acceptation
-      ? {
-          declarationsAt: new Date(),
-          declarationsVersion: acceptation.version,
-          consentementRgpdAt: acceptation.rgpdAccepte ? new Date() : null,
-        }
-      : {}),
-  };
-
-  if (existante) {
-    await prisma.inscription.update({ where: { id: existante.id }, data });
-  } else {
-    await prisma.inscription.create({ data: { creneauId, userId, ...data } });
-  }
-
-  await audit("INSCRIPTION_DEMANDE", {
-    userId,
-    cible: `${creneau.activite.nom} ${creneau.jour} ${creneau.heureDebut}`,
-    details: statut,
-  });
-
-  await accuserReception(userId, creneauId, statut, rang, "agent");
-
-  const messages: Record<InscriptionStatut, string> = {
-    VALIDEE: `Inscription confirmée pour ${creneau.activite.nom}.`,
-    EN_ATTENTE: `Demande envoyée au service des sports pour ${creneau.activite.nom}.`,
-    LISTE_ATTENTE: `Créneau complet : vous êtes en liste d'attente (position ${rang}).`,
-    REFUSEE: "",
-    DESISTEE: "",
-  };
-  return { ok: true, message: messages[statut] };
 }
 
 export type InscriptionDirecte =
@@ -516,46 +604,52 @@ export async function inscrireDirectement(
   decidePar: string | null,
   commentaire?: string,
 ): Promise<InscriptionDirecte> {
-  const existante = await prisma.inscription.findUnique({
-    where: { creneauId_userId: { creneauId, userId } },
-  });
-  if (existante && ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"].includes(existante.statut)) {
-    return { deja: true };
-  }
-
-  let statut: InscriptionStatut = "EN_ATTENTE";
-  let rang: number | null = null;
-  if (decidePar) {
-    if (await placeDisponiblePour(creneauId, userId)) statut = "VALIDEE";
-    else {
-      statut = "LISTE_ATTENTE";
-      rang = await prochainRang(creneauId);
+  return verrouCapacite(creneauId, async () => {
+    const existante = await prisma.inscription.findUnique({
+      where: { creneauId_userId: { creneauId, userId } },
+    });
+    if (
+      existante &&
+      ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"].includes(existante.statut)
+    ) {
+      return { deja: true };
     }
-  }
 
-  const data = {
-    statut,
-    rang,
-    demandeAt: new Date(),
-    decisionAt: decidePar ? new Date() : null,
-    decidePar,
-    motif: null,
-    commentaire: commentaire ?? null,
-    promuAt: null, // repositionnement à la main : cycle neuf (voir demanderInscription)
-  };
-  if (existante) {
-    await prisma.inscription.update({ where: { id: existante.id }, data });
-  } else {
-    await prisma.inscription.create({ data: { creneauId, userId, ...data } });
-  }
+    let statut: InscriptionStatut = "EN_ATTENTE";
+    let rang: number | null = null;
+    if (decidePar) {
+      if (await placeDisponiblePour(creneauId, userId)) statut = "VALIDEE";
+      else {
+        statut = "LISTE_ATTENTE";
+        rang = await prochainRang(creneauId);
+      }
+    }
 
-  // Prévenir l'agent, mais seulement quand la décision est prise : `decidePar`
-  // nul, c'est un animateur qui signale une venue, la demande part en attente
-  // et c'est l'arbitrage du service qui écrira. Sans cette réserve, l'agent
-  // recevrait deux courriels pour une inscription qu'il n'a pas demandée.
-  if (decidePar) await accuserReception(userId, creneauId, statut, rang, "service");
+    const data = {
+      statut,
+      rang,
+      demandeAt: new Date(),
+      decisionAt: decidePar ? new Date() : null,
+      decidePar,
+      motif: null,
+      commentaire: commentaire ?? null,
+      promuAt: null, // repositionnement à la main : cycle neuf (voir demanderInscription)
+    };
+    if (existante) {
+      await prisma.inscription.update({ where: { id: existante.id }, data });
+    } else {
+      await prisma.inscription.create({ data: { creneauId, userId, ...data } });
+    }
 
-  return { deja: false, statut, rang };
+    // Prévenir l'agent, mais seulement quand la décision est prise : `decidePar`
+    // nul, c'est un animateur qui signale une venue, la demande part en attente
+    // et c'est l'arbitrage du service qui écrira. Sans cette réserve, l'agent
+    // recevrait deux courriels pour une inscription qu'il n'a pas demandée.
+    if (decidePar)
+      await accuserReception(userId, creneauId, statut, rang, "service");
+
+    return { deja: false, statut, rang };
+  });
 }
 
 /**
@@ -568,60 +662,75 @@ export async function inscrireDirectement(
  * place étant comptée une seule fois, l'effectif ne bouge pas et personne n'est
  * promu à tort.
  */
-export async function promouvoirListeAttente(creneauId: string) {
-  const p = await perimetreCapacite(creneauId);
-  if (!p) return null;
-  if (p.capacite - (await occupeesSur(p)) <= 0) return null;
+export async function promouvoirListeAttente(
+  creneauId: string,
+  /**
+   * Inscription à ne pas promouvoir, même première de la file : celle qu'on
+   * vient de rétrograder. Sans cette exclusion, « placer en liste d'attente »
+   * sur une file vide re-validait la même personne dans la seconde — avec le
+   * courriel « une place s'est libérée » — et le geste du service n'existait pas.
+   */
+  sauf?: string,
+) {
+  return verrouCapacite(creneauId, async () => {
+    const p = await perimetreCapacite(creneauId);
+    if (!p) return null;
+    if (p.capacite - (await occupeesSur(p)) <= 0) return null;
 
-  const suivant = await prisma.inscription.findFirst({
-    where: { creneauId: { in: p.creneauIds }, statut: "LISTE_ATTENTE" },
-    orderBy: [{ rang: "asc" }, { demandeAt: "asc" }],
-    include: { user: true, creneau: { include: { activite: true } } },
-  });
-  if (!suivant) return null;
-
-  await prisma.inscription.update({
-    where: { id: suivant.id },
-    data: {
-      statut: "VALIDEE",
-      rang: null,
-      decisionAt: new Date(),
-      decidePar: "liste d'attente",
-      // Horodaté pour survivre à ce qui suit : un désistement réécrirait
-      // `decidePar` et effacerait le fait qu'une place a été prise à la file
-      // pour rien (voir `promuAt`, prisma/schema.prisma).
-      promuAt: new Date(),
-    },
-  });
-
-  // Le promu détient désormais une place du groupe : ses autres attentes sur la
-  // même activité ne coûtent plus rien et n'ont pas à rester dans la file.
-  if (p.partagee) {
-    await prisma.inscription.updateMany({
+    const suivant = await prisma.inscription.findFirst({
       where: {
-        userId: suivant.userId,
-        statut: "LISTE_ATTENTE",
         creneauId: { in: p.creneauIds },
+        statut: "LISTE_ATTENTE",
+        ...(sauf ? { NOT: { id: sauf } } : {}),
       },
+      orderBy: [{ rang: "asc" }, { demandeAt: "asc" }],
+      include: { user: true, creneau: { include: { activite: true } } },
+    });
+    if (!suivant) return null;
+
+    await prisma.inscription.update({
+      where: { id: suivant.id },
       data: {
         statut: "VALIDEE",
         rang: null,
         decisionAt: new Date(),
         decidePar: "liste d'attente",
+        // Horodaté pour survivre à ce qui suit : un désistement réécrirait
+        // `decidePar` et effacerait le fait qu'une place a été prise à la file
+        // pour rien (voir `promuAt`, prisma/schema.prisma).
         promuAt: new Date(),
       },
     });
-  }
 
-  // Le promu laisse un trou dans la file : on resserre les positions pour que
-  // « vous êtes n° 3 » reste vrai côté agent.
-  await renumeroterFile(creneauId);
-  await audit("INSCRIPTION_PROMUE", {
-    cibleId: suivant.userId,
-    cible: suivant.creneau.activite.nom,
-    details: "depuis la liste d'attente",
+    // Le promu détient désormais une place du groupe : ses autres attentes sur la
+    // même activité ne coûtent plus rien et n'ont pas à rester dans la file.
+    if (p.partagee) {
+      await prisma.inscription.updateMany({
+        where: {
+          userId: suivant.userId,
+          statut: "LISTE_ATTENTE",
+          creneauId: { in: p.creneauIds },
+        },
+        data: {
+          statut: "VALIDEE",
+          rang: null,
+          decisionAt: new Date(),
+          decidePar: "liste d'attente",
+          promuAt: new Date(),
+        },
+      });
+    }
+
+    // Le promu laisse un trou dans la file : on resserre les positions pour que
+    // « vous êtes n° 3 » reste vrai côté agent.
+    await renumeroterFile(creneauId);
+    await audit("INSCRIPTION_PROMUE", {
+      cibleId: suivant.userId,
+      cible: suivant.creneau.activite.nom,
+      details: "depuis la liste d'attente",
+    });
+    return suivant;
   });
-  return suivant;
 }
 
 /**
@@ -637,8 +746,11 @@ export async function promouvoirListeAttente(creneauId: string) {
  * « use server » en aurait fait un point d'entrée appelable depuis le
  * navigateur — ce qui n'a aucun sens pour une fonction interne.
  */
-export async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
-  const promu = await promouvoirListeAttente(creneauId);
+export async function promouvoirEtPrevenir(
+  creneauId: string,
+  sauf?: string,
+): Promise<string> {
+  const promu = await promouvoirListeAttente(creneauId, sauf);
   if (!promu) return "";
 
   const adresse = adresseDeContact(promu.user);
@@ -657,7 +769,9 @@ export async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
         // viendrait pas, pendant que le suivant de la file attendait encore —
         // et le service ne l'apprenait qu'au bout de trois absences.
         `Si elle ne vous convient plus, rendez-la : elle repartira aussitôt à la personne suivante sur la liste d'attente.`,
-        base ? `[Je ne veux plus cette place](${lienPlace(promu.id, base)})` : null,
+        base
+          ? `[Je ne veux plus cette place](${lienPlace(promu.id, base)})`
+          : null,
         g.contactEmail
           ? `Le service des sports — ${g.contactEmail}`
           : `Le service des sports`,
@@ -669,18 +783,48 @@ export async function promouvoirEtPrevenir(creneauId: string): Promise<string> {
   return ` ${promu.user.displayName} a été inscrit depuis la liste d'attente.`;
 }
 
+/**
+ * Promeut tant qu'il reste une place ET quelqu'un pour la prendre.
+ *
+ * Une place libérée n'en promeut qu'une, et c'est juste. Mais une capacité qui
+ * passe de dix à treize en libère trois d'un coup, et une réouverture des
+ * inscriptions peut en trouver plusieurs : promouvoir une seule personne
+ * laissait des places vides sous les yeux du service pendant que la file
+ * attendait toujours. Renvoie les fragments de message des promotions.
+ */
+export async function promouvoirTantQuePossible(
+  creneauId: string,
+): Promise<string> {
+  const messages: string[] = [];
+  // Borne de sécurité : la file est finie, mais un bogue ne doit pas boucler.
+  for (let i = 0; i < 200; i++) {
+    const m = await promouvoirEtPrevenir(creneauId);
+    if (!m) break;
+    messages.push(m);
+  }
+  return messages.join("");
+}
+
 /** Renumérote la file après un départ, pour que les positions restent lisibles. */
 export async function renumeroterFile(creneauId: string): Promise<void> {
-  const p = await perimetreCapacite(creneauId);
-  if (!p) return;
-  const file = await prisma.inscription.findMany({
-    where: { creneauId: { in: p.creneauIds }, statut: "LISTE_ATTENTE" },
-    orderBy: [{ rang: "asc" }, { demandeAt: "asc" }],
-    select: { id: true },
+  return verrouCapacite(creneauId, async () => {
+    const p = await perimetreCapacite(creneauId);
+    if (!p) return;
+    const file = await prisma.inscription.findMany({
+      where: { creneauId: { in: p.creneauIds }, statut: "LISTE_ATTENTE" },
+      orderBy: [{ rang: "asc" }, { demandeAt: "asc" }],
+      select: { id: true, rang: true },
+    });
+    // Sous le verrou et l'une après l'autre : deux renumérotations lancées en
+    // même temps, deux désistements simultanés, se marchaient dessus et
+    // laissaient deux « n° 2 ».
+    for (const [idx, i] of file.entries()) {
+      if (i.rang !== idx + 1) {
+        await prisma.inscription.update({
+          where: { id: i.id },
+          data: { rang: idx + 1 },
+        });
+      }
+    }
   });
-  await Promise.all(
-    file.map((i, idx) =>
-      prisma.inscription.update({ where: { id: i.id }, data: { rang: idx + 1 } }),
-    ),
-  );
 }

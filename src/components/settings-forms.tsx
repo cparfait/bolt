@@ -14,9 +14,13 @@ import { Alert, Field, Input, Select, btnPrimary, btnSecondary } from "@/compone
 import { SubmitButton } from "@/components/submit-button";
 import { ChampGroupe } from "@/components/champ-groupe";
 import { FREQUENCES_AVIS } from "@/lib/frequences";
-import type { GeneralSettings, LdapSettings, SmtpSettings } from "@/lib/settings";
+import type {
+  GeneralSettings,
+  LdapSettingsPubliques,
+  SmtpSettingsPubliques,
+} from "@/lib/settings";
 
-export function LdapForm({ cfg }: { cfg: LdapSettings | null }) {
+export function LdapForm({ cfg }: { cfg: LdapSettingsPubliques | null }) {
   const [state, action] = useActionState<ActionState, FormData>(enregistrerLdap, null);
   return (
     <form action={action} className="space-y-4">
@@ -89,7 +93,13 @@ export function LdapForm({ cfg }: { cfg: LdapSettings | null }) {
         </Field>
         <Field
           label="Mot de passe du compte de service"
-          hint={cfg?.bindPassword ? "Renseigné — laisser vide pour le conserver." : undefined}
+          hint={
+            cfg?.bindPasswordIllisible
+              ? "À ressaisir : le secret de session a changé et l'ancienne valeur ne peut plus être lue."
+              : cfg?.bindPasswordRenseigne
+                ? "Renseigné — laisser vide pour le conserver."
+                : undefined
+          }
         >
           <Input name="bindPassword" type="password" autoComplete="new-password" />
         </Field>
@@ -129,9 +139,9 @@ export function LdapForm({ cfg }: { cfg: LdapSettings | null }) {
         <SubmitButton className={btnPrimary}>
           <Save className="h-4 w-4" /> Enregistrer
         </SubmitButton>
-        <button type="submit" name="tester" value="1" className={btnSecondary}>
+        <SubmitButton name="tester" value="1" className={btnSecondary} pendingLabel="Test…">
           <Plug className="h-4 w-4" /> Enregistrer et tester
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );
@@ -171,7 +181,7 @@ export function LdapOutils() {
   );
 }
 
-export function SmtpForm({ cfg }: { cfg: SmtpSettings | null }) {
+export function SmtpForm({ cfg }: { cfg: SmtpSettingsPubliques | null }) {
   const [state, action] = useActionState<ActionState, FormData>(enregistrerSmtp, null);
   return (
     <form action={action} className="space-y-4">
@@ -210,7 +220,13 @@ export function SmtpForm({ cfg }: { cfg: SmtpSettings | null }) {
         </Field>
         <Field
           label="Mot de passe"
-          hint={cfg?.pass ? "Renseigné — laisser vide pour le conserver." : undefined}
+          hint={
+            cfg?.passIllisible
+              ? "À ressaisir : le secret de session a changé et l'ancienne valeur ne peut plus être lue."
+              : cfg?.passRenseigne
+                ? "Renseigné — laisser vide pour le conserver."
+                : undefined
+          }
         >
           <Input name="pass" type="password" autoComplete="new-password" />
         </Field>
@@ -234,9 +250,9 @@ export function SmtpForm({ cfg }: { cfg: SmtpSettings | null }) {
         <SubmitButton className={btnPrimary}>
           <Save className="h-4 w-4" /> Enregistrer
         </SubmitButton>
-        <button type="submit" name="tester" value="1" className={btnSecondary}>
+        <SubmitButton name="tester" value="1" className={btnSecondary} pendingLabel="Envoi du test…">
           <Send className="h-4 w-4" /> Enregistrer et envoyer le test
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );
@@ -553,25 +569,35 @@ export function GeneralForm({
         </Select>
       </Field>
 
-      <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 p-3 text-sm">
-        <input
-          type="checkbox"
-          name="rappelsActifs"
-          defaultChecked={cfg.rappelsActifs}
-          className="mt-0.5 h-4 w-4 rounded border-slate-300"
-        />
-        <span className="flex-1">
-          <span className="block font-medium">Rappel de séance par e-mail</span>
-          <span className="block text-xs text-slate-500">
-            Envoyé aux inscrits avant leur séance. Chaque séance n&apos;est
-            rappelée qu&apos;une fois. Aucun ordonnanceur à installer :
-            l&apos;application tient l&apos;horaire elle-même.
+      {/* Un <fieldset>, et non un seul <label> autour des trois contrôles : un
+          label qui enveloppe une case, une liste et une heure ne désigne plus
+          rien — un clic sur « à » cochait la case, et un lecteur d'écran
+          annonçait tout le paragraphe pour chaque champ. */}
+      <fieldset className="rounded-xl border border-slate-200 p-3 text-sm">
+        <legend className="sr-only">Rappel de séance par e-mail</legend>
+        <label className="flex items-start gap-2.5">
+          <input
+            type="checkbox"
+            name="rappelsActifs"
+            defaultChecked={cfg.rappelsActifs}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300"
+          />
+          <span className="flex-1">
+            <span className="block font-medium">Rappel de séance par e-mail</span>
+            <span className="block text-xs text-slate-500">
+              Envoyé aux inscrits avant leur séance. Chaque séance n&apos;est
+              rappelée qu&apos;une fois. Aucun ordonnanceur à installer :
+              l&apos;application tient l&apos;horaire elle-même.
+            </span>
           </span>
-          {/* Un jour et une heure plutôt qu'un nombre d'heures : « la veille à
-              midi » se règle sans calcul et se vérifie d'un coup d'œil, là où
-              « 24 heures avant » laissait partir le courriel à minuit passé —
-              en tête d'une boîte que l'agent ouvrirait huit heures plus tard. */}
-          <span className="mt-2 flex flex-wrap items-center gap-2">
+        </label>
+        {/* Un jour et une heure plutôt qu'un nombre d'heures : « la veille à
+            midi » se règle sans calcul et se vérifie d'un coup d'œil, là où
+            « 24 heures avant » laissait partir le courriel à minuit passé —
+            en tête d'une boîte que l'agent ouvrirait huit heures plus tard. */}
+        <div className="mt-2 flex flex-wrap items-center gap-2 pl-6.5">
+          <label className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Envoyé</span>
             <select
               name="rappelJoursAvant"
               defaultValue={cfg.rappelJoursAvant}
@@ -583,6 +609,8 @@ export function GeneralForm({
               <option value={3}>3 jours avant</option>
               <option value={7}>Une semaine avant</option>
             </select>
+          </label>
+          <label className="flex items-center gap-2">
             <span className="text-xs text-slate-500">à</span>
             <input
               name="rappelHeure"
@@ -590,12 +618,12 @@ export function GeneralForm({
               defaultValue={cfg.rappelHeure}
               className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-brand-500"
             />
-            <span className="text-xs text-slate-500">
-              heure de la collectivité, à cinq minutes près
-            </span>
+          </label>
+          <span className="text-xs text-slate-500">
+            heure de la collectivité, à cinq minutes près
           </span>
-        </span>
-      </label>
+        </div>
+      </fieldset>
 
       <SubmitButton className={btnPrimary}>
         <Save className="h-4 w-4" /> Enregistrer

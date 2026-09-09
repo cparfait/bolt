@@ -96,3 +96,21 @@ export function dimensionsImage(buf: Buffer): Dimensions | null {
     return null;
   }
 }
+
+/**
+ * Type MIME d'après les premiers octets, pour les trois formats matriciels
+ * acceptés — ou null. Sert à vérifier qu'un fichier est ce qu'il prétend être
+ * avant de le confier à une bibliothèque de décodage.
+ */
+export function formatImage(buf: Buffer): "image/png" | "image/jpeg" | "image/webp" | null {
+  if (buf.length >= 8 && buf.toString("hex", 0, 8) === "89504e470d0a1a0a") return "image/png";
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (
+    buf.length >= 12 &&
+    buf.toString("ascii", 0, 4) === "RIFF" &&
+    buf.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  return null;
+}

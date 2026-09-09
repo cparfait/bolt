@@ -183,8 +183,10 @@ export default async function AnimateursPage() {
                         action={supprimerAnimateur.bind(null, c.id)}
                         confirmation={`Supprimer définitivement ${c.prenom} ${c.nom} ?`}
                         className={btnSecondary}
+                        title={`Supprimer ${c.prenom} ${c.nom}`}
                       >
                         <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Supprimer {c.prenom} {c.nom}</span>
                       </BoutonAction>
                     )}
                   </div>

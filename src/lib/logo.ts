@@ -1,4 +1,4 @@
-import { dimensionsImage } from "./images";
+import { dimensionsImage, formatImage } from "./images";
 
 /**
  * Réduction du logo, une fois pour toutes, au moment de l'enregistrer.
@@ -43,6 +43,11 @@ export async function reduireLogo(dataUri: string): Promise<string> {
   if (!m) return dataUri;
 
   const original = Buffer.from(m[2], "base64");
+  // Un fichier dont les octets ne sont pas ceux du type annoncé ne passe pas
+  // par `sharp` : libvips choisirait son codec d'après le contenu réel, et
+  // c'est dans ces codecs-là (HEIF, TIFF…) que vivent les failles. On le rend
+  // tel quel — l'envoi l'a déjà refusé, ceci protège les logos déjà en base.
+  if (formatImage(original) !== m[1]) return dataUri;
   const taille = dimensionsImage(original);
   if (taille && taille.hauteur <= HAUTEUR_MAX && taille.largeur <= LARGEUR_MAX) {
     return dataUri;

@@ -25,6 +25,7 @@ export function InscrireForm({
   couleur,
   intitule,
   textes,
+  conservationMois,
 }: {
   creneauId: string;
   complet: boolean;
@@ -34,6 +35,12 @@ export function InscrireForm({
   intitule?: string;
   /** Textes en vigueur, lus en base par la page (Paramètres → Déclarations). */
   textes: TextesLegaux;
+  /**
+   * Durée de conservation annoncée, lue dans Paramètres → Général : c'est la
+   * même valeur qui commande la purge, pour que la mention ne promette pas
+   * autre chose que ce que l'application fait.
+   */
+  conservationMois: number;
 }) {
   const [state, action] = useActionState<ActionState, FormData>(inscrireAction, null);
   const dialogue = useRef<HTMLDialogElement>(null);
@@ -67,13 +74,15 @@ export function InscrireForm({
 
   return (
     <div className="space-y-2">
-      {state?.success && (
+      {state?.success ? (
+        // Le bouton disparaît avec le succès : jusqu'à ce que la page se
+        // revalide, il restait cliquable et un second clic rouvrait la boîte
+        // sur une inscription déjà faite.
         <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
           {state.success}
         </p>
-      )}
-
-      {/* Le bouton prend la couleur de l'activité, et non le vert de la
+      ) : (
+      /* Le bouton prend la couleur de l'activité, et non le vert de la
           collectivité. Sur une carte au liseré violet, au titre violet et à la
           jauge violette, un bouton vert institutionnel n'appartenait à rien : la
           carte parlait deux langues à la fois. Le catalogue est le seul écran
@@ -81,7 +90,7 @@ export function InscrireForm({
 
           Plein pour s'inscrire, en creux pour rejoindre une file : ce n'est pas
           le même engagement, et le second se remarquait trop en bleu — une
-          cinquième couleur qui ne désignait rien. */}
+          cinquième couleur qui ne désignait rien. */
       <button
         type="button"
         onClick={ouvrir}
@@ -99,6 +108,7 @@ export function InscrireForm({
         <Plus className="h-4 w-4" />
         {complet ? "Rejoindre la liste d'attente" : "M'inscrire"}
       </button>
+      )}
 
       {/* <dialog> natif : la touche Échap, le fond modal et le piège de focus
           sont fournis par le navigateur, sans dépendance ni état à hydrater.
@@ -167,7 +177,7 @@ export function InscrireForm({
               </p>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
                 Vos données sont recueillies par la commune pour instruire votre demande
-                et gérer votre inscription, conservées 14 mois, et destinées à la
+                et gérer votre inscription, conservées {conservationMois} mois, et destinées à la
                 Direction des sports et à la Direction des ressources humaines. Vous
                 pouvez retirer votre consentement à tout moment.
               </p>
@@ -227,22 +237,31 @@ export function InscrireForm({
             </p>
           )}
 
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
-            <button
-              type="button"
-              onClick={() => dialogue.current?.close()}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-            >
-              Annuler
-            </button>
-            <SubmitButton
-              disabled={!toutAccepte}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
-              pendingLabel="Envoi…"
-            >
-              <Plus className="h-4 w-4" />
-              {complet ? "J'accepte et je rejoins la liste" : "J'accepte et je m'inscris"}
-            </SubmitButton>
+          <div className="border-t border-slate-100 px-5 py-3">
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => dialogue.current?.close()}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+              >
+                Annuler
+              </button>
+              <SubmitButton
+                disabled={!toutAccepte}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
+                pendingLabel="Envoi…"
+              >
+                <Plus className="h-4 w-4" />
+                {complet ? "J'accepte et je rejoins la liste" : "J'accepte et je m'inscris"}
+              </SubmitButton>
+            </div>
+            {/* Un bouton grisé sans explication se lit comme une panne : on
+                dit ce qui manque, tant que ça manque. */}
+            {!toutAccepte && (
+              <p className="mt-2 text-right text-xs text-slate-400">
+                Cochez les déclarations et le consentement pour continuer.
+              </p>
+            )}
           </div>
         </form>
       </dialog>
@@ -250,11 +269,28 @@ export function InscrireForm({
   );
 }
 
-/** Désinscription par l'agent lui-même. */
-export function DesinscrireForm({ id }: { id: string }) {
+/**
+ * Désinscription par l'agent lui-même.
+ *
+ * Confirmée avant l'envoi : la place repart aussitôt au suivant de la liste
+ * d'attente, qui est prévenu par courriel — un clic malheureux ne se reprend
+ * pas en se réinscrivant, on repasserait derrière lui.
+ */
+export function DesinscrireForm({ id, intitule }: { id: string; intitule?: string }) {
   const [state, action] = useActionState<ActionState, FormData>(desisterAction, null);
   return (
-    <form action={action}>
+    <form
+      action={action}
+      onSubmit={(e) => {
+        if (
+          !window.confirm(
+            `Vous désinscrire${intitule ? ` de ${intitule}` : ""} ? Votre place repart au suivant de la liste d'attente, et vous devrez refaire une demande pour revenir.`,
+          )
+        ) {
+          e.preventDefault();
+        }
+      }}
+    >
       <input type="hidden" name="id" value={id} />
       <Alert state={state?.error ? state : null} />
       <SubmitButton

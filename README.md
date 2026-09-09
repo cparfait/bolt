@@ -283,7 +283,7 @@ n'échoue, les courriels sortent simplement trop tard.
 
 Si vous préférez un ordonnanceur externe, définissez `CRON_TOKEN` et appelez
 `GET /api/taches/rappels` — sans ce jeton la route reste fermée. Les deux voies
-coexistent sans risque : les verrous sont en base, et un inscrit n'est rappelé
+coexistent sans risque sur une instance unique : les verrous sont en base, et un inscrit n'est rappelé
 qu'une fois par séance quelle que soit la voie.
 
 ---
@@ -486,6 +486,24 @@ Le proxy doit renseigner `X-Forwarded-For` **en écrasant** toute valeur fournie
 par le client : c'est cette adresse que `src/proxy.ts` compare à
 `INTERNAL_CIDRS`.
 
+Deux conséquences sur le réseau Docker, faciles à manquer :
+
+- **`172.16.0.0/12` ne fait pas partie des plages internes.** C'est la plage
+  des réseaux Docker : l'y mettre ferait de tout conteneur voisin un visiteur
+  « interne », autorisé à atteindre la page de connexion Active Directory. Si
+  votre LAN est réellement en 172.16–31, déclarez *votre* plage, pas le /12.
+- **Le conteneur ne doit être joignable que par le proxy.** Une requête qui
+  arrive sans passer par lui porte un `X-Forwarded-For` que personne n'a
+  vérifié. Attachez donc `bolt_web` à un réseau partagé avec le seul reverse
+  proxy (`PROXY_NETWORK=bolt_proxy` dans la stack, après
+  `docker network create bolt_proxy` et le rattachement de NPM à ce réseau)
+  plutôt qu'au réseau commun à toutes les applications du serveur.
+
+Les mots de passe du compte de service LDAP et de la messagerie sont chiffrés
+en base avec une clé dérivée de `SESSION_SECRET` (`src/lib/chiffrement.ts`).
+Changer ce secret les rend illisibles : l'écran des paramètres le signale et
+demande leur ressaisie.
+
 Pour Apache, une configuration complète et commentée est fournie :
 [`deploy/apache-chatbouge.conf`](deploy/apache-chatbouge.conf). Elle refuse tout
 par défaut, puis rouvre les seuls préfixes nécessaires.
@@ -685,6 +703,7 @@ src/lib/ldap.ts                LDAPS, groupes imbriqués, synchronisation
 src/lib/coach-access.ts        jeton + PIN des animateurs
 src/lib/liens-courriel.ts      signature des boutons envoyés par courriel
 src/lib/secret.ts              le secret dont dérivent cookies et signatures
+src/lib/chiffrement.ts         chiffrement des mots de passe LDAP et SMTP en base
 src/lib/seances.ts             génération du calendrier
 src/lib/emargement.ts          construction et écriture des feuilles
 src/lib/inscriptions.ts        capacité, liste d'attente, promotions

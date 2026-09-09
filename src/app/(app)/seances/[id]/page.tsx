@@ -80,7 +80,14 @@ export default async function SeanceDetail({
           <BoutonAction
             action={cloturerSeance.bind(null, id)}
             className={btnSecondary}
-            confirmation="Clôturer la feuille ? L'animateur ne pourra plus la modifier."
+            // L'animateur clôture aussi : lui parler de « l'animateur » à la
+            // troisième personne laissait croire que le geste visait quelqu'un
+            // d'autre.
+            confirmation={
+              gestionnaire
+                ? "Clôturer la feuille ? L'animateur ne pourra plus la modifier."
+                : "Clôturer la feuille ? Vous ne pourrez plus la modifier ; seul le service des sports pourra la rouvrir."
+            }
           >
             <Lock className="h-4 w-4" /> Clôturer
           </BoutonAction>

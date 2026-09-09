@@ -61,7 +61,35 @@ export default async function ActiviteDetail({
     where: { id },
     include: { _count: { select: { creneaux: true } } },
   });
-  if (!activite || !saison) notFound();
+  if (!activite) notFound();
+
+  // L'activité existe, mais aucune saison n'est en cours : ce n'est pas une
+  // page introuvable, c'est une étape manquante — et une 404 envoyait chercher
+  // une faute de frappe dans l'adresse là où il fallait aller aux paramètres.
+  if (!saison) {
+    return (
+      <>
+        <Link
+          href="/activites"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
+        >
+          <ArrowLeft className="h-4 w-4" /> Retour aux activités
+        </Link>
+        <PageHeader title={activite.nom}>
+          {!activite.actif && <Badge>Désactivée</Badge>}
+        </PageHeader>
+        <EmptyState
+          title="Aucune saison en cours"
+          hint="Les créneaux se rattachent à une saison. Créez-en une, ou activez-en une, dans Paramètres → Saisons & calendrier."
+        />
+        <p className="mt-4 text-center">
+          <Link href="/parametres/saisons" className={btnSecondary}>
+            Ouvrir les saisons
+          </Link>
+        </p>
+      </>
+    );
+  }
 
   const [creneaux, archives, animateurs, fermetures, effectifs, lieux] =
     await Promise.all([
@@ -110,6 +138,7 @@ export default async function ActiviteDetail({
     saisonId: saison.id,
     saisonDebut: fmtDate(saison.debut),
     saisonFin: fmtDate(saison.fin),
+    bornes: { debut: isoDate(saison.debut), fin: isoDate(saison.fin) },
     fermetures: optionsFermetures,
     activite: {
       id: activite.id,

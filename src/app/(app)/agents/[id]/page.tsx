@@ -177,7 +177,10 @@ export default async function FicheAgent({
   }));
 
   const pointages = venues + manquees;
-  const taux = pointages > 0 ? Math.round((venues / pointages) * 100) : 0;
+  // Sans pointage, pas de taux : « 0 % » se lisait « ne vient jamais » pour un
+  // agent qui n'a simplement pas encore eu de séance — même règle que sur la
+  // feuille d'une séance.
+  const taux = pointages > 0 ? Math.round((venues / pointages) * 100) : null;
 
   // Un participant créé à la main : son identité n'appartient à aucun annuaire,
   // c'est donc ici qu'elle se corrige. Les comptes locaux sont dans le même cas
@@ -232,9 +235,13 @@ export default async function FicheAgent({
         <Stat label="Séances suivies" value={venues} accent="text-emerald-600 bg-emerald-50" />
         <Stat
           label="Taux de présence"
-          value={taux}
-          suffixe="%"
-          hint={`${manquees} ${pluriel(manquees, "absence")} sur ${pointages} ${pluriel(pointages, "séance pointée", "séances pointées")}`}
+          value={taux ?? "—"}
+          suffixe={taux === null ? undefined : "%"}
+          hint={
+            taux === null
+              ? "aucune séance pointée pour l'instant"
+              : `${manquees} ${pluriel(manquees, "absence")} sur ${pointages} ${pluriel(pointages, "séance pointée", "séances pointées")}`
+          }
         />
         <Stat
           label="Dernière connexion"

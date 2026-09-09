@@ -9,7 +9,7 @@ import { audit } from "@/lib/audit";
 import type { Jour } from "@prisma/client";
 import { aujourdhui, fmtDate, jourUtc, normaliserHeure, JOUR_LABELS } from "@/lib/dates";
 import { genererSeancesCreneau } from "@/lib/seances";
-import { promouvoirListeAttente } from "@/lib/inscriptions";
+import { promouvoirTantQuePossible } from "@/lib/inscriptions";
 import { notifierChangementCreneau } from "@/lib/notifications";
 import { erreur, succes, type ActionState } from "./types";
 
@@ -78,6 +78,14 @@ export async function enregistrerActivite(
         });
       }
       await audit("ACTIVITE_MODIFIEE", { userId: user.id, cible: data.nom });
+      // Un groupe agrandi a des places à donner : la file n'attendait sinon
+      // que le prochain désistement, une personne à la fois. Sans effet si
+      // rien ne s'est libéré.
+      const premier = await prisma.creneau.findFirst({
+        where: { activiteId: id, saison: { active: true }, archiveAt: null },
+        select: { id: true },
+      });
+      if (premier) await promouvoirTantQuePossible(premier.id);
     } else {
       const ordre = await prisma.activite.count();
       const row = await prisma.activite.create({ data: { ...data, ordre } });
@@ -146,10 +154,15 @@ export async function supprimerActivite(id: string): Promise<void> {
     // Les créneaux suivent : une activité archivée dont les créneaux
     // resteraient au planning continuerait d'appeler des animateurs et
     // d'accepter des inscriptions.
-    for (const c of creneaux) await archiverCreneau(c.id);
+    //
+    // Un seul horodatage pour l'activité et ses créneaux : c'est lui que
+    // `restaurerActivite` compare, et chaque `new Date()` séparé d'un aller-
+    // retour en base en donnait un différent — aucun créneau ne revenait.
+    const quand = new Date();
+    for (const c of creneaux) await archiverCreneau(c.id, quand);
     await prisma.activite.update({
       where: { id },
-      data: { archiveAt: new Date(), actif: false },
+      data: { archiveAt: quand, actif: false },
     });
     await audit("ACTIVITE_ARCHIVEE", {
       userId: user.id,
@@ -181,11 +194,22 @@ export async function restaurerActivite(id: string): Promise<void> {
   // Seuls les créneaux archivés EN MÊME TEMPS qu'elle reviennent : un créneau
   // retiré trois mois plus tôt l'a été pour sa propre raison, et le ressusciter
   // au passage remettrait au planning une séance que personne n'attend.
-  await prisma.creneau.updateMany({
+  const revenus = await prisma.creneau.findMany({
     where: { activiteId: id, archiveAt: archivee },
+    select: { id: true },
+  });
+  await prisma.creneau.updateMany({
+    where: { id: { in: revenus.map((c) => c.id) } },
     data: { archiveAt: null },
   });
-  await audit("ACTIVITE_RESTAUREE", { userId: user.id, cible: activite.nom });
+  // Comme `restaurerCreneau` : un créneau revenu au planning sans ses séances
+  // à venir n'aurait rien à émarger.
+  for (const c of revenus) await genererSeancesCreneau(c.id);
+  await audit("ACTIVITE_RESTAUREE", {
+    userId: user.id,
+    cible: activite.nom,
+    details: `${revenus.length} créneau(x) restauré(s)`,
+  });
   revalidatePath("/", "layout");
 }
 
@@ -333,6 +357,9 @@ export async function enregistrerCreneau(
   // Le calendrier suit immédiatement la modification : sans cela, un créneau
   // créé n'aurait aucune séance à émarger.
   const gen = await genererSeancesCreneau(creneau.id);
+  // Une capacité relevée libère des places d'un coup : la file avance autant
+  // qu'elle le peut, pas d'une seule personne au prochain désistement.
+  const promotions = id ? await promouvoirTantQuePossible(creneau.id) : "";
 
   await audit(id ? "CRENEAU_MODIFIE" : "CRENEAU_CREE", {
     userId: user.id,
@@ -403,7 +430,7 @@ export async function enregistrerCreneau(
       .join(", ");
     calendrier = `${delta} — ${total} séance${s(total)} au calendrier`;
   }
-  return succes(`Créneau enregistré — ${calendrier}.${notification}`);
+  return succes(`Créneau enregistré — ${calendrier}.${notification}${promotions}`);
 }
 
 /**
@@ -424,6 +451,7 @@ export async function supprimerCreneau(id: string): Promise<void> {
       _count: {
         select: {
           seances: { where: { OR: [{ statut: "FAITE" }, { presences: { some: {} } }] } },
+          inscriptions: { where: { statut: { in: ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"] } } },
         },
       },
     },
@@ -431,10 +459,15 @@ export async function supprimerCreneau(id: string): Promise<void> {
   if (!creneau) return;
 
   const intitule = `${creneau.activite.nom} — ${JOUR_LABELS[creneau.jour].toLowerCase()} ${creneau.heureDebut}`;
-  if (creneau._count.seances === 0) {
+  if (creneau._count.seances === 0 && creneau._count.inscriptions === 0) {
     await prisma.creneau.delete({ where: { id } });
     await audit("CRENEAU_SUPPRIME", { userId: user.id, cible: intitule });
   } else {
+    // « Jamais émargé » ne veut pas dire « sans engagement » : un créneau de
+    // septembre avec quinze inscrits dont la première séance est la semaine
+    // prochaine partait en cascade, inscriptions comprises, sans un mot. Dès
+    // qu'un dossier vivant existe, on archive — les inscrits restent visibles
+    // sur leur fiche, et le geste se défait.
     const retirees = await archiverCreneau(id);
     await audit("CRENEAU_ARCHIVE", {
       userId: user.id,
@@ -460,7 +493,7 @@ export async function supprimerCreneau(id: string): Promise<void> {
  *
  * Renvoie le nombre de séances retirées du calendrier.
  */
-async function archiverCreneau(id: string): Promise<number> {
+async function archiverCreneau(id: string, quand: Date = new Date()): Promise<number> {
   const retirees = await prisma.seance.deleteMany({
     where: {
       creneauId: id,
@@ -469,9 +502,23 @@ async function archiverCreneau(id: string): Promise<number> {
       presences: { none: {} },
     },
   });
+  // Les demandes et les attentes, elles, n'ont aucune valeur pour le bilan :
+  // laissées en place, elles comptaient dans le plafond d'attente de l'agent
+  // sans qu'aucun écran ne lui permette d'en sortir, et n'étaient plus jamais
+  // promues. Les inscriptions validées restent, pour la fréquentation.
+  await prisma.inscription.updateMany({
+    where: { creneauId: id, statut: { in: ["EN_ATTENTE", "LISTE_ATTENTE"] } },
+    data: {
+      statut: "DESISTEE",
+      rang: null,
+      decisionAt: quand,
+      decidePar: "créneau retiré",
+      motif: "Créneau retiré du planning",
+    },
+  });
   await prisma.creneau.update({
     where: { id },
-    data: { archiveAt: new Date(), ouvertInscription: false },
+    data: { archiveAt: quand, ouvertInscription: false },
   });
   return retirees.count;
 }
@@ -504,7 +551,7 @@ export async function regenererCalendrier(creneauId: string): Promise<void> {
   revalidatePath("/seances");
 }
 
-/** Ouvre ou ferme les inscriptions sur un créneau, et purge la file si besoin. */
+/** Ouvre ou ferme les inscriptions sur un créneau ; à la réouverture, la file avance. */
 export async function basculerInscriptions(creneauId: string): Promise<void> {
   const user = await requireUser("GESTIONNAIRE");
   const creneau = await prisma.creneau.findUnique({ where: { id: creneauId } });
@@ -513,7 +560,7 @@ export async function basculerInscriptions(creneauId: string): Promise<void> {
     where: { id: creneauId },
     data: { ouvertInscription: !creneau.ouvertInscription },
   });
-  if (!creneau.ouvertInscription) await promouvoirListeAttente(creneauId);
+  if (!creneau.ouvertInscription) await promouvoirTantQuePossible(creneauId);
   await audit(creneau.ouvertInscription ? "CRENEAU_FERME" : "CRENEAU_OUVERT", {
     userId: user.id,
     cible: creneauId,

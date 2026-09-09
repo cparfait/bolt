@@ -36,7 +36,9 @@ export const SEANCE_STATUT_COLORS: Record<SeanceStatut, string> = {
 };
 
 export const INSCRIPTION_STATUT_LABELS: Record<InscriptionStatut, string> = {
-  EN_ATTENTE: "En attente",
+  // Vu par l'agent comme par le service : « en attente » ne disait pas de
+  // quoi, et se confondait avec la liste d'attente juste en dessous.
+  EN_ATTENTE: "Demande en cours d'examen",
   VALIDEE: "Inscrit",
   LISTE_ATTENTE: "Liste d'attente",
   REFUSEE: "Refusée",

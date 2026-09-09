@@ -1,6 +1,16 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { clientIp, estInterne } from "@/lib/net";
 
-export default function NotFound() {
+export default async function NotFound() {
+  // Depuis Internet, `/` n'est pas publiée : renvoyer vers l'espace agent,
+  // seul écran joignable de là où se trouve le visiteur.
+  let accueil = "/";
+  try {
+    if (!estInterne(clientIp(await headers()))) accueil = "/mes-activites";
+  } catch {
+    // hors contexte de requête : l'accueil par défaut convient
+  }
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
       <div className="max-w-sm text-center">
@@ -10,7 +20,7 @@ export default function NotFound() {
           Cette page n&apos;existe pas, ou vous n&apos;y avez pas accès.
         </p>
         <Link
-          href="/"
+          href={accueil}
           className="mt-6 inline-flex rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white"
         >
           Retour à l&apos;accueil

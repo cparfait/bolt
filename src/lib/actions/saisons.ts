@@ -5,8 +5,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
-import { jourUtc } from "@/lib/dates";
+import { aujourdhui, jourUtc } from "@/lib/dates";
 import { genererSeancesSaison } from "@/lib/seances";
+import { notifierSeancesAnnulees } from "@/lib/notifications";
 import { reprendreCreneaux } from "@/lib/saison";
 import { pluriel } from "@/lib/constants";
 import { erreur, succes, type ActionState } from "./types";
@@ -153,6 +154,30 @@ export async function ajouterFermeture(
   const fin = jourUtc(parsed.data.fin);
   if (fin < debut) return erreur("La fin de la période doit suivre son début.");
 
+  // Les séances que la période va retirer, AVANT de les retirer : une
+  // fermeture ajoutée en cours de saison — piscine en vidange, scrutin —
+  // efface des séances que les inscrits ont notées, et pour lesquelles un
+  // rappel est parfois déjà parti. Une annulation les prévient ; une
+  // fermeture doit le faire aussi. La génération, elle, ne préserve que les
+  // séances émargées (voir src/lib/seances.ts), donc même liste ici.
+  const condamnees = await prisma.seance.findMany({
+    where: {
+      creneau: { saisonId: parsed.data.saisonId, archiveAt: null },
+      statut: "PLANIFIEE",
+      date: { gte: max(debut, aujourdhui()), lte: fin },
+      presences: { none: {} },
+    },
+    select: { id: true },
+  });
+  const prevenir = formData.get("prevenir") === "on";
+  const information =
+    prevenir && condamnees.length > 0
+      ? await notifierSeancesAnnulees(
+          condamnees.map((s) => s.id),
+          parsed.data.libelle,
+        )
+      : null;
+
   await prisma.fermeture.create({
     data: { saisonId: parsed.data.saisonId, libelle: parsed.data.libelle, debut, fin },
   });
@@ -160,13 +185,29 @@ export async function ajouterFermeture(
   // Les séances tombant dans la période sont retirées du calendrier — sauf
   // celles déjà émargées, que la génération préserve.
   const gen = await genererSeancesSaison(parsed.data.saisonId);
-  await audit("FERMETURE_AJOUTEE", { userId: user.id, cible: parsed.data.libelle });
+  await audit("FERMETURE_AJOUTEE", {
+    userId: user.id,
+    cible: parsed.data.libelle,
+    details: information ? `${information.envoyes} inscrit(s) prévenu(s)` : undefined,
+  });
 
   revalidatePath("/parametres/saisons");
   revalidatePath("/seances");
+  revalidatePath("/mes-activites");
+  const prevenus = information
+    ? information.envoyes > 0
+      ? ` ${information.envoyes} inscrit${information.envoyes > 1 ? "s" : ""} prévenu${information.envoyes > 1 ? "s" : ""} par courriel.`
+      : information.destinataires > 0
+        ? " Aucun inscrit n'a pu être prévenu — vérifiez la messagerie."
+        : ""
+    : "";
   return succes(
-    `Période ajoutée — ${gen.supprimees} séance${gen.supprimees > 1 ? "s" : ""} retirée${gen.supprimees > 1 ? "s" : ""} du calendrier.`,
+    `Période ajoutée — ${gen.supprimees} séance${gen.supprimees > 1 ? "s" : ""} retirée${gen.supprimees > 1 ? "s" : ""} du calendrier.${prevenus}`,
   );
+}
+
+function max(a: Date, b: Date): Date {
+  return a > b ? a : b;
 }
 
 export async function supprimerFermeture(id: string): Promise<void> {

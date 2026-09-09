@@ -46,20 +46,40 @@ describe("participeALaSeance", () => {
 });
 
 describe("placesOffertes", () => {
-  const creneau = (capacite: number, partagee: boolean, activite: number | null) => ({
-    creneau: { capacite, activite: { capacitePartagee: partagee, capacite: activite } },
+  const seance = (
+    capacite: number,
+    partagee: boolean,
+    activite: number | null,
+    inscriptions?: { statut: string; decisionAt: Date | null; demandeAt: Date }[],
+  ) => ({
+    date: new Date("2026-10-05T00:00:00Z"),
+    creneau: { capacite, activite: { capacitePartagee: partagee, capacite: activite }, inscriptions },
+  });
+  const inscrit = (statut = "VALIDEE", depuis = "2026-09-01T00:00:00Z") => ({
+    statut,
+    decisionAt: new Date(depuis),
+    demandeAt: new Date(depuis),
   });
 
   it("prend la capacité du créneau par défaut", () => {
-    assert.equal(placesOffertes(creneau(20, false, 99)), 20);
+    assert.equal(placesOffertes(seance(20, false, 99)), 20);
   });
 
-  it("prend celle du groupe quand l'activité mutualise", () => {
-    assert.equal(placesOffertes(creneau(20, true, 12)), 12);
+  it("en capacité mutualisée, compte les inscrits attendus à la séance", () => {
+    assert.equal(
+      placesOffertes(seance(12, true, 12, [inscrit(), inscrit(), inscrit("LISTE_ATTENTE")])),
+      2,
+      "deux validés, l'attente ne compte pas",
+    );
   });
 
-  it("retombe sur le créneau si le groupe n'a pas d'effectif déclaré", () => {
-    assert.equal(placesOffertes(creneau(20, true, null)), 20);
+  it("n'attend pas quelqu'un inscrit après la séance", () => {
+    assert.equal(placesOffertes(seance(12, true, 12, [inscrit(), inscrit("VALIDEE", "2026-11-01T00:00:00Z")])), 1);
+  });
+
+  it("retombe sur l'effectif du groupe sans inscrit chargé", () => {
+    assert.equal(placesOffertes(seance(20, true, 12)), 12);
+    assert.equal(placesOffertes(seance(20, true, null)), 20);
   });
 });
 

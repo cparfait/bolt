@@ -79,6 +79,13 @@ export function FermetureForm({ saisonId }: { saisonId: string }) {
           <Input name="fin" type="date" required />
         </Field>
       </div>
+      {/* Une fermeture ajoutée en cours de saison retire des séances que les
+          inscrits ont notées : ils sont prévenus comme pour une annulation,
+          sauf si la période est encore vide de tout inscrit ou déjà connue. */}
+      <label className="flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" name="prevenir" defaultChecked className="h-4 w-4 rounded border-slate-300" />
+        Prévenir par courriel les inscrits des séances retirées
+      </label>
       <SubmitButton className={btnSecondary}>
         <CalendarPlus className="h-4 w-4" /> Ajouter la période
       </SubmitButton>

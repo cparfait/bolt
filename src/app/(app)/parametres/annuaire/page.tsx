@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { getLdapSettings } from "@/lib/settings";
+import { getLdapSettings, ldapSansSecret } from "@/lib/settings";
 import { Card, Stat } from "@/components/ui";
 import { LdapForm, LdapOutils } from "@/components/settings-forms";
 import { fmtHorodatage } from "@/lib/dates";
@@ -37,7 +37,7 @@ export default async function ParametresAnnuaire() {
       </Card>
 
       <Card title="Connexion à l'Active Directory">
-        <LdapForm cfg={cfg} />
+        <LdapForm cfg={ldapSansSecret(cfg)} />
       </Card>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">

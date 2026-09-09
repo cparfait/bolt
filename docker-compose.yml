@@ -48,7 +48,13 @@ services:
       BOLT_POINTAGE_URL: ${BOLT_POINTAGE_URL:-}
       # Seule /emargement/* reste joignable hors de ces plages : le back-office
       # et la connexion Active Directory ne sont pas exposés à Internet.
-      INTERNAL_CIDRS: ${INTERNAL_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32}
+      #
+      # 172.16.0.0/12 n'y figure PLUS : c'est la plage des réseaux Docker. L'y
+      # laisser faisait de tout conteneur voisin — et de toute requête arrivée
+      # sans passer par le reverse proxy — un visiteur « interne », autorisé à
+      # atteindre la page de connexion Active Directory. Si votre LAN utilise
+      # réellement une plage 172.16–31, ajoutez-la ici, la vôtre et pas le /12.
+      INTERNAL_CIDRS: ${INTERNAL_CIDRS:-10.0.0.0/8,192.168.0.0/16,127.0.0.1/32}
       # Décommentez pour ouvrir aussi l'espace agent (connexion par lien e-mail)
       # aux agents sans poste sur le réseau — et, si le formulaire est activé
       # dans Paramètres, la demande d'accès des personnes hors annuaire.
@@ -80,8 +86,16 @@ services:
       - /home/sysadmin/docker/ca_chatillon:/certs:ro
     networks:
       - bolt_net
-      - containers-lan
-    # Le reverse proxy joint le conteneur via containers-lan (http://bolt_web:3000).
+      - proxy
+    # Le reverse proxy joint le conteneur par son nom (http://bolt_web:3000) sur
+    # le réseau `proxy`. Par défaut c'est `containers-lan`, que TOUS les
+    # conteneurs du serveur partagent : chacun d'eux peut alors joindre Bolt en
+    # direct, sans passer par le proxy, donc sans X-Forwarded-For de confiance.
+    # Le mieux est un réseau dédié, partagé entre le proxy et Bolt seulement :
+    #   docker network create bolt_proxy
+    #   puis attacher le conteneur NPM à bolt_proxy (Portainer → Containers →
+    #   NPM → Network → Join), et poser PROXY_NETWORK=bolt_proxy ici.
+    # NPM garde exactement le même « Forward Hostname » : bolt_web.
     # Décommentez pour exposer aussi le port sur l'hôte (proxy hors Docker, debug) :
     # ports:
     #   - "127.0.0.1:3100:3000"
@@ -89,5 +103,6 @@ services:
 networks:
   bolt_net:
     driver: bridge
-  containers-lan:
+  proxy:
     external: true
+    name: ${PROXY_NETWORK:-containers-lan}

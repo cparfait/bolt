@@ -10,6 +10,7 @@ import {
   placesRestantes,
   prochainRang,
   promouvoirListeAttente,
+  promouvoirTantQuePossible,
   renumeroterFile,
 } from "../../src/lib/inscriptions";
 import { setSetting } from "../../src/lib/settings";
@@ -531,5 +532,75 @@ describe("créneau fermé ou hors saison", () => {
     const res = await demanderInscription(c.agents[0], c.creneaux[0]);
     assert.equal(res.ok, false);
     assert.match(res.message, /saison en cours/);
+  });
+});
+
+describe("règles corrigées à l'audit du 9 septembre 2026", () => {
+  it("n'attribue jamais la dernière place à deux agents qui la demandent en même temps", async () => {
+    const c = await contexte({ capacites: [1], agents: 6 });
+    const resultats = await Promise.all(
+      c.agents.map((a) => demanderInscription(a, c.creneaux[0])),
+    );
+    assert.ok(resultats.every((r) => r.ok));
+    const validees = await prisma.inscription.count({
+      where: { creneauId: c.creneaux[0], statut: "VALIDEE" },
+    });
+    assert.equal(validees, 1, "une seule place, un seul validé, malgré la concurrence");
+    const attente = (await file(c.creneaux[0])).filter((r) => r.statut === "LISTE_ATTENTE");
+    assert.deepEqual(
+      attente.map((r) => r.rang),
+      [1, 2, 3, 4, 5],
+      "la file est numérotée sans doublon",
+    );
+  });
+
+  it("ne re-promeut pas la personne qu'on vient de rétrograder", async () => {
+    const c = await contexte({ capacites: [1], agents: 1 });
+    await demanderInscription(c.agents[0], c.creneaux[0]);
+    const [inscription] = await prisma.inscription.findMany({ where: { userId: c.agents[0] } });
+    await prisma.inscription.update({
+      where: { id: inscription.id },
+      data: { statut: "LISTE_ATTENTE", rang: 1 },
+    });
+    assert.equal(await promouvoirListeAttente(c.creneaux[0], inscription.id), null);
+    const relue = await prisma.inscription.findUnique({ where: { id: inscription.id } });
+    assert.equal(relue?.statut, "LISTE_ATTENTE");
+  });
+
+  it("ne compte pas un créneau archivé dans le quota de l'agent", async () => {
+    await setSetting("general", {
+      validationRequise: false,
+      maxInscriptionsParAgent: 1,
+      maxListeAttenteParAgent: 1,
+    });
+    const c = await contexte({ capacites: [5, 5], agents: 1 });
+    assert.ok((await demanderInscription(c.agents[0], c.creneaux[0])).ok);
+    await prisma.creneau.update({
+      where: { id: c.creneaux[0] },
+      data: { archiveAt: new Date() },
+    });
+    const res = await demanderInscription(c.agents[0], c.creneaux[1]);
+    assert.ok(res.ok, `un créneau retiré du planning ne bloque plus : ${res.message}`);
+  });
+
+  it("refuse une demande sur une activité désactivée, même hors écran", async () => {
+    const c = await contexte({ capacites: [5], agents: 1 });
+    await prisma.activite.update({ where: { id: c.activiteId }, data: { actif: false } });
+    const res = await demanderInscription(c.agents[0], c.creneaux[0]);
+    assert.equal(res.ok, false);
+    assert.match(res.message, /plus ouverte/);
+  });
+
+  it("promeut autant de personnes que de places libérées d'un coup", async () => {
+    const c = await contexte({ capacites: [1], agents: 4 });
+    for (const a of c.agents) await demanderInscription(a, c.creneaux[0]);
+    await prisma.creneau.update({ where: { id: c.creneaux[0] }, data: { capacite: 3 } });
+    await promouvoirTantQuePossible(c.creneaux[0]);
+    const validees = await prisma.inscription.count({
+      where: { creneauId: c.creneaux[0], statut: "VALIDEE" },
+    });
+    assert.equal(validees, 3);
+    const attente = (await file(c.creneaux[0])).filter((r) => r.statut === "LISTE_ATTENTE");
+    assert.deepEqual(attente.map((r) => r.rang), [1]);
   });
 });

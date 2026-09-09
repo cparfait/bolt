@@ -19,7 +19,7 @@ lui-même en production.
 |---|---|---|
 | Domain Names | `chatbouge.chatillon92.fr` | Apache conserve le `Host` (`ProxyPreserveHost On`) : sans ce nom exact, NPM sert son site par défaut et les actions serveur de Next.js échouent. |
 | Scheme | `http` | Le conteneur écoute en clair sur 3000. |
-| Forward Hostname / IP | `bolt_web` | NPM est sur le réseau `containers-lan` ; il résout le conteneur par son nom. Aucun port à publier sur l'hôte : le `ports:` de `docker-compose.yml` reste commenté. |
+| Forward Hostname / IP | `bolt_web` | NPM et Bolt partagent un réseau Docker (`containers-lan` par défaut, mieux : un réseau `bolt_proxy` réservé à eux deux, voir `PROXY_NETWORK` dans la stack) ; NPM résout le conteneur par son nom. Aucun port à publier sur l'hôte : le `ports:` de `docker-compose.yml` reste commenté. |
 | Forward Port | `3000` | |
 | Cache Assets | **désactivé** | Les réponses du pointage sont propres à un jeton et à une séance. Next.js pose déjà ses propres `Cache-Control`. |
 | Block Common Exploits | activé | Sans effet connu sur le pointage (pas de chaîne de requête, tout passe en POST d'action serveur). Si un pointage échouait sans raison, c'est la première case à décocher pour tester. |

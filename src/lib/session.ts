@@ -60,8 +60,20 @@ export async function currentUser(): Promise<User | null> {
  */
 export async function requireAgent(): Promise<User> {
   const user = await currentUser();
-  if (!user) redirect("/connexion");
+  if (!user) redirect(await ecranDeConnexion());
   return user;
+}
+
+/**
+ * Où renvoyer quelqu'un qui n'est pas connecté.
+ *
+ * `/connexion` n'est jamais publiée sur Internet : y renvoyer un agent venu
+ * de l'extérieur — sa session de douze heures a expiré, il rouvre le lien de
+ * son courriel — le fait tomber sur un 403 ou sur le site de la ville, sans
+ * jamais lui montrer l'écran par lequel il peut réellement rentrer.
+ */
+export async function ecranDeConnexion(): Promise<string> {
+  return estInterne(clientIp(await headers())) ? "/connexion" : "/acces";
 }
 
 /**

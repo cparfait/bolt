@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { reduireLogo } from "@/lib/logo";
+import { formatImage } from "@/lib/images";
 import { FREQUENCES_AVIS, type FrequenceAvis } from "@/lib/frequences";
 import { normaliserHeure } from "@/lib/dates";
 import { ldapSearchGroups, ldapTest } from "@/lib/ldap";
@@ -23,7 +24,9 @@ import {
   getGeneralSettings,
   getLdapSettings,
   getSmtpSettings,
+  setLdapSettings,
   setSetting,
+  setSmtpSettings,
   type LdapSettings,
   type SmtpSettings,
 } from "@/lib/settings";
@@ -42,6 +45,15 @@ function texte(formData: FormData, cle: string): string {
 }
 
 const LOGO_TYPES_ACCEPTES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+
+/** Les octets sont-ils bien ceux du type annoncé ? */
+function contenuConforme(type: string, octets: Buffer): boolean {
+  if (type === "image/svg+xml") {
+    const debut = octets.subarray(0, 512).toString("utf8").trimStart();
+    return debut.startsWith("<svg") || debut.startsWith("<?xml");
+  }
+  return formatImage(octets) === type;
+}
 const LOGO_TAILLE_MAX = 300 * 1024; // 300 Ko : large pour un logo, contenu dans Setting.value
 
 /**
@@ -72,6 +84,17 @@ async function lireLogo(
   }
 
   const octets = Buffer.from(await fichier.arrayBuffer());
+  // Le type déclaré par le navigateur n'est qu'une déclaration : ce sont les
+  // octets qui décident du codec appelé pour la réduction. Un fichier HEIF ou
+  // TIFF renommé « .png » irait sinon jusqu'aux bibliothèques natives, là où
+  // se trouvent les failles de décodage. On refuse tout ce que l'en-tête ne
+  // reconnaît pas comme le format annoncé.
+  if (!contenuConforme(fichier.type, octets)) {
+    return {
+      logo: actuel,
+      erreur: "Le contenu du fichier ne correspond pas à une image PNG, JPEG, WebP ou SVG.",
+    };
+  }
   return {
     logo: await reduireLogo(`data:${fichier.type};base64,${octets.toString("base64")}`),
   };
@@ -110,7 +133,7 @@ export async function enregistrerLdap(
     tlsRejectUnauthorized: formData.get("tlsRejectUnauthorized") === "on",
   };
 
-  await setSetting("ldap", cfg);
+  await setLdapSettings(cfg);
   await audit("PARAM_LDAP", { userId: admin.id, details: cfg.url });
   revalidatePath("/parametres/annuaire");
 
@@ -202,7 +225,7 @@ export async function enregistrerSmtp(
     tlsRejectUnauthorized: formData.get("tlsRejectUnauthorized") === "on",
   };
 
-  await setSetting("smtp", cfg);
+  await setSmtpSettings(cfg);
   await audit("PARAM_SMTP", { userId: admin.id, details: cfg.host });
   revalidatePath("/parametres/messagerie");
 
@@ -384,14 +407,14 @@ export async function purgerInscriptionsAction(
       `Le décompte a changé depuis l'affichage (${decompte.inscriptions} au lieu de ${attendu}). Rien n'a été effacé : rechargez la page et recommencez.`,
     );
   }
-  if (decompte.inscriptions === 0 && decompte.presences === 0) {
+  if (decompte.inscriptions === 0 && decompte.presences === 0 && decompte.autres === 0) {
     return succes("Rien à effacer : aucune saison n'est close depuis assez longtemps.");
   }
 
   const res = await purgerInscriptions(g.conservationMois, user.displayName);
   revalidatePath("/parametres/journal");
   return succes(
-    `${res.inscriptions} inscription(s) et ${res.presences} présence(s) effacées définitivement.`,
+    `${res.inscriptions} inscription(s), ${res.presences} présence(s) et ${res.autres} absence(s) annoncée(s), participation(s) ou rappel(s) effacés définitivement.`,
   );
 }
 

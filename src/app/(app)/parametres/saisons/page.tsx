@@ -177,8 +177,10 @@ export default async function ParametresSaisons() {
                         action={supprimerFermeture.bind(null, f.id)}
                         confirmation="Supprimer cette période ? Les séances seront replanifiées."
                         className="rounded-lg border border-slate-200 px-2 py-1.5 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+                        title={`Supprimer la période « ${f.libelle} »`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
+                        <span className="sr-only">Supprimer la période « {f.libelle} »</span>
                       </BoutonAction>
                     </li>
                   ))}

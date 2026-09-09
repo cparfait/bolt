@@ -53,6 +53,9 @@ export function Feuille({
 
   function pointer(userId: string, etat: EtatPresence) {
     if (verrouillee) return;
+    // Une erreur précédente ne doit pas rester affichée une fois que le
+    // réseau est revenu et que le pointage suivant passe.
+    setErreur(null);
     startTransition(async () => {
       setEtats({ userId, etat });
       try {
@@ -65,6 +68,7 @@ export function Feuille({
 
   function toutPresent() {
     if (verrouillee) return;
+    setErreur(null);
     startTransition(async () => {
       for (const l of restants) setEtats({ userId: l.userId, etat: "PRESENT" });
       try {
@@ -79,7 +83,6 @@ export function Feuille({
     });
   }
 
-  const pointes = lignes.filter((l) => etats[l.userId] !== null).length;
   const presents = lignes.filter(
     (l) => etats[l.userId] === "PRESENT",
   ).length;
@@ -90,6 +93,12 @@ export function Feuille({
   const restants = lignes.filter(
     (l) => etats[l.userId] === null && !l.absenceAnnoncee,
   );
+  // Ceux qui ont prévenu et n'ont pas été touchés : comptés absents à la
+  // transmission, sans geste. Le compteur du bas les met à part, sinon il
+  // annonce « 3 restants » quand il n'y a plus rien à faire.
+  const prevenus = lignes.filter(
+    (l) => etats[l.userId] === null && l.absenceAnnoncee,
+  ).length;
 
   return (
     <div className="pb-32">
@@ -182,7 +191,9 @@ export function Feuille({
         })}
       </ul>
 
-      {/* Compteur permanent : l'animateur voit d'un coup d'œil ce qui reste. */}
+      {/* Compteur permanent : l'animateur voit d'un coup d'œil ce qui reste.
+          Feuille transmise : plus rien à terminer, la barre le dit au lieu de
+          proposer un bouton qui mène à une section qui n'existe plus. */}
       <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <div className="text-sm">
@@ -190,17 +201,25 @@ export function Feuille({
               {presents} présent{presents > 1 ? "s" : ""} / {lignes.length}
             </p>
             <p className="text-xs text-slate-400">
-              {pointes === lignes.length
-                ? "Tout le monde est pointé"
-                : `${lignes.length - pointes} restant${lignes.length - pointes > 1 ? "s" : ""}`}
+              {verrouillee
+                ? "Feuille transmise"
+                : restants.length === 0
+                  ? prevenus > 0
+                    ? `Tout le monde est pointé — ${prevenus} ${prevenus > 1 ? "ont" : "a"} prévenu`
+                    : "Tout le monde est pointé"
+                  : `${restants.length} restant${restants.length > 1 ? "s" : ""}${
+                      prevenus > 0 ? ` — ${prevenus} ${prevenus > 1 ? "ont" : "a"} prévenu` : ""
+                    }`}
             </p>
           </div>
-          <a
-            href="#transmettre"
-            className="rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition active:scale-95"
-          >
-            Terminer
-          </a>
+          {!verrouillee && (
+            <a
+              href="#transmettre"
+              className="rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition active:scale-95"
+            >
+              Terminer
+            </a>
+          )}
         </div>
       </div>
     </div>

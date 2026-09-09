@@ -164,6 +164,8 @@ export type DecomptePurge = {
   saisons: string[];
   inscriptions: number;
   presences: number;
+  /** Absences annoncées, participations ponctuelles et rappels remis. */
+  autres: number;
 };
 
 /** Saisons closes depuis plus de `mois`. */
@@ -180,16 +182,27 @@ function seuilDe(mois: number): Date {
 /** Ce que la purge effacerait, sans rien effacer. */
 export async function compterAPurger(mois: number): Promise<DecomptePurge> {
   const seuil = seuilDe(mois);
-  const [saisons, inscriptions, presences] = await Promise.all([
-    prisma.saison.findMany({
-      where: { fin: { lt: seuil } },
-      select: { nom: true },
-      orderBy: { fin: "asc" },
-    }),
-    prisma.inscription.count({ where: { creneau: filtreSaison(seuil) } }),
-    prisma.presence.count({ where: { seance: { creneau: filtreSaison(seuil) } } }),
-  ]);
-  return { seuil, saisons: saisons.map((s) => s.nom), inscriptions, presences };
+  const parSeance = { seance: { creneau: filtreSaison(seuil) } };
+  const [saisons, inscriptions, presences, absences, participations, rappels] =
+    await Promise.all([
+      prisma.saison.findMany({
+        where: { fin: { lt: seuil } },
+        select: { nom: true },
+        orderBy: { fin: "asc" },
+      }),
+      prisma.inscription.count({ where: { creneau: filtreSaison(seuil) } }),
+      prisma.presence.count({ where: parSeance }),
+      prisma.absenceAnnoncee.count({ where: parSeance }),
+      prisma.participationPonctuelle.count({ where: parSeance }),
+      prisma.rappelEnvoye.count({ where: parSeance }),
+    ]);
+  return {
+    seuil,
+    saisons: saisons.map((s) => s.nom),
+    inscriptions,
+    presences,
+    autres: absences + participations + rappels,
+  };
 }
 
 /**
@@ -200,7 +213,7 @@ export async function compterAPurger(mois: number): Promise<DecomptePurge> {
 export async function purgerInscriptions(
   mois: number,
   auteur: string,
-): Promise<{ inscriptions: number; presences: number }> {
+): Promise<{ inscriptions: number; presences: number; autres: number }> {
   const seuil = seuilDe(mois);
 
   // Les présences d'abord : elles sont rattachées à l'inscription en
@@ -212,10 +225,19 @@ export async function purgerInscriptions(
   const inscriptions = await prisma.inscription.deleteMany({
     where: { creneau: filtreSaison(seuil) },
   });
+  // Tout ce qui rattache encore une personne à une séance de ces saisons : les
+  // absences annoncées — avec leur motif en texte libre, « arrêt maladie »,
+  // « garde d'enfant » —, les participations ponctuelles et les rappels remis.
+  // La durée annoncée doit s'appliquer à tout ce qu'elle annonce.
+  const parSeance = { seance: { creneau: filtreSaison(seuil) } };
+  const absences = await prisma.absenceAnnoncee.deleteMany({ where: parSeance });
+  const participations = await prisma.participationPonctuelle.deleteMany({ where: parSeance });
+  const rappels = await prisma.rappelEnvoye.deleteMany({ where: parSeance });
+  const autres = absences.count + participations.count + rappels.count;
 
   await audit("PURGE_INSCRIPTIONS", {
-    details: `${inscriptions.count} inscription(s) et ${presences.count} présence(s) antérieures au ${seuil.toLocaleDateString("fr-FR")}, par ${auteur}`,
+    details: `${inscriptions.count} inscription(s), ${presences.count} présence(s) et ${autres} absence(s) annoncée(s), participation(s) ou rappel(s) antérieurs au ${seuil.toLocaleDateString("fr-FR")}, par ${auteur}`,
   });
 
-  return { inscriptions: inscriptions.count, presences: presences.count };
+  return { inscriptions: inscriptions.count, presences: presences.count, autres };
 }

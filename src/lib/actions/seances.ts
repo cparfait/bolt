@@ -12,8 +12,8 @@ import {
   retirerPresence,
 } from "@/lib/emargement";
 import { inscrireDirectement } from "@/lib/inscriptions";
-import { notifierSeancesAnnulees } from "@/lib/notifications";
-import { assurerCompteAgent } from "./agents";
+import { notifierSeanceRetablie, notifierSeancesAnnulees } from "@/lib/notifications";
+import { assurerCompteAgent } from "@/lib/comptes-annuaire";
 import { erreur, succes, type ActionState } from "./types";
 
 const ETATS: EtatPresence[] = ["PRESENT", "ABSENT"];
@@ -77,6 +77,16 @@ export async function annulerSeance(
   const seance = await seanceAutorisee(seanceId, acteur.id, acteur.role);
   if (!seance) return erreur("Séance introuvable ou hors de votre périmètre.");
   if (!motif) return erreur("Indiquez le motif de l'annulation.");
+  // Une séance émargée porte des présences : l'annuler les faisait sortir de
+  // toutes les statistiques en les laissant en base. Une séance déjà annulée
+  // ne s'annule pas deux fois — le motif était écrasé et les inscrits
+  // prévenus une seconde fois.
+  if (seance.statut === "ANNULEE") return erreur("Cette séance est déjà annulée.");
+  if (seance.statut === "FAITE" || seance.clotureeAt) {
+    return erreur(
+      "Cette séance a été émargée : rouvrez-la et effacez les présences avant de l'annuler.",
+    );
+  }
 
   await prisma.seance.update({
     where: { id: seanceId },
@@ -197,15 +207,25 @@ export async function retablirSeance(seanceId: string): Promise<void> {
     where: { id: seanceId },
     include: { _count: { select: { presences: true } } },
   });
-  if (!seance) return;
+  if (!seance || seance.statut !== "ANNULEE") return;
   await prisma.seance.update({
     where: { id: seanceId },
     data: {
       statut: seance._count.presences > 0 ? "FAITE" : "PLANIFIEE",
       motifAnnulation: null,
+      // L'animateur qui déclare « la séance n'a pas eu lieu » clôture la
+      // feuille en même temps. La rouvrir fait partie du rétablissement :
+      // sinon personne ne peut plus y pointer ni s'y déclarer absent, et elle
+      // disparaît des prochaines séances de l'agent. Même geste que
+      // `retablirSeanceAVenir` côté feuille mobile.
+      clotureeAt: null,
+      clotureePar: null,
     },
   });
   await audit("SEANCE_RETABLIE", { userId: acteur.id, cible: seanceId });
+  // Les inscrits ont reçu l'annonce de l'annulation : ils doivent recevoir
+  // celle du rétablissement, comme depuis la feuille de l'animateur.
+  if (seance.date >= aujourdhui()) await notifierSeanceRetablie(seanceId);
   revalidatePath("/seances");
   revalidatePath("/seances/calendrier");
   revalidatePath(`/seances/${seanceId}`);

@@ -103,14 +103,14 @@ export function LienForm({
           {aDejaUnLien ? "Régénérer sans envoyer" : "Générer le lien"}
         </SubmitButton>
         {avecEmail && (
-          <button
-            type="submit"
+          <SubmitButton
             name="envoyerMail"
             value="1"
             className={btnSecondary}
+            pendingLabel="Génération et envoi…"
           >
             <Mail className="h-4 w-4" /> Générer et envoyer par e-mail
-          </button>
+          </SubmitButton>
         )}
       </div>
 

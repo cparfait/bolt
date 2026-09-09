@@ -34,22 +34,41 @@ export function estPresent(etat: EtatPresence): boolean {
 }
 
 /**
- * Places offertes par une séance.
+ * Places offertes par une séance — le dénominateur du taux de remplissage.
  *
- * Le créneau porte sa capacité, sauf quand l'activité mutualise la sienne :
- * `Creneau.capacite` n'est alors qu'une valeur résiduelle, et la rapporter aux
- * présences donnerait un taux de remplissage calculé sur un effectif qui n'est
- * pas celui du groupe.
+ * Capacité par créneau : c'est la capacité du créneau, simplement.
+ *
+ * Capacité mutualisée : le groupe compte douze agents répartis sur le lundi et
+ * le jeudi, mais aucune séance n'en attend douze. Rapporter les présents du
+ * lundi à l'effectif du groupe plafonnait mécaniquement le remplissage vers
+ * 50 % pour une activité pleine, et le bilan lisait « sous-utilisée » une
+ * activité qui refusait du monde. Le remplissage se mesure donc séance par
+ * séance, contre ce que la séance attendait réellement : les inscrits validés
+ * de ce créneau-là, à cette date-là.
  */
 export function placesOffertes(seance: {
+  date: Date;
   creneau: {
     capacite: number;
     activite: { capacitePartagee: boolean; capacite: number | null };
+    inscriptions?: { statut: string; decisionAt: Date | null; demandeAt: Date }[];
   };
 }): number {
   const a = seance.creneau.activite;
-  return a.capacitePartagee ? (a.capacite ?? seance.creneau.capacite) : seance.creneau.capacite;
+  if (!a.capacitePartagee) return seance.creneau.capacite;
+  const attendus = (seance.creneau.inscriptions ?? []).filter(
+    (i) => i.statut === "VALIDEE" && participeALaSeance(i, seance.date),
+  ).length;
+  // Sans inscrits chargés — ou sans inscrit du tout —, on retombe sur
+  // l'effectif du groupe plutôt que sur zéro, qui ferait disparaître la ligne.
+  return attendus > 0 ? attendus : (a.capacite ?? seance.creneau.capacite);
 }
+
+/** Inscriptions utiles à `placesOffertes`, à inclure sous `creneau`. */
+export const INSCRIPTIONS_POUR_PLACES = {
+  where: { statut: "VALIDEE" as const },
+  select: { statut: true, decisionAt: true, demandeAt: true },
+};
 
 export async function chargerSeances(f: Filtre) {
   return prisma.seance.findMany({
@@ -63,7 +82,7 @@ export async function chargerSeances(f: Filtre) {
         : {}),
     },
     include: {
-      creneau: { include: { activite: true } },
+      creneau: { include: { activite: true, inscriptions: INSCRIPTIONS_POUR_PLACES } },
       presences: { include: { user: true } },
     },
     orderBy: { date: "asc" },
@@ -323,8 +342,11 @@ export async function decrocheurs(f: Filtre, seuil: number): Promise<Decrocheur[
   const inscriptions = await prisma.inscription.findMany({
     where: {
       statut: "VALIDEE",
+      // Pas les créneaux archivés : relancer quelqu'un pour un créneau qu'il
+      // ne voit plus, en l'invitant à s'en désinscrire, n'a pas de sens.
       creneau: {
         saisonId: f.saisonId,
+        archiveAt: null,
         ...(f.activiteId ? { activiteId: f.activiteId } : {}),
       },
     },
@@ -714,7 +736,10 @@ export async function fiabilite(f: Filtre): Promise<Fiabilite> {
   const [seances, annoncees, desistements, promotions, promotionsRendues] =
     await Promise.all([
       chargerSeances(f),
-      prisma.absenceAnnoncee.count({ where: { seance: perimetre } }),
+      // Sur les seules séances émargées : une absence annoncée pour la semaine
+      // prochaine n'a encore été constatée par personne, et la compter gonflait
+      // la part jusqu'à afficher 100 % alors que des feuilles manquaient.
+      prisma.absenceAnnoncee.count({ where: { seance: { ...perimetre, statut: "FAITE" } } }),
       prisma.inscription.count({ where: { statut: "DESISTEE", ...perimetre } }),
       prisma.inscription.count({ where: { promuAt: { not: null }, ...perimetre } }),
       prisma.inscription.count({
@@ -755,6 +780,22 @@ export async function fiabilite(f: Filtre): Promise<Fiabilite> {
   };
 }
 
+/**
+ * Une cellule CSV telle qu'Excel l'ouvrira sans l'interpréter.
+ *
+ * Un nom d'activité ou un lieu est saisi librement par le service des sports.
+ * Commençant par `=`, `+`, `-` ou `@`, Excel le lit comme une formule à
+ * l'ouverture du fichier — c'est la voie classique pour faire exécuter quelque
+ * chose à qui ouvre un export. Une apostrophe en tête le ramène à du texte ;
+ * les guillemets protègent séparateurs et retours à la ligne.
+ */
+export function celluleCsv(v: unknown): string {
+  let s = String(v ?? "");
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (/[";\r\n]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
 /** Export CSV du détail des séances — pièce jointe du bilan QVT. */
 export async function exportCsv(f: Filtre): Promise<string> {
   const seances = await chargerSeances(f);
@@ -785,7 +826,7 @@ export async function exportCsv(f: Filtre): Promise<string> {
         c("ABSENT"),
         placesOffertes(s),
       ]
-        .map((v) => String(v).replace(/;/g, ","))
+        .map(celluleCsv)
         .join(";"),
     );
   }

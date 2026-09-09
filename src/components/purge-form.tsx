@@ -20,12 +20,15 @@ export function PurgeForm({
   mois,
   inscriptions,
   presences,
+  autres,
   saisons,
   seuil,
 }: {
   mois: number;
   inscriptions: number;
   presences: number;
+  /** Absences annoncées, participations ponctuelles et rappels remis. */
+  autres: number;
   saisons: string[];
   seuil: string;
 }) {
@@ -35,7 +38,7 @@ export function PurgeForm({
   );
   const [confirme, setConfirme] = useState(false);
 
-  const rienAFaire = inscriptions === 0 && presences === 0;
+  const rienAFaire = inscriptions === 0 && presences === 0 && autres === 0;
 
   return (
     <form action={action} className="space-y-3">
@@ -61,7 +64,9 @@ export function PurgeForm({
             <p className="flex items-center gap-1.5 font-semibold">
               <TriangleAlert className="h-3.5 w-3.5" />
               {inscriptions} inscription{inscriptions > 1 ? "s" : ""} et {presences}{" "}
-              présence{presences > 1 ? "s" : ""} seront effacées définitivement
+              présence{presences > 1 ? "s" : ""}, et {autres} absence{autres > 1 ? "s" : ""}{" "}
+              annoncée{autres > 1 ? "s" : ""}, participation{autres > 1 ? "s" : ""} ou rappel{autres > 1 ? "s" : ""}, seront
+              effacés définitivement
             </p>
             {saisons.length > 0 && (
               <p className="mt-1">Saisons concernées : {saisons.join(", ")}.</p>

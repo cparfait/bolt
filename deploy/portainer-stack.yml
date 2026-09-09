@@ -69,7 +69,7 @@ services:
       BOLT_POINTAGE_URL: ${BOLT_POINTAGE_URL:-}
       # Seule /emargement/* reste joignable hors de ces plages : le back-office
       # et la connexion Active Directory ne sont pas exposés à Internet.
-      INTERNAL_CIDRS: ${INTERNAL_CIDRS:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32}
+      INTERNAL_CIDRS: ${INTERNAL_CIDRS:-10.0.0.0/8,192.168.0.0/16,127.0.0.1/32}
       # Décommentez pour ouvrir aussi l'espace agent (connexion par lien e-mail)
       # aux agents sans poste sur le réseau — et, si le formulaire est activé
       # dans Paramètres, la demande d'accès des personnes hors annuaire.
@@ -101,12 +101,22 @@ services:
       - /home/sysadmin/docker/ca_chatillon:/certs:ro
     networks:
       - bolt_net
-      - containers-lan
-    # Le reverse proxy NPM joint le conteneur via containers-lan
-    # (http://bolt_web:3000) : aucun port publié sur l'hôte.
+      - proxy
+    # Le reverse proxy NPM joint le conteneur par son nom (http://bolt_web:3000)
+    # sur le réseau `proxy` : aucun port publié sur l'hôte.
+    #
+    # Par défaut ce réseau est `containers-lan`, partagé par TOUS les conteneurs
+    # du serveur : chacun peut alors joindre Bolt en direct, sans passer par
+    # NPM, donc sans X-Forwarded-For de confiance. Préférez un réseau réservé à
+    # NPM et à Bolt :
+    #   docker network create bolt_proxy
+    #   Portainer → Containers → <NPM> → Network → Join network : bolt_proxy
+    #   variable de stack PROXY_NETWORK=bolt_proxy
+    # NPM garde le même « Forward Hostname » : bolt_web.
 
 networks:
   bolt_net:
     driver: bridge
-  containers-lan:
+  proxy:
     external: true
+    name: ${PROXY_NETWORK:-containers-lan}

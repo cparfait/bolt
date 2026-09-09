@@ -285,7 +285,13 @@ export async function seancesDuCoach(coachId: string, joursAvant = 14, joursApre
 /** Fenêtre de saisie : au-delà, seul un gestionnaire peut corriger. */
 export const JOURS_SAISIE_COACH = 14;
 
+/**
+ * Une présence est un constat : elle ne s'établit que le jour venu, jamais
+ * avant. La fenêtre acceptait la séance du lendemain, et un pointage posé la
+ * veille basculait la séance en « émargée » avant qu'elle ait lieu — elle
+ * comptait alors dans l'assiduité comme si elle s'était tenue.
+ */
 export function saisieOuverte(date: Date): boolean {
   const limite = ajouterJours(aujourdhui(), -JOURS_SAISIE_COACH);
-  return date >= limite && date <= ajouterJours(aujourdhui(), 1);
+  return date >= limite && date <= aujourdhui();
 }

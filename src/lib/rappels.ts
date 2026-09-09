@@ -153,7 +153,9 @@ async function campagne(): Promise<ResultatRappels> {
         include: {
           activite: true,
           inscriptions: {
-            where: { statut: "VALIDEE" },
+            // Un compte désactivé sans désinscription — congé long, absence
+            // prolongée — garde sa place, mais n'a pas à recevoir de rappel.
+            where: { statut: "VALIDEE", user: { active: true } },
             include: { user: true },
           },
         },

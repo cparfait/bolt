@@ -182,6 +182,16 @@ export async function anonymiserCompte(
   // l'annuaire ne doit jamais rattacher ce compte à quoi que ce soit.
   const login = `supprime.${userId.slice(-12)}`;
 
+  // La règle annoncée plus haut, appliquée : sur un service d'une seule
+  // personne, « Agent supprimé — Cabinet du maire » désigne encore quelqu'un.
+  // Un service que d'autres comptes portent encore ne dit rien de plus.
+  const autresDuService = user.service
+    ? await prisma.user.count({
+        where: { service: user.service, id: { not: userId }, anonymiseAt: null },
+      })
+    : 0;
+  const service = autresDuService > 0 ? user.service : null;
+
   await prisma.$transaction([
     // Les jetons de connexion en cours cessent d'ouvrir quoi que ce soit.
     prisma.magicToken.deleteMany({ where: { userId } }),
@@ -197,10 +207,14 @@ export async function anonymiserCompte(
         passwordHash: null,
         active: false,
         anonymiseAt: new Date(),
+        service,
+        serviceForce: false,
       },
     }),
   ]);
 
-  await audit("COMPTE_ANONYMISE", { cibleId: userId, cible: nom, details: `par ${auteur}` });
+  // Pas le nom dans le journal : il y resterait un an, en clair, sur la ligne
+  // même qui dit que l'identité a été effacée.
+  await audit("COMPTE_ANONYMISE", { cibleId: userId, details: `par ${auteur}` });
   return { applique: true, nom };
 }

@@ -589,7 +589,7 @@ async function VueAgents({
               Une absence annoncée permet à l&apos;animateur de ne pas attendre, et
               distingue l&apos;empêchement ponctuel de l&apos;abandon. C&apos;est le
               rappel de la veille qui fait monter ce taux — il s&apos;active dans
-              Paramètres → Messagerie.
+              Paramètres → Général.
             </p>
           </div>
         </Card>

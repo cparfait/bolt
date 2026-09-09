@@ -3,7 +3,15 @@ import { getIdentiteApp } from "@/lib/settings";
 
 // `themeColor` appartient à l'export `viewport` depuis Next 15 : laissé dans
 // les métadonnées, il est ignoré avec un avertissement à la construction.
-export const viewport: Viewport = { themeColor: "#006e46" };
+// `maximumScale: 1` seulement ici : sur la feuille tactile, un double tap sur
+// un bouton de pointage zoomait la page au lieu de pointer. Le reste de
+// l'application garde le zoom du navigateur.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#006e46",
+};
 
 /**
  * Enveloppe des écrans d'émargement.

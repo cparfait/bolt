@@ -2,6 +2,7 @@ import { declencherRappelsSiBesoin } from "./rappels";
 import { declencherPurgeSiBesoin } from "./purge";
 import { declencherSyncSiBesoin } from "./annuaire";
 import { declencherAvisDemandesSiBesoin } from "./demandes";
+import { siPersonneDAutre } from "./verrou";
 
 /**
  * Ordonnanceur interne au conteneur.
@@ -25,11 +26,16 @@ import { declencherAvisDemandesSiBesoin } from "./demandes";
  * ── Ce qui ne change pas ──────────────────────────────────────────────────
  *
  * Les verrous restent portés par les tâches elles-mêmes, en base : c'est eux,
- * et non ce minuteur, qui garantissent qu'une séance n'est rappelée qu'une
- * fois et que l'annuaire n'est lu qu'une fois par jour. Deux conséquences
- * voulues : la route `GET /api/taches/rappels` continue de fonctionner pour
- * qui préfère un ordonnanceur externe, et deux instances de l'application ne
- * feraient pas le travail en double.
+ * et non ce minuteur, qui font qu'une séance n'est rappelée qu'une fois et
+ * que l'annuaire n'est lu qu'une fois par jour. La route
+ * `GET /api/taches/rappels` continue donc de fonctionner pour qui préfère un
+ * ordonnanceur externe.
+ *
+ * Ces verrous-là sont des « lire puis écrire », pas des opérations atomiques :
+ * ils écartent un second passage quelques minutes plus tard, pas deux
+ * instances qui battent dans la même seconde. C'est le verrou consultatif
+ * PostgreSQL de `battement` (src/lib/verrou.ts) qui tient ce cas — partagé
+ * avec la route de cron, pour que les deux voies ne se croisent pas non plus.
  */
 
 /**
@@ -55,7 +61,11 @@ const DEMARRAGE_MS = 30 * 1000;
 const TEMOIN = Symbol.for("bolt.ordonnanceur");
 type PorteurTemoin = { [TEMOIN]?: NodeJS.Timeout };
 
-async function battement(): Promise<void> {
+/** Clé du verrou partagé entre l'ordonnanceur interne et la route de cron. */
+export const VERROU_TACHES = "bolt:taches-de-fond";
+
+/** Les tâches de fond, dans l'ordre, chacune silencieuse sur son échec. */
+export async function executerTaches(origine: "ordonnanceur" | "cron"): Promise<void> {
   // Chaque tâche est déjà silencieuse en cas d'échec ; ce filet attrape ce qui
   // resterait. Un ordonnanceur qui meurt sur une erreur ne redémarrerait
   // qu'au prochain déploiement, et personne ne le remarquerait avant des
@@ -63,7 +73,7 @@ async function battement(): Promise<void> {
   for (const tache of [
     declencherRappelsSiBesoin,
     declencherPurgeSiBesoin,
-    () => declencherSyncSiBesoin("ordonnanceur"),
+    () => declencherSyncSiBesoin(origine),
     declencherAvisDemandesSiBesoin,
   ]) {
     try {
@@ -71,6 +81,17 @@ async function battement(): Promise<void> {
     } catch {
       // le battement suivant réessaiera
     }
+  }
+}
+
+async function battement(): Promise<void> {
+  try {
+    // Une seule instance à la fois, quel que soit le nombre de conteneurs ou
+    // de crons : les verrous propres à chaque tâche ne sont pas atomiques,
+    // celui-ci l'est (src/lib/verrou.ts).
+    await siPersonneDAutre(VERROU_TACHES, () => executerTaches("ordonnanceur"));
+  } catch {
+    // base injoignable : le battement suivant réessaiera
   }
 }
 

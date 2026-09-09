@@ -14,7 +14,7 @@ import {
 } from "@/components/ui";
 import { DesinscrireForm, InscrireForm } from "@/components/inscription-agent";
 import { MesSeances } from "@/components/mes-seances";
-import { prochainesSeancesDe } from "@/lib/actions/absences";
+import { prochainesSeancesDe } from "@/lib/absences";
 import { getTextesLegaux } from "@/lib/declarations";
 import { FiltreActivites } from "@/components/filtre-activites";
 import { effectifsParActivite, refusDeQuota } from "@/lib/inscriptions";
@@ -154,10 +154,13 @@ export default async function MesActivitesPage({
                 <div className="flex items-center gap-2">
                   <Badge color={INSCRIPTION_STATUT_COLORS[i.statut]}>
                     {i.statut === "LISTE_ATTENTE"
-                      ? `${INSCRIPTION_STATUT_LABELS[i.statut]} — n°${i.rang}`
+                      ? `${INSCRIPTION_STATUT_LABELS[i.statut]} n°${i.rang}`
                       : INSCRIPTION_STATUT_LABELS[i.statut]}
                   </Badge>
-                  <DesinscrireForm id={i.id} />
+                  <DesinscrireForm
+                    id={i.id}
+                    intitule={`${i.creneau.activite.nom} (${JOUR_LABELS[i.creneau.jour]} ${i.creneau.heureDebut})`}
+                  />
                 </div>
               </li>
             ))}
@@ -355,11 +358,14 @@ export default async function MesActivitesPage({
 
                         {mienne ? (
                           <p className="rounded-lg bg-slate-50 px-3 py-2 text-center text-xs font-medium text-slate-500">
+                            {/* Mêmes mots que le badge de « Mes inscriptions »
+                                au-dessus : un même état ne doit pas se lire
+                                de deux façons sur un même écran. */}
                             {mienne.statut === "VALIDEE"
                               ? "Vous êtes inscrit"
                               : mienne.statut === "LISTE_ATTENTE"
-                                ? `En liste d'attente (n°${mienne.rang})`
-                                : "Demande en cours"}
+                                ? `${INSCRIPTION_STATUT_LABELS.LISTE_ATTENTE} n°${mienne.rang}`
+                                : INSCRIPTION_STATUT_LABELS.EN_ATTENTE}
                           </p>
                         ) : !c.ouvertInscription ? (
                           <p className="rounded-lg bg-slate-50 px-3 py-2 text-center text-xs text-slate-400">
@@ -376,6 +382,7 @@ export default async function MesActivitesPage({
                             couleur={activite.couleur}
                             intitule={`${activite.nom} · ${JOUR_LABELS[c.jour]} ${c.heureDebut}–${c.heureFin}`}
                             textes={textes}
+                            conservationMois={g.conservationMois}
                           />
                         )}
                       </div>

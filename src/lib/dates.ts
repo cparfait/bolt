@@ -72,8 +72,10 @@ const FMT_HEURE_PARIS = new Intl.DateTimeFormat("fr-FR", {
 /**
  * Heure qu'il est chez la collectivité, au format « HH:MM ».
  *
- * Le conteneur tourne en UTC : un rappel réglé sur midi partirait à 14 h en
- * été si on lisait l'heure du serveur. Le format se compare directement à
+ * L'heure est calculée pour Europe/Paris quel que soit le fuseau du processus :
+ * l'image pose bien TZ=Europe/Paris, mais une installation qui l'oublierait
+ * verrait sinon un rappel réglé sur midi partir à 14 h en été. Le format se
+ * compare directement à
  * l'heure enregistrée dans les paramètres — deux chaînes « HH:MM » se rangent
  * dans l'ordre chronologique.
  */

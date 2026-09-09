@@ -19,7 +19,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1, // évite le zoom involontaire pendant l'émargement
+  // Pas de `maximumScale` ici : bloquer le zoom sur tout le back-office
+  // pénalise qui lit mal les petits caractères. Seul l'émargement, tactile et
+  // en gymnase, le désactive — voir src/app/emargement/[token]/layout.tsx.
   themeColor: "#006e46",
 };
 

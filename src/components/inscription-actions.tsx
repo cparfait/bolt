@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Check, Clock, X } from "lucide-react";
 import { deciderInscription, desisterAction } from "@/lib/actions/inscriptions";
@@ -34,53 +34,101 @@ function BoutonAction({
   );
 }
 
-/** Trois décisions possibles sur une demande, sur une seule ligne. */
+/**
+ * Trois décisions possibles sur une demande, sur une seule ligne.
+ *
+ * Le refus se fait en deux temps : un premier clic ouvre le motif, un second
+ * confirme. Un courriel part à l'agent dès que la décision est enregistrée —
+ * un refus lâché par mégarde, à côté du bouton « Attente », ne se rattrape pas.
+ * Et le motif vient AVANT le bouton qui l'envoie : on lit d'abord ce qu'on
+ * remplit, puis ce qu'on déclenche.
+ */
 export function DecisionForm({ id }: { id: string }) {
   const [state, action] = useActionState<ActionState, FormData>(deciderInscription, null);
+  const [refusOuvert, setRefusOuvert] = useState(false);
   return (
     <form action={action} className="space-y-2">
       <input type="hidden" name="id" value={id} />
       {state?.error && <p className="text-xs text-red-600">{state.error}</p>}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <BoutonAction
-          name="decision"
-          value="valider"
-          enCours="Inscription…"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500"
-        >
-          <Check className="h-3.5 w-3.5" /> Inscrire
-        </BoutonAction>
-        <BoutonAction
-          name="decision"
-          value="attente"
-          enCours="Mise en attente…"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-        >
-          <Clock className="h-3.5 w-3.5" /> Attente
-        </BoutonAction>
-        <BoutonAction
-          name="decision"
-          value="refuser"
-          enCours="Refus…"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-        >
-          <X className="h-3.5 w-3.5" /> Refuser
-        </BoutonAction>
-        <input
-          name="motif"
-          placeholder="Motif (si refus)"
-          className="w-40 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-brand-400"
-        />
-      </div>
+      {refusOuvert ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <input
+            name="motif"
+            placeholder="Motif (transmis à l'agent)"
+            autoFocus
+            maxLength={200}
+            className="w-48 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-brand-400"
+          />
+          <BoutonAction
+            name="decision"
+            value="refuser"
+            enCours="Refus…"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500"
+          >
+            <X className="h-3.5 w-3.5" /> Confirmer le refus
+          </BoutonAction>
+          <button
+            type="button"
+            onClick={() => setRefusOuvert(false)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            Annuler
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <BoutonAction
+            name="decision"
+            value="valider"
+            enCours="Inscription…"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500"
+          >
+            <Check className="h-3.5 w-3.5" /> Inscrire
+          </BoutonAction>
+          <BoutonAction
+            name="decision"
+            value="attente"
+            enCours="Mise en attente…"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            <Clock className="h-3.5 w-3.5" /> Attente
+          </BoutonAction>
+          {/* type="button" : ouvre le motif, n'envoie rien. */}
+          <button
+            type="button"
+            onClick={() => setRefusOuvert(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+          >
+            <X className="h-3.5 w-3.5" /> Refuser
+          </button>
+        </div>
+      )}
     </form>
   );
 }
 
-/** Retire un inscrit ; la place repart aussitôt à la liste d'attente. */
+/**
+ * Retire un inscrit ; la place repart aussitôt à la liste d'attente.
+ *
+ * Confirmation obligatoire : le retrait promeut le suivant de la file et lui
+ * envoie un courriel dans la foulée. Ce n'est pas un geste qu'on annule.
+ */
 export function RetirerForm({ id, nom }: { id: string; nom: string }) {
   const [state, action] = useActionState<ActionState, FormData>(desisterAction, null);
   return (
-    <form action={action} className="inline">
+    <form
+      action={action}
+      className="inline"
+      onSubmit={(e) => {
+        if (
+          !window.confirm(
+            `Retirer ${nom} de ce créneau ? Sa place repart au suivant de la liste d'attente, qui sera prévenu par courriel.`,
+          )
+        ) {
+          e.preventDefault();
+        }
+      }}
+    >
       <input type="hidden" name="id" value={id} />
       {state?.error && <span className="text-xs text-red-600">{state.error}</span>}
       <BoutonAction

@@ -37,6 +37,7 @@ export function CreneauForm({
   saisonId,
   saisonDebut,
   saisonFin,
+  bornes,
   fermetures,
   activite,
   animateurs,
@@ -44,8 +45,11 @@ export function CreneauForm({
   initial,
 }: {
   saisonId: string;
+  /** Bornes de la saison telles qu'on les lit (« 01/09/2026 »), pour les aides. */
   saisonDebut: string;
   saisonFin: string;
+  /** Les mêmes en « AAAA-MM-JJ », le seul format que `min`/`max` acceptent. */
+  bornes?: { debut: string; fin: string };
   fermetures: FermetureOption[];
   // Le formulaire vit sur la fiche d'une activité : elle est connue d'avance,
   // inutile de la faire choisir.
@@ -104,19 +108,22 @@ export function CreneauForm({
             ))}
           </Select>
         </Field>
+        {/* `type="time"` : le navigateur fournit le sélecteur et envoie
+            « HH:MM », exactement ce que le serveur normalise — plus de
+            « 12h15 » ou « 1215 » refusés après coup. */}
         <Field label="Début" required>
           <Input
             name="heureDebut"
+            type="time"
             defaultValue={initial?.heureDebut ?? "12:15"}
-            placeholder="12:15"
             required
           />
         </Field>
         <Field label="Fin" required>
           <Input
             name="heureFin"
+            type="time"
             defaultValue={initial?.heureFin ?? "13:15"}
-            placeholder="13:15"
             required
           />
         </Field>
@@ -181,13 +188,27 @@ export function CreneauForm({
           label="Première séance"
           hint={`Laisser vide pour démarrer avec la saison (${saisonDebut}).`}
         >
-          <Input name="dateDebut" type="date" defaultValue={initial?.dateDebut ?? ""} />
+          {/* Bornées à la saison : une date hors saison ne produirait aucune
+              séance, et le formulaire ne le disait qu'après enregistrement. */}
+          <Input
+            name="dateDebut"
+            type="date"
+            min={bornes?.debut}
+            max={bornes?.fin}
+            defaultValue={initial?.dateDebut ?? ""}
+          />
         </Field>
         <Field
           label="Dernière séance"
           hint={`Laisser vide pour aller jusqu'à la fin de saison (${saisonFin}).`}
         >
-          <Input name="dateFin" type="date" defaultValue={initial?.dateFin ?? ""} />
+          <Input
+            name="dateFin"
+            type="date"
+            min={bornes?.debut}
+            max={bornes?.fin}
+            defaultValue={initial?.dateFin ?? ""}
+          />
         </Field>
       </div>
 

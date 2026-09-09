@@ -21,7 +21,7 @@ export async function GET(
   const { token } = await params;
   const coach = await prisma.coach.findUnique({
     where: { token },
-    select: { prenom: true, nom: true, actif: true },
+    select: { actif: true },
   });
   if (!coach || !coach.actif) {
     return new Response("Not found", { status: 404 });
@@ -32,7 +32,9 @@ export async function GET(
   const manifeste = {
     name: `${nom} — émargement`,
     short_name: "Émargement",
-    description: `Feuilles de présence de ${coach.prenom} ${coach.nom}.`,
+    // Pas le nom de l'animateur : ce manifeste se sert contre le seul jeton,
+    // avant le code PIN. Le reste de l'application ne révèle rien à ce stade.
+    description: "Feuilles de présence de l'animateur.",
     lang: "fr",
     dir: "ltr",
     start_url: base,

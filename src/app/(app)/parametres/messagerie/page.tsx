@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/session";
-import { getSmtpSettings } from "@/lib/settings";
+import { getSmtpSettings, smtpSansSecret } from "@/lib/settings";
 import { Card } from "@/components/ui";
 import { SmtpForm } from "@/components/settings-forms";
 import { MailsExemples } from "@/components/mails-exemples";
@@ -16,7 +16,7 @@ export default async function ParametresMessagerie() {
   return (
     <div className="space-y-6">
       <Card title="Envoi d'e-mails (SMTP)">
-        <SmtpForm cfg={cfg} />
+        <SmtpForm cfg={smtpSansSecret(cfg)} />
       </Card>
 
       {/* La liste des messages, et de quoi se les envoyer. Elle remplace

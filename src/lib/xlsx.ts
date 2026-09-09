@@ -6,6 +6,7 @@ import {
   indicateurs,
   parActivite,
   parDirection,
+  INSCRIPTIONS_POUR_PLACES,
   placesOffertes,
   type Filtre,
 } from "./stats";
@@ -60,7 +61,9 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
           },
         },
         include: {
-          creneau: { include: { activite: true, animateurs: true } },
+          creneau: {
+            include: { activite: true, animateurs: true, inscriptions: INSCRIPTIONS_POUR_PLACES },
+          },
           presences: true,
         },
         orderBy: { date: "asc" },
@@ -178,7 +181,7 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
     { header: "Inscrits pointés", key: "pointes", width: 16 },
     { header: "Présents", key: "presents", width: 11 },
     { header: "Absents", key: "absents", width: 10 },
-    { header: "Capacité", key: "capacite", width: 11 },
+    { header: "Places offertes", key: "capacite", width: 15 },
     { header: "Commentaire", key: "commentaire", width: 40 },
   ];
   enTete(detail);

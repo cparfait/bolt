@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cidrsInternes, clientIp, inCidr } from "@/lib/net";
+import { nonceAleatoire, politiqueCsp } from "@/lib/csp";
 
 /**
  * Cloisonnement réseau — ceinture et bretelles du reverse proxy.
@@ -41,7 +42,9 @@ const PUBLIC_PREFIXES = [
   "/emargement",
   "/courriel",
   "/icones",
-  "/_next",
+  // `/_next/static` seulement, pas `/_next` : le reste de ce préfixe
+  // (optimiseur d'images, outils de développement) n'a rien à faire dehors.
+  "/_next/static",
   "/favicon.ico",
   // Servi depuis public/ : le proxy le relaie plutôt que de répondre 403 à une
   // requête que tout robot légitime émet en arrivant.
@@ -112,14 +115,32 @@ function refus(message: string): NextResponse {
   });
 }
 
+/**
+ * Laisse passer la requête, avec une Content-Security-Policy à nonce.
+ *
+ * L'en-tête est posé sur la requête ENTRANTE — c'est là que Next va le lire
+ * pour marquer ses propres scripts du nonce — et recopié sur la réponse, où le
+ * navigateur l'applique. Voir src/lib/csp.ts.
+ */
+function passer(request: NextRequest): NextResponse {
+  const nonce = nonceAleatoire();
+  const csp = politiqueCsp(nonce, process.env.NODE_ENV !== "production");
+  const entrants = new Headers(request.headers);
+  entrants.set("content-security-policy", csp);
+  entrants.set("x-nonce", nonce);
+  const reponse = NextResponse.next({ request: { headers: entrants } });
+  reponse.headers.set("content-security-policy", csp);
+  return reponse;
+}
+
 export function proxy(request: NextRequest) {
   const cidrs = cidrsInternes();
 
   // Pas de plage déclarée → pas de cloisonnement (déploiement interne simple).
-  if (cidrs.length === 0) return NextResponse.next();
+  if (cidrs.length === 0) return passer(request);
 
   const { pathname } = request.nextUrl;
-  if (isPublicPath(pathname)) return NextResponse.next();
+  if (isPublicPath(pathname)) return passer(request);
 
   const ip = clientIp(request.headers);
 
@@ -133,11 +154,11 @@ export function proxy(request: NextRequest) {
       ? refus(
           "Configuration incomplète : le reverse proxy doit transmettre l'en-tête X-Forwarded-For.",
         )
-      : NextResponse.next();
+      : passer(request);
   }
 
   // IPv6 ou adresse illisible : on ne devine pas, on refuse (fail-closed).
-  if (cidrs.some((c) => inCidr(ip, c))) return NextResponse.next();
+  if (cidrs.some((c) => inCidr(ip, c))) return passer(request);
 
   return refus(
     "Cette partie de l'application n'est accessible que depuis le réseau de la collectivité ou via le VPN.",
@@ -145,5 +166,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image).*)"],
+  matcher: ["/((?!_next/static).*)"],
 };

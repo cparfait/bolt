@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import type { FrequenceAvis } from "./frequences";
+import { chiffrer, dechiffrer } from "./chiffrement";
 
 export type LdapSettings = {
   enabled?: boolean; // interrupteur ; absent/true = actif
@@ -9,7 +10,9 @@ export type LdapSettings = {
   caCert?: string; // chemin du fichier CA (PEM) pour une AC interne — ou contenu PEM
   baseDn: string; // DC=chatillon,DC=lan
   bindDn?: string; // compte de service (lecture seule)
-  bindPassword?: string;
+  bindPassword?: string; // chiffré en base (src/lib/chiffrement.ts), clair en mémoire
+  /** Vrai quand la valeur en base ne se déchiffre plus : SESSION_SECRET a changé. */
+  bindPasswordIllisible?: boolean;
   upnSuffix?: string; // chatillon.lan — bind utilisateur en login@suffixe
   userDnTemplate?: string; // gabarit DN, ex. « CN={username},OU=Agents,DC=x »
   requiredGroup?: string; // seul un membre (imbriqué) de ce groupe peut se connecter
@@ -22,7 +25,9 @@ export type SmtpSettings = {
   port: number;
   secure: boolean;
   user?: string;
-  pass?: string;
+  pass?: string; // chiffré en base (src/lib/chiffrement.ts), clair en mémoire
+  /** Vrai quand la valeur en base ne se déchiffre plus : SESSION_SECRET a changé. */
+  passIllisible?: boolean;
   from: string; // « Bolt <sport@chatillon92.fr> »
   tlsRejectUnauthorized?: boolean; // absent = true (vérifier le certificat)
 };
@@ -207,8 +212,73 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
   });
 }
 
-export const getLdapSettings = () => getSetting<LdapSettings>("ldap");
-export const getSmtpSettings = () => getSetting<SmtpSettings>("smtp");
+/**
+ * Réglages de l'annuaire, mot de passe du compte de service déchiffré.
+ *
+ * `bindPasswordIllisible` : la valeur en base est chiffrée avec un autre
+ * SESSION_SECRET que celui d'aujourd'hui. Le mot de passe est alors retiré —
+ * mieux vaut un bind qui échoue franchement qu'une chaîne chiffrée envoyée au
+ * contrôleur de domaine — et l'écran des paramètres demande la ressaisie.
+ */
+export async function getLdapSettings(): Promise<LdapSettings | null> {
+  const cfg = await getSetting<LdapSettings>("ldap");
+  if (!cfg) return null;
+  if (cfg.bindPassword === undefined) return cfg;
+  const clair = dechiffrer(cfg.bindPassword);
+  return clair === null
+    ? { ...cfg, bindPassword: undefined, bindPasswordIllisible: true }
+    : { ...cfg, bindPassword: clair };
+}
+
+export async function getSmtpSettings(): Promise<SmtpSettings | null> {
+  const cfg = await getSetting<SmtpSettings>("smtp");
+  if (!cfg) return null;
+  if (cfg.pass === undefined) return cfg;
+  const clair = dechiffrer(cfg.pass);
+  return clair === null ? { ...cfg, pass: undefined, passIllisible: true } : { ...cfg, pass: clair };
+}
+
+/** Seul chemin d'écriture : le mot de passe part chiffré, jamais en clair. */
+export async function setLdapSettings(cfg: LdapSettings): Promise<void> {
+  const reste = { ...cfg };
+  delete reste.bindPasswordIllisible;
+  await setSetting("ldap", {
+    ...reste,
+    bindPassword: cfg.bindPassword ? chiffrer(cfg.bindPassword) : undefined,
+  });
+}
+
+export async function setSmtpSettings(cfg: SmtpSettings): Promise<void> {
+  const reste = { ...cfg };
+  delete reste.passIllisible;
+  await setSetting("smtp", { ...reste, pass: cfg.pass ? chiffrer(cfg.pass) : undefined });
+}
+
+/**
+ * Ce que les formulaires reçoivent : tout sauf les secrets.
+ *
+ * Les composants de formulaire sont des composants clients, et chaque prop
+ * d'un composant client est sérialisée dans la page envoyée au navigateur. Le
+ * champ n'était pas réaffiché, mais le mot de passe du compte de service
+ * était lisible dans les outils de développement, par une extension, ou dans
+ * une page enregistrée. Ne part donc qu'un booléen : « renseigné, ou non ».
+ */
+export type LdapSettingsPubliques = Omit<LdapSettings, "bindPassword"> & {
+  bindPasswordRenseigne: boolean;
+};
+export type SmtpSettingsPubliques = Omit<SmtpSettings, "pass"> & { passRenseigne: boolean };
+
+export function ldapSansSecret(cfg: LdapSettings | null): LdapSettingsPubliques | null {
+  if (!cfg) return null;
+  const { bindPassword, ...reste } = cfg;
+  return { ...reste, bindPasswordRenseigne: Boolean(bindPassword) };
+}
+
+export function smtpSansSecret(cfg: SmtpSettings | null): SmtpSettingsPubliques | null {
+  if (!cfg) return null;
+  const { pass, ...reste } = cfg;
+  return { ...reste, passRenseigne: Boolean(pass) };
+}
 
 export async function getGeneralSettings(): Promise<GeneralSettings> {
   const stored = await getSetting<Reglages>("general");

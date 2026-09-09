@@ -69,6 +69,7 @@ export default async function JournalPage({
             mois={g.conservationMois}
             inscriptions={aPurger.inscriptions}
             presences={aPurger.presences}
+            autres={aPurger.autres}
             saisons={aPurger.saisons}
             seuil={aPurger.seuil.toLocaleDateString("fr-FR")}
           />

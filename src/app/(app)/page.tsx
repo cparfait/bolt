@@ -15,7 +15,7 @@ import { saisonCourante } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import { decrocheurs, indicateurs, parActivite } from "@/lib/stats";
 import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
-import { prochainesSeancesDe } from "@/lib/actions/absences";
+import { prochainesSeancesDe } from "@/lib/absences";
 import { MesSeances } from "@/components/mes-seances";
 import { RechercheRapide } from "@/components/recherche-rapide";
 import {
@@ -41,7 +41,13 @@ import {
   btnSecondary,
 } from "@/components/ui";
 import { JOUR_LABELS } from "@/lib/dates";
-import { SEANCE_STATUT_COLORS, SEANCE_STATUT_LABELS, pluriel, prenomDe } from "@/lib/constants";
+import {
+  INSCRIPTION_STATUT_LABELS,
+  SEANCE_STATUT_COLORS,
+  SEANCE_STATUT_LABELS,
+  pluriel,
+  prenomDe,
+} from "@/lib/constants";
 
 /** Périodes proposées sur le tableau de bord du service des sports. */
 const VUES = {
@@ -168,11 +174,12 @@ export default async function TableauDeBord({
                       {i.creneau.activite.nom}
                     </p>
                     <Badge>
-                      {i.statut === "VALIDEE"
-                        ? "Inscrit"
-                        : i.statut === "LISTE_ATTENTE"
-                          ? `Attente n°${i.rang}`
-                          : "À valider"}
+                      {/* Mêmes libellés que sur « Mes activités » : l'agent
+                          passe de l'un à l'autre et doit y retrouver les
+                          mêmes mots pour le même état. */}
+                      {i.statut === "LISTE_ATTENTE"
+                        ? `${INSCRIPTION_STATUT_LABELS.LISTE_ATTENTE} n°${i.rang}`
+                        : INSCRIPTION_STATUT_LABELS[i.statut]}
                     </Badge>
                   </div>
                   <p className="mt-1 text-xs text-slate-400">

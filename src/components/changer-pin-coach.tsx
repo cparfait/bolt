@@ -17,6 +17,13 @@ import { SubmitButton } from "@/components/submit-button";
 export function ChangerPinCoach({ token }: { token: string }) {
   const [state, action] = useActionState<ActionState, FormData>(changerPinAction, null);
   const [ouvert, setOuvert] = useState(false);
+  // Le nouveau code se tape deux fois : masqué à l'écran, une faute de frappe
+  // ne se voit pas, et un code enregistré de travers ferme l'accès jusqu'à ce
+  // que le service des sports en régénère un. La comparaison se fait ici, avant
+  // envoi ; le serveur ne connaît que le code retenu.
+  const [nouveau, setNouveau] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const discordant = confirmation.length > 0 && confirmation !== nouveau;
 
   if (!ouvert) {
     return (
@@ -33,6 +40,9 @@ export function ChangerPinCoach({ token }: { token: string }) {
   return (
     <form
       action={action}
+      onSubmit={(e) => {
+        if (nouveau !== confirmation) e.preventDefault();
+      }}
       className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
     >
       <input type="hidden" name="token" value={token} />
@@ -52,6 +62,7 @@ export function ChangerPinCoach({ token }: { token: string }) {
         <span className="mb-1.5 block text-sm font-medium text-slate-700">Code actuel</span>
         <input
           name="ancien"
+          type="password"
           inputMode="numeric"
           autoComplete="current-password"
           maxLength={6}
@@ -65,13 +76,45 @@ export function ChangerPinCoach({ token }: { token: string }) {
         <span className="mb-1.5 block text-sm font-medium text-slate-700">Nouveau code</span>
         <input
           name="nouveau"
+          type="password"
           inputMode="numeric"
           autoComplete="new-password"
           maxLength={6}
           required
           placeholder="······"
+          value={nouveau}
+          onChange={(e) => setNouveau(e.target.value)}
           className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-center text-lg tracking-[0.4em] outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
         />
+      </label>
+
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-medium text-slate-700">
+          Confirmer le nouveau code
+        </span>
+        {/* Pas de `name` : la confirmation ne sert qu'ici. */}
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="new-password"
+          maxLength={6}
+          required
+          placeholder="······"
+          value={confirmation}
+          onChange={(e) => setConfirmation(e.target.value)}
+          aria-invalid={discordant}
+          aria-describedby={discordant ? "pin-discordant" : undefined}
+          className={`w-full rounded-xl border bg-white px-3.5 py-3 text-center text-lg tracking-[0.4em] outline-none focus:ring-4 ${
+            discordant
+              ? "border-red-300 focus:border-red-500 focus:ring-red-100"
+              : "border-slate-300 focus:border-brand-500 focus:ring-brand-100"
+          }`}
+        />
+        {discordant && (
+          <span id="pin-discordant" className="mt-1 block text-xs text-red-600">
+            Les deux codes ne correspondent pas.
+          </span>
+        )}
       </label>
 
       <p className="text-xs text-slate-500">
@@ -88,6 +131,7 @@ export function ChangerPinCoach({ token }: { token: string }) {
           Fermer
         </button>
         <SubmitButton
+          disabled={nouveau.length === 0 || nouveau !== confirmation}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition active:scale-[0.99] disabled:opacity-50"
           pendingLabel="Enregistrement…"
         >

@@ -56,7 +56,10 @@ export async function loginAction(
   _prev: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
-  const saisie = String(formData.get("login") ?? "").trim();
+  // Tronquée avant d'aller au journal : un mot de passe tapé dans le mauvais
+  // champ y resterait sinon en clair pendant un an. Aucun identifiant ni
+  // aucune adresse professionnelle n'approche cette longueur.
+  const saisie = String(formData.get("login") ?? "").trim().slice(0, 64);
   const password = String(formData.get("password") ?? "");
   if (!saisie || !password) {
     return { error: "Renseignez votre identifiant et votre mot de passe." };

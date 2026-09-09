@@ -3,6 +3,8 @@ import { timingSafeEqual } from "node:crypto";
 import { envoyerRappels } from "@/lib/rappels";
 import { purger } from "@/lib/purge";
 import { declencherSyncSiBesoin } from "@/lib/annuaire";
+import { siPersonneDAutre } from "@/lib/verrou";
+import { VERROU_TACHES } from "@/lib/ordonnanceur";
 
 export const dynamic = "force-dynamic";
 
@@ -34,17 +36,29 @@ export async function GET(request: NextRequest) {
   if (!jetonValide(request.headers.get("authorization"))) {
     return NextResponse.json({ erreur: "Jeton invalide ou CRON_TOKEN non défini." }, { status: 401 });
   }
-  const res = await envoyerRappels();
-  const purge = await purger();
+  // Sous le même verrou que l'ordonnanceur interne : un cron qui tombe
+  // pendant un battement, ou deux crons sur deux instances, ne font pas
+  // partir deux fois le même rappel.
+  const resultat = await siPersonneDAutre(VERROU_TACHES, async () => {
+    const res = await envoyerRappels();
+    const purge = await purger();
 
-  // Passe par le déclencheur, qui porte le verrou quotidien : un cron réglé à
-  // l'heure ne martèlera donc pas le contrôleur de domaine, et un annuaire
-  // injoignable ne fera pas échouer les rappels déjà partis.
-  const sync = await declencherSyncSiBesoin("cron");
-
-  return NextResponse.json({
-    ...res,
-    purge,
-    annuaire: sync ? sync.message : "déjà synchronisé aujourd'hui, ou annuaire non configuré",
+    // Passe par le déclencheur, qui porte le verrou quotidien : un cron réglé à
+    // l'heure ne martèlera donc pas le contrôleur de domaine, et un annuaire
+    // injoignable ne fera pas échouer les rappels déjà partis.
+    const sync = await declencherSyncSiBesoin("cron");
+    return {
+      ...res,
+      purge,
+      annuaire: sync ? sync.message : "déjà synchronisé aujourd'hui, ou annuaire non configuré",
+    };
   });
+
+  if (!resultat) {
+    return NextResponse.json(
+      { message: "Les tâches de fond sont déjà en cours d'exécution ailleurs ; rien n'a été relancé." },
+      { status: 409 },
+    );
+  }
+  return NextResponse.json(resultat);
 }

@@ -18,12 +18,13 @@ import {
   prochainRang,
   promouvoirEtPrevenir,
   renumeroterFile,
+  verrouCapacite,
 } from "@/lib/inscriptions";
 import { adresseDeContact } from "@/lib/comptes";
 import { nomPourSalutation } from "@/lib/constants";
 import { envoyerMail } from "@/lib/mail";
 import { getGeneralSettings } from "@/lib/settings";
-import { assurerCompteAgent } from "./agents";
+import { assurerCompteAgent } from "@/lib/comptes-annuaire";
 import { erreur, succes, type ActionState } from "./types";
 
 /**
@@ -94,6 +95,12 @@ export async function desisterAction(
   if (inscription.userId !== user.id && user.role !== "ADMIN" && user.role !== "GESTIONNAIRE") {
     return erreur("Action non autorisée.");
   }
+  // Seul un dossier vivant se désiste. Une demande refusée ou déjà désistée
+  // passée ici comptait ensuite comme « abandon en cours de saison » au bilan,
+  // et une double soumission produisait deux lignes de journal pour un geste.
+  if (!["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"].includes(inscription.statut)) {
+    return erreur("Cette inscription n'est plus active.");
+  }
 
   await prisma.inscription.update({
     where: { id },
@@ -136,21 +143,30 @@ export async function deciderInscription(
   if (!inscription) return erreur("Demande introuvable.");
 
   if (decision === "valider") {
-    if (!(await placeDisponiblePour(inscription.creneauId, inscription.userId))) {
+    // Vérification et écriture sous le même verrou que les demandes des
+    // agents et les promotions automatiques : c'est ce qui empêche deux
+    // validations concurrentes de la dernière place.
+    const complet = await verrouCapacite(inscription.creneauId, async () => {
+      if (!(await placeDisponiblePour(inscription.creneauId, inscription.userId))) return true;
+      await prisma.inscription.update({
+        where: { id },
+        data: {
+          statut: "VALIDEE",
+          rang: null,
+          decisionAt: new Date(),
+          decidePar: admin.displayName,
+          motif: null,
+        },
+      });
+      return false;
+    });
+    if (complet) {
       return erreur(
         "Le créneau est complet. Augmentez la capacité ou placez l'agent en liste d'attente.",
       );
     }
-    await prisma.inscription.update({
-      where: { id },
-      data: {
-        statut: "VALIDEE",
-        rang: null,
-        decisionAt: new Date(),
-        decidePar: admin.displayName,
-        motif: null,
-      },
-    });
+    // Validé depuis la file : les suivants remontent d'un cran.
+    if (inscription.statut === "LISTE_ATTENTE") await renumeroterFile(inscription.creneauId);
     await audit("INSCRIPTION_VALIDEE", {
       userId: admin.id,
       cibleId: inscription.userId,
@@ -189,7 +205,24 @@ export async function deciderInscription(
     });
     // Rétrograder un inscrit libère sa place : la file avance, comme sur un
     // désistement. Sans cela elle restait figée jusqu'au prochain départ.
-    const promu = await promouvoirEtPrevenir(inscription.creneauId);
+    // Sauf lui : file vide, il repassait validé dans la seconde.
+    const promu = await promouvoirEtPrevenir(inscription.creneauId, id);
+    // L'agent l'apprenait en ne recevant pas le rappel de la veille. Le refus
+    // et la validation écrivent ; la rétrogradation doit écrire aussi.
+    if (inscription.statut === "VALIDEE") {
+      const adresse = adresseDeContact(inscription.user);
+      if (adresse) {
+        await envoyerMail(
+          adresse,
+          `Votre place en ${inscription.creneau.activite.nom}`,
+          [
+            `Bonjour ${nomPourSalutation(inscription.user.displayName)},`,
+            `Le service des sports a dû replacer votre inscription à ${inscription.creneau.activite.nom} (**${inscription.creneau.jour.toLowerCase()} ${inscription.creneau.heureDebut}**) en liste d'attente. Vous serez prévenu dès qu'une place se libère.`,
+            `Pour toute question, contactez le service des sports.`,
+          ].join("\n\n"),
+        );
+      }
+    }
     rafraichirInscription(inscription.userId);
     return succes(`${inscription.user.displayName} placé en liste d'attente.${promu}`);
   }
