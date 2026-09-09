@@ -394,6 +394,18 @@ export default async function TableauDeBord({
           qu'on ait lu le texte. Une inscription qui attend bloque un agent :
           elle passe avant les indicateurs de fond. */}
       <div className="mb-6">
+        {/* Saison affichée aux agents mais jamais activée : tout fonctionne
+            par repli sur la plus récente, sauf que rien ne le dit. Le service
+            découvrait le drapeau le jour où il voulait en ouvrir une seconde. */}
+        {!saison.active && (
+          <Alerte
+            href="/parametres/saisons"
+            icon={<CalendarDays className="h-5 w-5" />}
+            titre={<>La saison {saison.nom} n&apos;est pas activée</>}
+            detail="Les agents la voient et peuvent s'y inscrire, parce que c'est la plus récente. Activez-la pour que ce soit un choix et non un repli — et pour qu'une prochaine saison puisse être préparée à côté."
+            action="Activer"
+          />
+        )}
         {aValider > 0 && (
           <Alerte
             href="/inscriptions#a-decider"

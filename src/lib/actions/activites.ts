@@ -9,6 +9,7 @@ import { audit } from "@/lib/audit";
 import type { Jour } from "@prisma/client";
 import { aujourdhui, fmtDate, jourUtc, normaliserHeure, JOUR_LABELS } from "@/lib/dates";
 import { genererSeancesCreneau } from "@/lib/seances";
+import { saisonCourante } from "@/lib/saison";
 import { promouvoirTantQuePossible } from "@/lib/inscriptions";
 import { notifierChangementCreneau } from "@/lib/notifications";
 import { erreur, succes, type ActionState } from "./types";
@@ -71,9 +72,12 @@ export async function enregistrerActivite(
       // cours : c'est lui qui borne désormais chaque séance, et les taux de
       // remplissage se calculent créneau par créneau. Les saisons passées
       // gardent leurs capacités d'époque, sans quoi leur historique changerait.
-      if (capacitePartagee && capacite) {
+      // Saison courante, comme partout : « active » seule laissait les
+      // créneaux d'une saison pas encore activée avec leur ancien effectif.
+      const courante = await saisonCourante();
+      if (capacitePartagee && capacite && courante) {
         await prisma.creneau.updateMany({
-          where: { activiteId: id, saison: { active: true } },
+          where: { activiteId: id, saisonId: courante.id },
           data: { capacite },
         });
       }
@@ -82,7 +86,7 @@ export async function enregistrerActivite(
       // que le prochain désistement, une personne à la fois. Sans effet si
       // rien ne s'est libéré.
       const premier = await prisma.creneau.findFirst({
-        where: { activiteId: id, saison: { active: true }, archiveAt: null },
+        where: { activiteId: id, saisonId: courante?.id, archiveAt: null },
         select: { id: true },
       });
       if (premier) await promouvoirTantQuePossible(premier.id);

@@ -7,6 +7,7 @@ import { NavMobile, Sidebar, type Compteurs } from "@/components/nav";
 import { ROLE_LABELS } from "@/lib/constants";
 import { getGeneralSettings } from "@/lib/settings";
 import { compterDemandesEnAttente } from "@/lib/demandes";
+import { saisonCourante } from "@/lib/saison";
 import { clientIp, estInterne } from "@/lib/net";
 
 export default async function AppLayout({
@@ -24,9 +25,15 @@ export default async function AppLayout({
   // les voir depuis n'importe quel écran, pas seulement en ouvrant la page.
   const compteurs: Compteurs = {};
   if (estGestionnaire(user) && !externe) {
-    const aValider = await prisma.inscription.count({
-      where: { statut: "EN_ATTENTE", creneau: { saison: { active: true } } },
-    });
+    // La saison courante et non la saison « active » : tant que le service
+    // n'a pas cliqué sur Activer, le compteur restait à zéro pendant que les
+    // demandes s'accumulaient sur la saison affichée aux agents.
+    const saison = await saisonCourante();
+    const aValider = saison
+      ? await prisma.inscription.count({
+          where: { statut: "EN_ATTENTE", creneau: { saisonId: saison.id } },
+        })
+      : 0;
     if (aValider > 0) compteurs["/inscriptions"] = aValider;
 
     // Une demande d'accès qui dort, c'est quelqu'un qui attend sans savoir
