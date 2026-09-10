@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Search } from "lucide-react";
-import { mentionCompte } from "@/lib/comptes";
+import { estCreeALaMain, mentionCompte } from "@/lib/comptes";
 import {
   rechercherAgents,
   rechercherAgentsConnus,
@@ -124,18 +124,34 @@ export function ChampAgent({
                       <span className="min-w-0">
                         <span className="block text-sm font-medium">{c.nom}</span>
                         <span className="block truncate text-xs text-slate-400">
-                          {[mentionCompte(c.login), c.service ?? c.direction].filter(Boolean).join(" · ")}
+                          {[
+                            // La provenance est dite par la pastille de droite :
+                            // la répéter ici mettrait « adresse externe » deux
+                            // fois sur la même ligne.
+                            estCreeALaMain(c.login) ? null : mentionCompte(c.login),
+                            c.service ?? c.direction,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </span>
                       </span>
-                      {/* « annuaire mairie », et non « annuaire » tout court :
-                          la ligne d'en face porte « adresse externe », et c'est
-                          la comparaison des deux qui dit d'où vient la
-                          personne — de l'annuaire de la collectivité, ou de
-                          nulle part sinon son adresse. */}
-                      {c.source === "annuaire" && (
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-                          annuaire mairie
+                      {/* Chaque résultat dit d'où il vient, et les deux
+                          pastilles se répondent : « annuaire mairie » pour un
+                          compte de l'Active Directory de la collectivité,
+                          « adresse externe » pour quelqu'un qui n'y figure pas
+                          et n'a que son adresse. Sans la seconde, l'absence de
+                          pastille se lisait comme une information manquante
+                          plutôt que comme une réponse. */}
+                      {estCreeALaMain(c.login) ? (
+                        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                          adresse externe
                         </span>
+                      ) : (
+                        c.source === "annuaire" && (
+                          <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                            annuaire mairie
+                          </span>
+                        )
                       )}
                     </button>
                   </li>
