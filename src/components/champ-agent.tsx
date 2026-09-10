@@ -127,9 +127,14 @@ export function ChampAgent({
                           {[mentionCompte(c.login), c.service ?? c.direction].filter(Boolean).join(" · ")}
                         </span>
                       </span>
+                      {/* « annuaire mairie », et non « annuaire » tout court :
+                          la ligne d'en face porte « adresse externe », et c'est
+                          la comparaison des deux qui dit d'où vient la
+                          personne — de l'annuaire de la collectivité, ou de
+                          nulle part sinon son adresse. */}
                       {c.source === "annuaire" && (
                         <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
-                          annuaire
+                          annuaire mairie
                         </span>
                       )}
                     </button>

@@ -443,7 +443,7 @@ export async function chargerJeuDeTest(
 
   // Un participant sans compte de domaine — vacataire, élu, agent d'un autre
   // organisme. Il n'a pas de mot de passe : sa porte est le lien e-mail. Les
-  // écrans qui le concernent (« adresse perso » au lieu d'un identifiant, fiche
+  // écrans qui le concernent (« adresse externe » au lieu d'un identifiant, fiche
   // sans rattachement AD) n'ont sinon jamais de quoi s'afficher.
   const horsAnnuaire =
     (await prisma.user.findFirst({ where: { login: { startsWith: PREFIXE_HORS_ANNUAIRE } } })) ??
