@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, ChevronRight, Plus, RotateCcw, Users } from "lucide-react";
+import { Archive, ChevronRight, Lock, Plus, RotateCcw, Users } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { saisonDeTravail } from "@/lib/saison";
@@ -143,10 +143,18 @@ export default async function ActivitesPage({
               ? { capacite: a.capacite ?? 0, inscrits: effectifs.get(a.id) ?? 0 }
               : null;
             return (
+            /* Même fond teinté que la page Inscriptions : avec six activités
+               empilées, un liseré de 4 px ne suffisait pas à rattacher d'un
+               coup d'œil une liste de créneaux à son activité. La liste
+               reprend la même teinte en plus soutenu (1f contre 0f), sans le
+               pavé blanc qui cassait la couleur au milieu du bloc. */
             <Card
               key={a.id}
               className={`border-l-4 ${a.actif ? "" : "opacity-60"}`}
-              style={{ borderLeftColor: a.couleur }}
+              style={{
+                borderLeftColor: a.couleur,
+                backgroundColor: `${a.couleur}0f`,
+              }}
             >
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -186,6 +194,7 @@ export default async function ActivitesPage({
                             : 0
                         }
                         couleur={a.couleur}
+                        fond="#ffffff"
                       />
                     </div>
                   )}
@@ -198,18 +207,25 @@ export default async function ActivitesPage({
               {a.creneaux.length === 0 ? (
                 <Link
                   href={fiche(a.id)}
-                  className="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500 transition hover:bg-slate-50"
+                  className="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white/60 px-4 py-3 text-sm text-slate-500 transition hover:bg-white"
                 >
                   <Plus className="h-4 w-4" /> Aucun créneau — en ajouter un
                 </Link>
               ) : (
-                <ul className="divide-y divide-slate-100">
+                <ul
+                  style={{ backgroundColor: `${a.couleur}1f` }}
+                  className="divide-y rounded-xl px-3 text-sm"
+                >
                   {a.creneaux.map((c) => {
                     const inscrits = c._count.inscriptions;
                     return (
                       <li
                         key={c.id}
-                        className="flex flex-wrap items-center justify-between gap-3 py-2.5 text-sm"
+                        /* Filet aux couleurs de l'activité : hors palette
+                           Tailwind, il se pose donc ici et non via `divide-*`,
+                           qui ne borde qu'à partir du deuxième élément. */
+                        style={{ borderTopColor: `${a.couleur}33` }}
+                        className="flex flex-wrap items-center justify-between gap-3 py-2.5"
                       >
                         <div className="min-w-0">
                           <p className="font-medium">
@@ -256,10 +272,19 @@ export default async function ActivitesPage({
                               <Jauge
                                 valeur={(inscrits / c.capacite) * 100}
                                 couleur={a.couleur}
+                                fond="#ffffff"
                               />
                             </div>
                           )}
-                          {!c.ouvertInscription && <Badge>Inscriptions fermées</Badge>}
+                          {/* Même badge ambre que sur la page Inscriptions :
+                              une activité fermée doit se reconnaître à
+                              l'identique d'un écran à l'autre. */}
+                          {!c.ouvertInscription && (
+                            <Badge color="bg-amber-100 text-amber-800 ring-amber-500/20">
+                              <Lock className="h-3 w-3" aria-hidden="true" />
+                              Inscriptions fermées
+                            </Badge>
+                          )}
                         </div>
                       </li>
                     );

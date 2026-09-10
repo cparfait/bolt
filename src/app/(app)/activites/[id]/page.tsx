@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Archive,
   CalendarSync,
+  Lock,
   Plus,
   Power,
   RotateCcw,
@@ -275,7 +276,10 @@ export default async function ActiviteDetail({
                       {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
                       {!c.ouvertInscription && (
                         <span className="ml-2">
-                          <Badge>Inscriptions fermées</Badge>
+                          <Badge color="bg-amber-100 text-amber-800 ring-amber-500/20">
+                            <Lock className="h-3 w-3" aria-hidden="true" />
+                            Inscriptions fermées
+                          </Badge>
                         </span>
                       )}
                     </p>
