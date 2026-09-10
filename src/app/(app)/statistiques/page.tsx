@@ -23,6 +23,7 @@ import {
   indicateurs,
   parActivite,
   parDirection,
+  parService,
   saisonPrecedente,
   type Indicateurs,
 } from "@/lib/stats";
@@ -222,9 +223,10 @@ async function VueBilan({
   indPrecedent: Indicateurs | null;
   vers: Vers;
 }) {
-  const [mensuel, directions, activites, assid] = await Promise.all([
+  const [mensuel, directions, services, activites, assid] = await Promise.all([
     evolutionMensuelle(filtre),
     parDirection(filtre),
+    parService(filtre),
     // Le filtre s'applique ici comme partout ailleurs sur la page : un tableau
     // qui listait les six activités sous un en-tête « Yoga » se lisait comme
     // une contradiction, et le classeur exporté portait la même.
@@ -300,6 +302,73 @@ async function VueBilan({
           )}
         </Card>
       </div>
+
+      {/* Les deux pourcentages que le comité social demande : « quelle part des
+          agents de tel service s'est inscrite ? » et « qui pèse quoi dans le
+          total ? ». Le premier seul désigne les services où la démarche n'est
+          pas arrivée ; le second seul les confondrait avec les petits. */}
+      <Card title="Inscriptions par service" className="mb-6">
+        {services.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            Aucun inscrit sur ce périmètre.
+          </p>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+                    <th className="py-2 pr-3 font-medium">Service</th>
+                    <th className="py-2 pr-3 text-right font-medium">Inscrits</th>
+                    <th className="py-2 pr-3 text-right font-medium">Effectif</th>
+                    <th className="py-2 pr-3 text-right font-medium">% inscrits</th>
+                    <th className="w-40 py-2 pr-3 font-medium">Couverture</th>
+                    <th className="py-2 text-right font-medium">Part du total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {services.map((s) => (
+                    <tr key={s.libelle} className={LIGNE_CLIQUABLE}>
+                      <td className="py-2 pr-3">
+                        <Link
+                          href={vers("service", s.libelle)}
+                          className="block font-medium hover:text-brand-600"
+                        >
+                          {s.libelle}
+                        </Link>
+                      </td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{s.inscrits}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
+                        {s.effectif ?? "—"}
+                      </td>
+                      <td className="py-2 pr-3 text-right font-medium tabular-nums">
+                        {s.couverture === null ? "—" : `${s.couverture} %`}
+                      </td>
+                      <td className="py-2 pr-3">
+                        {s.couverture === null ? (
+                          <span className="text-xs text-slate-400">effectif inconnu</span>
+                        ) : (
+                          <Jauge valeur={Math.min(100, s.couverture)} />
+                        )}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-slate-500">
+                        {s.part} %
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+              « % inscrits » rapporte les agents inscrits à l&apos;effectif du
+              service dans l&apos;annuaire (comptes actifs) ; « part du total »
+              dit ce que le service pèse parmi tous les inscrits. Un effectif
+              inconnu signale un service absent de l&apos;annuaire — participants
+              hors annuaire, ou libellé saisi à la main.
+            </p>
+          </>
+        )}
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Par activité">

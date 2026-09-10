@@ -27,6 +27,7 @@ import {
 
 export type Coupe =
   | { type: "direction"; valeur: string }
+  | { type: "service"; valeur: string }
   | { type: "assiduite"; valeur: string } // assidus | reguliers | occasionnels | jamais
   | { type: "mois"; valeur: string } // « 2026-09 »
   | { type: "activite"; valeur: string } // identifiant d'activité
@@ -37,6 +38,7 @@ export type Coupe =
 
 export const TYPES_COUPE = [
   "direction",
+  "service",
   "assiduite",
   "mois",
   "activite",
@@ -291,6 +293,49 @@ export async function detail(f: Filtre, coupe: Coupe): Promise<Detail> {
       titre: libelle.charAt(0).toUpperCase() + libelle.slice(1),
       sousTitre: "Séances de ce mois, émargées ou non",
       seances: seances.map(decrireSeance),
+    };
+  }
+
+  if (coupe.type === "service") {
+    // Les inscrits, et non les présents : cette coupe répond au tableau
+    // « Inscriptions par service », qui compte des agents inscrits. Lister ici
+    // ceux qui sont venus donnerait un nombre plus petit que celui sur lequel
+    // on a cliqué.
+    const lignes = await prisma.inscription.findMany({
+      where: {
+        statut: "VALIDEE",
+        creneau: {
+          saisonId: f.saisonId,
+          ...(f.activiteId ? { activiteId: f.activiteId } : {}),
+        },
+      },
+      include: {
+        user: { select: { displayName: true, service: true, direction: true } },
+        creneau: true,
+      },
+      orderBy: [{ demandeAt: "asc" }],
+    });
+    const duService = lignes.filter(
+      (i) =>
+        (i.user.service?.trim() || i.user.direction?.trim() || "Non renseigné") ===
+        coupe.valeur,
+    );
+    const agents = new Set(duService.map((i) => i.userId)).size;
+    return {
+      ...VIDE,
+      titre: coupe.valeur,
+      sousTitre: "Agents de ce service inscrits cette saison",
+      noteInscriptions: `${agents} ${pluriel(agents, "agent")} pour ${duService.length} ${pluriel(duService.length, "inscription")}.`,
+      inscriptions: duService.map((i) => ({
+        id: i.id,
+        userId: i.userId,
+        nom: i.user.displayName,
+        situation: i.user.service ?? i.user.direction,
+        creneau: `${JOUR_LABELS[i.creneau.jour]} ${i.creneau.heureDebut}–${i.creneau.heureFin}`,
+        statut: i.statut,
+        rang: i.rang,
+        motif: i.motif,
+      })),
     };
   }
 

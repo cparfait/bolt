@@ -323,6 +323,96 @@ export async function parDirection(f: Filtre): Promise<LigneDirection[]> {
     .sort((a, b) => b.presents - a.presents);
 }
 
+export type LigneService = {
+  libelle: string;
+  /** Agents distincts ayant au moins une inscription validée sur la saison. */
+  inscrits: number;
+  /**
+   * Effectif du service dans l'annuaire, comptes actifs. Null quand le service
+   * n'y figure pas — participants hors annuaire, ou libellé saisi à la main :
+   * on n'a alors aucun dénominateur, et un taux inventé serait pire que rien.
+   */
+  effectif: number | null;
+  /** Part des agents du service qui sont inscrits, en %. Null sans effectif. */
+  couverture: number | null;
+  /** Part de ce service dans l'ensemble des inscrits, en %. */
+  part: number;
+};
+
+/**
+ * Le taux d'inscription service par service.
+ *
+ * Deux pourcentages, parce qu'ils ne répondent pas à la même question et que
+ * les confondre fausse la lecture :
+ *
+ *  • la couverture — combien d'agents du service se sont inscrits sur ceux
+ *    qu'il compte. C'est elle qui dit où la démarche QVT n'est pas arrivée : un
+ *    petit service à 40 % est mieux touché qu'une grande direction à 5 %.
+ *  • la part — ce que ce service pèse dans l'ensemble des inscrits. C'est le
+ *    chiffre qui circule en comité social, et qui suit mécaniquement la taille
+ *    des services.
+ *
+ * L'effectif vient du miroir d'annuaire (comptes actifs), seule source qui
+ * connaisse les agents NON inscrits — ceux que cet écran cherche justement.
+ */
+export async function parService(f: Filtre): Promise<LigneService[]> {
+  const [inscriptions, comptesAd] = await Promise.all([
+    prisma.inscription.findMany({
+      where: {
+        statut: "VALIDEE",
+        creneau: {
+          saisonId: f.saisonId,
+          ...(f.activiteId ? { activiteId: f.activiteId } : {}),
+        },
+      },
+      select: { userId: true, user: { select: { service: true, direction: true } } },
+    }),
+    prisma.adAccount.groupBy({
+      by: ["service"],
+      where: { enabled: true },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const effectifs = new Map<string, number>();
+  for (const c of comptesAd) {
+    const cle = c.service?.trim();
+    if (cle) effectifs.set(cle, c._count._all);
+  }
+
+  // Un agent inscrit à deux activités reste un agent : on compte des personnes,
+  // pas des inscriptions, sans quoi un service assidu paraîtrait deux fois plus
+  // large qu'il n'est.
+  const agents = new Map<string, Set<string>>();
+  for (const i of inscriptions) {
+    const cle = i.user.service?.trim() || i.user.direction?.trim() || "Non renseigné";
+    const set = agents.get(cle) ?? new Set<string>();
+    set.add(i.userId);
+    agents.set(cle, set);
+  }
+
+  const total = new Set(inscriptions.map((i) => i.userId)).size;
+
+  return [...agents.entries()]
+    .map(([libelle, set]) => {
+      const effectif = effectifs.get(libelle) ?? null;
+      return {
+        libelle,
+        inscrits: set.size,
+        effectif,
+        couverture:
+          effectif && effectif > 0 ? Math.round((set.size / effectif) * 100) : null,
+        part: total > 0 ? Math.round((set.size / total) * 100) : 0,
+      };
+    })
+    .sort(
+      (a, b) =>
+        (b.couverture ?? -1) - (a.couverture ?? -1) ||
+        b.inscrits - a.inscrits ||
+        a.libelle.localeCompare(b.libelle, "fr"),
+    );
+}
+
 export type Decrocheur = {
   userId: string;
   nom: string;
