@@ -10,6 +10,7 @@ import {
   deposerDemande,
   refuserDemande,
   refuserEnAttente,
+  supprimerDemande,
   supprimerRefusees,
   validerDemande,
 } from "@/lib/demandes";
@@ -192,4 +193,23 @@ export async function supprimerRefuseesAction(
   return n === 0
     ? erreur("Aucune demande refusée à supprimer.")
     : succes(`${n} demande(s) supprimée(s) définitivement.`);
+}
+
+/**
+ * Suppression d'une demande isolée, réservée à l'administrateur.
+ *
+ * Même garde-fou que la suppression groupée : le formulaire doit dire
+ * explicitement qu'il supprime, pour qu'une soumission égarée ne l'emporte pas.
+ */
+export async function supprimerDemandeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const admin = await requireUser("ADMIN");
+  if (String(formData.get("confirmation") ?? "") !== "supprimer") {
+    return erreur("Confirmation manquante.");
+  }
+  const res = await supprimerDemande(String(formData.get("id") ?? ""), admin);
+  revalidatePath("/agents/demandes");
+  return res.ok ? succes(res.message) : erreur(res.message);
 }

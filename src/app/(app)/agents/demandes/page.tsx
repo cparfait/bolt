@@ -6,7 +6,7 @@ import { getGeneralSettings } from "@/lib/settings";
 import { servicesDeLAnnuaire } from "@/lib/comptes";
 import { servicesProposes } from "@/lib/services";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
-import { DemandeAccesActions } from "@/components/demande-acces-actions";
+import { DemandeAccesActions, SupprimerDemande } from "@/components/demande-acces-actions";
 import { DemandesMenage } from "@/components/demandes-menage";
 import { fmtHorodatage } from "@/lib/dates";
 
@@ -22,6 +22,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function DemandesAccesPage() {
   const utilisateur = await requireUser("GESTIONNAIRE");
+  const estAdmin = utilisateur.role === "ADMIN";
   const g = await getGeneralSettings();
 
   const [enAttente, traitees] = await Promise.all([
@@ -145,6 +146,11 @@ export default async function DemandesAccesPage() {
                   {fmtHorodatage(d.decideAt)}
                   {d.motif ? ` · ${d.motif}` : ""}
                 </span>
+                {/* Réservé à l'administrateur : ce qui traîne ici après une
+                    recette, ce sont ses propres demandes de test. Le
+                    gestionnaire, lui, n'a pas à effacer l'historique d'une
+                    demande réelle. */}
+                {estAdmin && <SupprimerDemande id={d.id} nom={d.nom} />}
               </li>
             ))}
           </ul>
@@ -153,7 +159,7 @@ export default async function DemandesAccesPage() {
       <DemandesMenage
         enAttente={enAttente.length}
         refusees={refusees}
-        estAdmin={utilisateur.role === "ADMIN"}
+        estAdmin={estAdmin}
       />
     </>
   );

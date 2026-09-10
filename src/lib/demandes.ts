@@ -374,3 +374,26 @@ export async function supprimerRefusees(gestionnaire: {
   }
   return res.count;
 }
+/**
+ * Supprime une demande précise, quel que soit son statut.
+ *
+ * Réservé à l'administrateur : c'est le geste qui sert à effacer les demandes
+ * de test déposées pendant une recette ou une démonstration, lesquelles ne
+ * documentent rien et polluent la liste des traitées. Supprimer une demande
+ * validée n'enlève pas le compte créé — la ligne de journal, elle, reste.
+ */
+export async function supprimerDemande(
+  id: string,
+  administrateur: { id: string; displayName: string },
+): Promise<{ ok: boolean; message: string }> {
+  const demande = await prisma.demandeAcces.findUnique({ where: { id } });
+  if (!demande) return { ok: false, message: "Demande introuvable." };
+
+  await prisma.demandeAcces.delete({ where: { id } });
+  await audit("DEMANDE_ACCES_SUPPRIMEE", {
+    userId: administrateur.id,
+    cible: demande.email,
+    details: `demande ${demande.statut.toLowerCase()} de ${demande.nom}`,
+  });
+  return { ok: true, message: `Demande de ${demande.nom} supprimée.` };
+}

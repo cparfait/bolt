@@ -1,8 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { Check, X } from "lucide-react";
-import { refuserDemandeAction, validerDemandeAction } from "@/lib/actions/demandes";
+import {
+  refuserDemandeAction,
+  supprimerDemandeAction,
+  validerDemandeAction,
+} from "@/lib/actions/demandes";
 import { Alert, Field, Input, btnDanger, btnPrimary, btnSecondary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import type { ActionState } from "@/lib/actions/types";
@@ -130,5 +135,57 @@ export function DemandeAccesActions({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Suppression d'une demande déjà traitée, réservée à l'administrateur.
+ *
+ * Une recette ou une démonstration laisse derrière elle des demandes qui ne
+ * documentent rien : sans ce bouton, elles restent à demeure dans la liste des
+ * traitées, où le service cherche justement les vraies. Discret — un mot en
+ * bout de ligne — parce que l'historique des demandes réelles, lui, se garde.
+ */
+export function SupprimerDemande({ id, nom }: { id: string; nom: string }) {
+  const [etat, action] = useActionState<ActionState, FormData>(
+    supprimerDemandeAction,
+    null,
+  );
+
+  return (
+    <form
+      action={action}
+      className="inline-flex items-center gap-2"
+      onSubmit={(e) => {
+        if (
+          !window.confirm(
+            `Supprimer définitivement la demande de ${nom} ? La trace de la demande disparaît ; un compte déjà créé, lui, reste en place.`,
+          )
+        ) {
+          e.preventDefault();
+        }
+      }}
+    >
+      <input type="hidden" name="id" value={id} />
+      {/* La suppression groupée exige le même mot : un formulaire qui supprime
+          doit le dire, pour qu'une soumission égarée ne l'emporte pas. */}
+      <input type="hidden" name="confirmation" value="supprimer" />
+      {etat?.error && <span className="text-xs text-red-600">{etat.error}</span>}
+      <BoutonSuppression nom={nom} />
+    </form>
+  );
+}
+
+function BoutonSuppression({ nom }: { nom: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      title={`Supprimer la demande de ${nom}`}
+      className="rounded-lg px-1.5 py-0.5 text-xs text-slate-400 underline-offset-2 transition hover:text-red-600 hover:underline disabled:opacity-50"
+    >
+      {pending ? "Suppression…" : "Supprimer"}
+    </button>
   );
 }
