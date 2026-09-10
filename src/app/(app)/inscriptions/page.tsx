@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Lock } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
@@ -247,9 +248,14 @@ export default async function InscriptionsPage({
         )}
       </Card>
 
-      <div className="mb-6 space-y-3">
+      {/* Les deux portes d'entrée manuelles côte à côte : elles répondent à la
+          même question — « comment inscrire quelqu'un qui n'est pas passé par
+          l'application ? » — et les empiler poussait la liste des créneaux
+          d'autant plus bas. `items-start` pour qu'un panneau déplié
+          n'étire pas son voisin replié. */}
+      <div className="mb-6 grid items-start gap-3 md:grid-cols-2">
         <Panneau
-          titre="Inscrire un agent directement"
+          titre="Inscrire un agent à une activité manuellement"
           sousTitre="Pour une demande reçue par un autre canal"
         >
           <RechercheAgent creneaux={optionsCreneaux} />
@@ -321,14 +327,27 @@ export default async function InscriptionsPage({
               >
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold">
-                      <span style={{ color: c.activite.couleur }}>{c.activite.nom}</span>
-                      {" — "}
-                      {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
+                    <h3 className="flex flex-wrap items-center gap-2 font-semibold">
+                      <span>
+                        <span style={{ color: c.activite.couleur }}>{c.activite.nom}</span>
+                        {" — "}
+                        {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
+                      </span>
+                      {/* Créneau fermé : la mention grise en pied de titre se
+                          perdait dans la ligne du lieu, alors que c'est elle
+                          qui explique pourquoi une demande ne peut pas être
+                          honorée ici. Un badge à hauteur du titre la donne
+                          d'un coup d'œil, comme sur la page Activités. */}
+                      {!c.ouvertInscription && (
+                        <Badge color="bg-amber-100 text-amber-800 ring-amber-500/20">
+                          <Lock className="h-3 w-3" aria-hidden="true" />
+                          Inscriptions fermées
+                        </Badge>
+                      )}
                     </h3>
                     <p className="text-xs text-slate-400">
-                      {c.lieu ?? "lieu non précisé"} ·{" "}
-                      {c.ouvertInscription ? "inscriptions ouvertes" : "inscriptions fermées"}
+                      {c.lieu ?? "lieu non précisé"}
+                      {c.ouvertInscription && " · inscriptions ouvertes"}
                       {groupe && " · groupe partagé avec les autres créneaux"}
                     </p>
                   </div>
