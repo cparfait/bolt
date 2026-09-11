@@ -6,7 +6,6 @@ import { audit } from "./audit";
 import { isoDate } from "./dates";
 import { adresseDeContact } from "./comptes";
 import { lienPlace } from "./liens-courriel";
-import { lienItineraireDuLieu } from "./lieux";
 import { saisonOuverte } from "./saison";
 import { nomPourSalutation } from "./constants";
 import { envoyerMail } from "./mail";
@@ -315,10 +314,10 @@ export async function accuserReception(
     const g = await getGeneralSettings();
     // Jour, horaire et lieu en gras : ce sont les trois seules choses qu'on
     // revient chercher dans le message, et on les cherche en diagonale.
-    // Le lieu porte son itinéraire quand il a une adresse : c'est dans ce
-    // message qu'on cherche où aller, la première fois.
-    const itineraire = await lienItineraireDuLieu(creneau.lieu);
-    const quand = `**${creneau.jour.toLowerCase()} de ${creneau.heureDebut} à ${creneau.heureFin}**${creneau.lieu ? ` — **${creneau.lieu}**${itineraire ? ` ([itinéraire](${itineraire}))` : ""}` : ""}`;
+    // Pas d'itinéraire ici : l'adresse de Google Maps, longue et pleine de
+    // caractères encodés, s'affichait de travers dans les messageries. Le
+    // lien reste dans l'application, où il s'affiche correctement.
+    const quand = `**${creneau.jour.toLowerCase()} de ${creneau.heureDebut} à ${creneau.heureFin}**${creneau.lieu ? ` — **${creneau.lieu}**` : ""}`;
     const nom = creneau.activite.nom;
     const seDesinscrire = `Si cette inscription ne vous convient pas, désinscrivez-vous depuis l'application : votre place profitera à un collègue en liste d'attente.`;
 

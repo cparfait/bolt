@@ -1,6 +1,5 @@
 import nodemailer from "nodemailer";
 import { dimensionsImage, redimensionner } from "./images";
-import { lienItineraire } from "./lieux";
 import {
   getGeneralSettings,
   getSmtpSettings,
@@ -319,8 +318,8 @@ const ACTION_GLOBAL = /\[([^\]]{1,60})\]\((https?:\/\/[^\s)]+)\)/g;
  *
  * On ne filtre pas les champs un par un : il faudrait y penser à chaque
  * nouveau gabarit, et l'oubli ne se verrait pas. On borne plutôt la notation
- * elle-même aux origines que l'application connaît — les siennes, et celle des
- * itinéraires. Ailleurs, la notation reste du texte : l'adresse se voit telle
+ * elle-même aux origines que l'application connaît — les siennes, et elles
+ * seules. Ailleurs, la notation reste du texte : l'adresse se voit telle
  * qu'elle est, et un lien qu'on lit n'est plus un piège.
  */
 export function originesAutorisees(g: GeneralSettings): string[] {
@@ -329,7 +328,6 @@ export function originesAutorisees(g: GeneralSettings): string[] {
     g.pointageUrl,
     urlEspaceAgent(g),
     process.env.BOLT_PUBLIC_URL ?? "",
-    lienItineraire(""),
   ];
   return [...new Set(candidates.map(origineDe).filter((o): o is string => o !== null))];
 }

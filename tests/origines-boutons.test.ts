@@ -29,10 +29,10 @@ describe("originesAutorisees", () => {
     assert.ok(o.includes("https://sport.ville.fr"));
   });
 
-  it("y ajoute celle des itinéraires", () => {
-    // Les rappels de séance portent un lien « itinéraire » vers Google Maps :
-    // sans cette origine, chaque rappel perdrait son lien.
-    assert.ok(originesAutorisees(g({})).includes("https://www.google.com"));
+  it("ne retient rien d'autre", () => {
+    // Aucun courriel ne mène hors de l'application : l'itinéraire, qui
+    // s'affichait mal dans les messageries, ne vit plus que dans l'écran.
+    assert.equal(originesAutorisees(g({})).includes("https://www.google.com"), false);
   });
 
   it("ignore une adresse vide ou illisible", () => {
