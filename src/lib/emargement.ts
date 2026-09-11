@@ -1,6 +1,6 @@
 import type { EtatPresence } from "@prisma/client";
 import { prisma } from "./db";
-import { aujourdhui, ajouterJours } from "./dates";
+import { aujourdhui, ajouterJours, jourUtc } from "./dates";
 import { participeALaSeance } from "./inscriptions";
 
 /** Une ligne de la feuille : l'inscrit et son état s'il a déjà été pointé. */
@@ -107,6 +107,46 @@ export async function feuilleDeSeance(seanceId: string) {
 }
 
 /**
+ * Un agent peut-il recevoir une ligne sur la feuille de cette séance ?
+ *
+ * Une action de pointage s'appelle avec n'importe quel identifiant, et la
+ * feuille ne doit pas se remplir de comptes qui n'ont rien à y faire. Trois
+ * cas, et trois seulement : inscrit validé au créneau (et participant à cette
+ * date — voir `participeALaSeance`), figurant déjà sur la feuille, ou annoncé
+ * sur cette séance par le service des sports. Sans le deuxième, un participant
+ * ajouté à la volée était pointé présent à sa création puis impossible à
+ * corriger ; sans le troisième, un agent attendu pour une séance unique
+ * apparaissait sur la feuille sans pouvoir être pointé.
+ *
+ * Même règle pour la feuille publique et le back-office : deux chemins qui
+ * écrivent la même feuille ne doivent pas y admettre des gens différents.
+ */
+export async function peutEtrePointe(
+  seance: { id: string; creneauId: string; date: Date },
+  userId: string,
+): Promise<boolean> {
+  const [inscription, dejaSurLaFeuille, attendu] = await Promise.all([
+    prisma.inscription.findFirst({
+      where: { creneauId: seance.creneauId, userId, statut: "VALIDEE" },
+      select: { decisionAt: true, demandeAt: true },
+    }),
+    prisma.presence.findUnique({
+      where: { seanceId_userId: { seanceId: seance.id, userId } },
+      select: { id: true },
+    }),
+    prisma.participationPonctuelle.findUnique({
+      where: { seanceId_userId: { seanceId: seance.id, userId } },
+      select: { id: true },
+    }),
+  ]);
+  return (
+    (inscription !== null && participeALaSeance(inscription, seance.date)) ||
+    dejaSurLaFeuille !== null ||
+    attendu !== null
+  );
+}
+
+/**
  * Enregistre (ou corrige) l'état d'un participant.
  * Bascule la séance en « émargée » dès le premier pointage.
  */
@@ -161,21 +201,63 @@ export async function enregistrerPresence(
  *
  * Ne touche à personne d'autre : un inscrit sans pointage et sans annonce reste
  * sans ligne, parce que là, on ne sait effectivement pas.
+ *
+ * Et seulement ceux que la feuille attendait encore : l'agent qui a prévenu
+ * puis s'est désisté du créneau n'est plus sur la feuille (`feuilleDeSeance`
+ * ne le liste pas), et le porter absent lui comptait une absence à une séance
+ * qui ne le concernait plus.
  */
 export async function reprendreAbsencesAnnoncees(
   seanceId: string,
   saisiPar: string,
 ): Promise<number> {
-  const [annoncees, deja] = await Promise.all([
+  const seance = await prisma.seance.findUnique({
+    where: { id: seanceId },
+    select: { creneauId: true, date: true },
+  });
+  if (!seance) return 0;
+  const [annoncees, deja, inscriptions, participations] = await Promise.all([
     prisma.absenceAnnoncee.findMany({ where: { seanceId }, select: { userId: true } }),
     prisma.presence.findMany({ where: { seanceId }, select: { userId: true } }),
+    prisma.inscription.findMany({
+      where: { creneauId: seance.creneauId, statut: "VALIDEE" },
+      select: { userId: true, decisionAt: true, demandeAt: true },
+    }),
+    prisma.participationPonctuelle.findMany({ where: { seanceId }, select: { userId: true } }),
   ]);
-  const pointes = new Set(deja.map((p) => p.userId));
-  const aReprendre = annoncees.filter((a) => !pointes.has(a.userId));
-  for (const a of aReprendre) {
-    await enregistrerPresence(seanceId, a.userId, "ABSENT", saisiPar);
+  const aReprendre = absencesAReprendre({
+    annoncees: annoncees.map((a) => a.userId),
+    pointes: deja.map((p) => p.userId),
+    attendus: [
+      ...inscriptions.filter((i) => participeALaSeance(i, seance.date)).map((i) => i.userId),
+      ...participations.map((p) => p.userId),
+    ],
+  });
+  for (const userId of aReprendre) {
+    await enregistrerPresence(seanceId, userId, "ABSENT", saisiPar);
   }
   return aReprendre.length;
+}
+
+/**
+ * Qui, parmi les absences annoncées, passe absent à la clôture : ceux que la
+ * feuille attend encore et que l'animateur n'a pas pointés. Pure, pour être
+ * testée à part des requêtes qui l'alimentent.
+ */
+export function absencesAReprendre({
+  annoncees,
+  pointes,
+  attendus,
+}: {
+  annoncees: string[];
+  pointes: string[];
+  attendus: string[];
+}): string[] {
+  const dejaPointes = new Set(pointes);
+  const encoreAttendus = new Set(attendus);
+  return [...new Set(annoncees)].filter(
+    (userId) => !dejaPointes.has(userId) && encoreAttendus.has(userId),
+  );
 }
 
 /** Retire une ligne de la feuille (correction d'un pointage erroné). */
@@ -280,6 +362,19 @@ export async function seancesDuCoach(coachId: string, joursAvant = 14, joursApre
     include: { creneau: { include: { activite: true } }, _count: { select: { presences: true } } },
     orderBy: [{ date: "asc" }, { creneau: { heureDebut: "asc" } }],
   });
+}
+
+/**
+ * Date « AAAA-MM-JJ » reçue d'un formulaire de la feuille, ou `null` si elle
+ * ne l'est pas. Un `<input type="date">` ne renvoie que ce format, mais une
+ * action serveur s'appelle sans l'écran : `jourUtc("n'importe quoi")` donnait
+ * une date invalide, et la requête Prisma qui suivait une erreur 500 au lieu
+ * d'un message.
+ */
+export function dateDeFormulaire(valeur: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(valeur)) return null;
+  const d = jourUtc(valeur);
+  return Number.isFinite(d.getTime()) ? d : null;
 }
 
 /** Fenêtre de saisie : au-delà, seul un gestionnaire peut corriger. */

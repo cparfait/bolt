@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { enregistrerActivite } from "@/lib/actions/activites";
+import { useActionState, useState, useTransition } from "react";
+import { basculerInscriptions, enregistrerActivite } from "@/lib/actions/activites";
 import type { ActionState } from "@/lib/actions/types";
 import { Alert, Field, Input, Textarea, btnPrimary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
@@ -20,11 +20,16 @@ export type ActiviteInitiale = {
 export function ActiviteForm({
   initiale,
   redirigerVersFiche,
+  saisonId,
 }: {
   initiale?: ActiviteInitiale;
   // Après création depuis la page dédiée, on enchaîne sur la fiche : une
   // activité sans créneau ne sert à rien.
   redirigerVersFiche?: boolean;
+  // Saison affichée sur la fiche : c'est sur ses créneaux que l'effectif d'un
+  // groupe unique se recopie, pas sur la saison courante — en préparant la
+  // rentrée, ce sont les créneaux de la rentrée qu'on dimensionne.
+  saisonId?: string;
 }) {
   const [state, action] = useActionState<ActionState, FormData>(
     enregistrerActivite,
@@ -35,6 +40,7 @@ export function ActiviteForm({
     <form action={action} className="space-y-4">
       <Alert state={state} />
       {initiale && <input type="hidden" name="id" value={initiale.id} />}
+      {saisonId && <input type="hidden" name="saisonId" value={saisonId} />}
       {redirigerVersFiche && <input type="hidden" name="redirigerVersFiche" value="1" />}
       <Field label="Nom de l'activité" required>
         <Input name="nom" defaultValue={initiale?.nom} required placeholder="Yoga" />
@@ -149,5 +155,47 @@ export function ActiviteForm({
         {initiale ? "Enregistrer" : "Créer l'activité"}
       </SubmitButton>
     </form>
+  );
+}
+
+/**
+ * Bouton Ouvrir / Fermer les inscriptions d'un créneau, sur la fiche de
+ * l'activité.
+ *
+ * Pas un `BoutonAction` : celui-ci n'attend rien en retour, et le compte
+ * rendu de l'ouverture — combien d'agents qui attendaient ont été prévenus,
+ * ou qu'aucun courriel n'a pu partir — se perdait. Il s'affiche ici, sous le
+ * bouton, jusqu'au prochain geste.
+ */
+export function BoutonInscriptions({
+  creneauId,
+  ouvert,
+  className,
+}: {
+  creneauId: string;
+  ouvert: boolean;
+  className?: string;
+}) {
+  const [state, setState] = useState<ActionState>(null);
+  const [pending, start] = useTransition();
+  return (
+    <span className="inline-flex flex-col items-start gap-1">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => start(async () => setState(await basculerInscriptions(creneauId)))}
+        className={className}
+      >
+        {ouvert ? "Fermer les inscriptions" : "Ouvrir"}
+      </button>
+      {state && (
+        <span
+          role="status"
+          className={`max-w-xs text-xs ${state.error ? "text-red-700" : "text-emerald-700"}`}
+        >
+          {state.error ?? state.success}
+        </span>
+      )}
+    </span>
   );
 }

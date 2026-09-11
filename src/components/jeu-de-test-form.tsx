@@ -64,7 +64,7 @@ export function JeuDeTestForm({ vide }: { vide: boolean }) {
               {jeu.motDePasse}
             </code>
           </p>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="mt-1 text-xs text-slate-500">
             Tiré au hasard pour ce chargement, et affiché une seule fois. Les
             autres agents du jeu n&apos;ont pas de mot de passe : ils figurent
             comme des comptes d&apos;annuaire.
@@ -83,7 +83,7 @@ export function JeuDeTestForm({ vide }: { vide: boolean }) {
                 {lien.pin}
               </code>
             </p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-500">
               Notez-le : il est stocké haché et ne se réaffiche pas. Un nouveau
               lien se génère à tout moment depuis Animateurs.
             </p>

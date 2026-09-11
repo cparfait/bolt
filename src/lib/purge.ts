@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import { getSetting, setSetting } from "./settings";
-import { ajouterJours } from "./dates";
+import { ajouterJours, aujourdhui } from "./dates";
 import { audit } from "./audit";
 
 /**
@@ -61,6 +61,7 @@ export type ResultatPurge = {
   jetonsSupprimes: number;
   accesAnonymises: number;
   demandesSupprimees: number;
+  alertesSupprimees: number;
 };
 
 /**
@@ -103,12 +104,22 @@ export async function purger(): Promise<ResultatPurge> {
     where: { statut: { not: "EN_ATTENTE" }, decideAt: { lt: seuilDemandes } },
   });
 
+  // « Prévenez-moi quand ça rouvre » sur un créneau d'une saison close : ça
+  // ne rouvrira pas, et l'alerte rattache un agent à un créneau pour rien.
+  // Elle ne s'efface autrement qu'à l'envoi du courriel ou au retrait du
+  // créneau — une saison qui se termine normalement n'en fait ni l'un ni
+  // l'autre.
+  const alertes = await prisma.alerteOuverture.deleteMany({
+    where: { creneau: { saison: { fin: { lt: aujourdhui() } } } },
+  });
+
   return {
     ipsEffacees: ips.count,
     lignesSupprimees: lignes.count,
     jetonsSupprimes: jetons.count,
     accesAnonymises: acces.count,
     demandesSupprimees: demandes.count,
+    alertesSupprimees: alertes.count,
   };
 }
 

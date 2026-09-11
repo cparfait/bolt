@@ -1,13 +1,19 @@
 import type { Jour } from "@prisma/client";
 import { prisma } from "./db";
-import { JOUR_LABELS, fmtDate } from "./dates";
-import { pluriel } from "./constants";
-import { participeALaSeance } from "./inscriptions";
+import { JOUR_LABELS, cleMois, fmtDate } from "./dates";
+import { SEANCE_STATUT_LABELS, pluriel } from "./constants";
 import {
+  assiduiteParAgent,
+  bandeAssiduite,
+  bilanSeance,
   chargerSeances,
+  cleDirection,
+  cleService,
   estPresent,
+  motifNormalise,
   placesOffertes,
   type Filtre,
+  type SeanceChargee,
 } from "./stats";
 
 /**
@@ -99,14 +105,11 @@ export type Detail = {
 };
 
 /**
- * Assiduité agent par agent, sur le périmètre exact de `assiduite`.
- *
- * Les règles reprises telles quelles sont celles qui comptent : ne sont
- * proposées à un agent que les séances émargées de ses créneaux depuis son
- * inscription, et une venue hors de ce périmètre — participation ponctuelle,
- * séance antérieure — ne se compte pas au numérateur.
+ * Assiduité agent par agent, sur le périmètre exact de `assiduite` : le calcul
+ * est le même (`assiduiteParAgent`, src/lib/stats.ts), seule l'identité s'y
+ * ajoute pour l'affichage.
  */
-async function assiduiteParAgent(f: Filtre): Promise<LigneAgentDetail[]> {
+async function assiduiteDetaillee(f: Filtre): Promise<LigneAgentDetail[]> {
   const [seances, inscriptions] = await Promise.all([
     chargerSeances(f),
     prisma.inscription.findMany({
@@ -127,85 +130,44 @@ async function assiduiteParAgent(f: Filtre): Promise<LigneAgentDetail[]> {
     }),
   ]);
 
-  const emargees = seances.filter((s) => s.statut === "FAITE");
-  const parCreneau = new Map<string, { id: string; date: Date }[]>();
-  for (const s of emargees) {
-    parCreneau.set(s.creneauId, [...(parCreneau.get(s.creneauId) ?? []), s]);
-  }
+  const identites = new Map(
+    inscriptions.map((i) => [
+      i.userId,
+      { nom: i.user.displayName, situation: i.user.service ?? i.user.direction },
+    ]),
+  );
 
-  const proposees = new Map<string, number>();
-  const perimetre = new Set<string>();
-  const identites = new Map<string, { nom: string; situation: string | null }>();
-  for (const i of inscriptions) {
-    const siennes = (parCreneau.get(i.creneauId) ?? []).filter((s) =>
-      participeALaSeance(i, s.date),
-    );
-    proposees.set(i.userId, (proposees.get(i.userId) ?? 0) + siennes.length);
-    identites.set(i.userId, {
-      nom: i.user.displayName,
-      situation: i.user.service ?? i.user.direction,
-    });
-    for (const s of siennes) perimetre.add(`${i.userId}:${s.id}`);
-  }
-
-  const venues = new Map<string, number>();
-  for (const s of emargees) {
-    for (const p of s.presences) {
-      if (!estPresent(p.etat)) continue;
-      if (!perimetre.has(`${p.userId}:${s.id}`)) continue;
-      venues.set(p.userId, (venues.get(p.userId) ?? 0) + 1);
-    }
-  }
-
-  return [...proposees.entries()]
-    .map(([userId, nb]) => {
-      const venu = venues.get(userId) ?? 0;
+  return [...assiduiteParAgent(seances, inscriptions).entries()]
+    .map(([userId, a]) => {
       const id = identites.get(userId);
       return {
         userId,
         nom: id?.nom ?? userId,
         situation: id?.situation ?? null,
-        venues: venu,
-        proposees: nb,
-        taux: nb > 0 ? Math.round((venu / nb) * 100) : null,
+        venues: a.venues,
+        proposees: a.proposees,
+        taux: a.proposees > 0 ? Math.round((a.venues / a.proposees) * 100) : null,
       };
     })
     .sort((a, b) => (b.taux ?? -1) - (a.taux ?? -1) || a.nom.localeCompare(b.nom, "fr"));
 }
 
-/**
- * La bande d'assiduité d'un agent. Seuils identiques à ceux de `assiduite`,
- * y compris le cas de celui dont aucune séance n'a encore été émargée : il est
- * rangé avec les occasionnels et surtout pas parmi les « jamais venus », qui
- * déclenche une relance.
- */
-function bande(l: LigneAgentDetail): string {
-  if (l.proposees === 0) return "occasionnels";
-  if (l.venues === 0) return "jamais";
-  const part = l.venues / l.proposees;
-  if (part >= 0.8) return "assidus";
-  if (part >= 0.4) return "reguliers";
-  return "occasionnels";
-}
-
-const STATUT_SEANCE: Record<string, string> = {
-  PREVUE: "prévue",
-  FAITE: "émargée",
-  ANNULEE: "annulée",
-};
-
-type SeanceChargee = Awaited<ReturnType<typeof chargerSeances>>[number];
-
 function decrireSeance(s: SeanceChargee): LigneSeanceDetail {
+  // Présents et absents selon la formule du bilan (`bilanSeance`) : un absent
+  // est un attendu non venu, pointé ou non, et la ligne de détail doit
+  // recomposer le chiffre sur lequel on a cliqué.
+  const b = bilanSeance(s);
   return {
     id: s.id,
     date: s.date,
     activite: s.creneau.activite.nom,
     couleur: s.creneau.activite.couleur,
     creneau: `${JOUR_LABELS[s.creneau.jour]} ${s.creneau.heureDebut}–${s.creneau.heureFin}`,
-    statut: STATUT_SEANCE[s.statut] ?? s.statut,
-    presents: s.presences.filter((p) => estPresent(p.etat)).length,
-    absents: s.presences.filter((p) => p.etat === "ABSENT").length,
+    // Le libellé commun à toute l'application, en minuscule : il se glisse
+    // après la date, en petit. Une table locale ignorait « PLANIFIEE ».
+    statut: SEANCE_STATUT_LABELS[s.statut].toLocaleLowerCase("fr"),
+    presents: b.presents,
+    absents: b.absents,
     places: placesOffertes(s),
     motif: s.motifAnnulation ?? null,
   };
@@ -235,8 +197,7 @@ export async function detail(f: Filtre, coupe: Coupe): Promise<Detail> {
       if (s.statut !== "FAITE") continue;
       for (const p of s.presences) {
         if (!estPresent(p.etat)) continue;
-        const cle = p.user.direction?.trim() || p.user.service?.trim() || "Non renseignée";
-        if (cle !== coupe.valeur) continue;
+        if (cleDirection(p.user) !== coupe.valeur) continue;
         const courant = compte.get(p.userId) ?? {
           nom: p.user.displayName,
           situation: p.user.service ?? p.user.direction,
@@ -248,7 +209,7 @@ export async function detail(f: Filtre, coupe: Coupe): Promise<Detail> {
     }
     // Le taux vient de l'assiduité, pour que la fiche d'un agent et cet écran
     // annoncent la même chose.
-    const parAgent = new Map((await assiduiteParAgent(f)).map((l) => [l.userId, l]));
+    const parAgent = new Map((await assiduiteDetaillee(f)).map((l) => [l.userId, l]));
     return {
       ...VIDE,
       titre: coupe.valeur,
@@ -268,20 +229,21 @@ export async function detail(f: Filtre, coupe: Coupe): Promise<Detail> {
 
   if (coupe.type === "assiduite") {
     const [titre, sousTitre] = BANDES[coupe.valeur] ?? [coupe.valeur, ""];
-    const tous = await assiduiteParAgent(f);
+    const tous = await assiduiteDetaillee(f);
     return {
       ...VIDE,
       titre,
       sousTitre,
-      agents: tous.filter((l) => bande(l) === coupe.valeur),
+      agents: tous.filter((l) => bandeAssiduite(l) === coupe.valeur),
     };
   }
 
   if (coupe.type === "mois") {
+    // Les séances émargées seulement, et la clé de mois en UTC : c'est ce que
+    // compte la barre de l'histogramme (`agregerMensuel`), et une liste qui
+    // ajoute les séances annulées ou à venir ne recompose plus son chiffre.
     const seances = (await chargerSeances(f)).filter(
-      (s) =>
-        `${s.date.getFullYear()}-${String(s.date.getMonth() + 1).padStart(2, "0")}` ===
-        coupe.valeur,
+      (s) => s.statut === "FAITE" && cleMois(s.date) === coupe.valeur,
     );
     const [annee, mois] = coupe.valeur.split("-");
     const libelle = new Date(Number(annee), Number(mois) - 1, 1).toLocaleDateString("fr-FR", {
@@ -291,7 +253,7 @@ export async function detail(f: Filtre, coupe: Coupe): Promise<Detail> {
     return {
       ...VIDE,
       titre: libelle.charAt(0).toUpperCase() + libelle.slice(1),
-      sousTitre: "Séances de ce mois, émargées ou non",
+      sousTitre: "Séances émargées ce mois-ci",
       seances: seances.map(decrireSeance),
     };
   }
@@ -315,11 +277,7 @@ export async function detail(f: Filtre, coupe: Coupe): Promise<Detail> {
       },
       orderBy: [{ demandeAt: "asc" }],
     });
-    const duService = lignes.filter(
-      (i) =>
-        (i.user.service?.trim() || i.user.direction?.trim() || "Non renseigné") ===
-        coupe.valeur,
-    );
+    const duService = lignes.filter((i) => cleService(i.user) === coupe.valeur);
     const agents = new Set(duService.map((i) => i.userId)).size;
     return {
       ...VIDE,
@@ -424,29 +382,34 @@ export async function detail(f: Filtre, coupe: Coupe): Promise<Detail> {
     return {
       ...VIDE,
       titre: activite?.nom ?? "Activité",
-      sousTitre: "Séances de l'activité, et assiduité de ses inscrits",
+      sousTitre:
+        "Toutes les séances de l'activité, émargées ou non, et assiduité de ses inscrits",
       seances: (await chargerSeances(cible)).map(decrireSeance),
-      agents: await assiduiteParAgent(cible),
+      agents: await assiduiteDetaillee(cible),
     };
   }
 
   if (coupe.type === "creneau") {
     const [jour, heure] = coupe.valeur.split("-");
+    // Émargées seulement : la case de la grille ne moyenne que celles-là.
     const seances = (await chargerSeances(f)).filter(
       (s) =>
+        s.statut === "FAITE" &&
         s.creneau.jour === jour &&
         Number(s.creneau.heureDebut.slice(0, 2)) === Number(heure),
     );
     return {
       ...VIDE,
       titre: `${JOUR_LABELS[jour as Jour] ?? jour} ${String(heure).padStart(2, "0")} h`,
-      sousTitre: "Séances programmées sur cette tranche horaire",
+      sousTitre: "Séances émargées sur cette tranche horaire",
       seances: seances.map(decrireSeance),
     };
   }
 
+  // Même normalisation que le compteur des motifs, sans quoi « Motif non
+  // renseigné » menait à une page vide.
   const seances = (await chargerSeances(f)).filter(
-    (s) => s.statut === "ANNULEE" && (s.motifAnnulation ?? "Sans motif") === coupe.valeur,
+    (s) => s.statut === "ANNULEE" && motifNormalise(s.motifAnnulation) === coupe.valeur,
   );
   return {
     ...VIDE,

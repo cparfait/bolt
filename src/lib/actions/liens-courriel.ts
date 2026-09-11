@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { aujourdhui } from "@/lib/dates";
 import { absenceAutorisee, placeAutorisee } from "@/lib/liens-courriel";
-import { promouvoirEtPrevenir } from "@/lib/inscriptions";
+import { promouvoirTantQuePossible } from "@/lib/inscriptions";
 import { erreur, succes, type ActionState } from "./types";
 
 /**
@@ -105,13 +105,17 @@ export async function rendreSaPlaceParLien(
 ): Promise<ActionState> {
   const inscriptionId = String(formData.get("inscriptionId") ?? "");
   const signature = String(formData.get("signature") ?? "");
-  if (!placeAutorisee(inscriptionId, signature)) return erreur(REFUS);
 
+  // L'inscription d'abord, la signature ensuite : elle porte l'horodatage de
+  // la promotion, et c'est celui d'aujourd'hui qui compte — un lien reçu pour
+  // une promotion antérieure, avant un désistement et une réinscription, ne
+  // rend pas la place obtenue depuis (voir src/lib/liens-courriel.ts).
   const inscription = await prisma.inscription.findUnique({
     where: { id: inscriptionId },
     include: { creneau: { include: { activite: true } } },
   });
   if (!inscription) return erreur(REFUS);
+  if (!placeAutorisee(inscription, signature)) return erreur(REFUS);
   if (inscription.statut !== "VALIDEE") {
     return erreur("Cette inscription n'est plus active : il n'y a pas de place à rendre.");
   }
@@ -135,7 +139,9 @@ export async function rendreSaPlaceParLien(
   });
 
   // La place repart immédiatement : c'est la seule raison d'être du bouton.
-  await promouvoirEtPrevenir(inscription.creneauId);
+  // En chaîne, pas un seul : en capacité mutualisée, le promu peut déjà
+  // détenir une place et n'en consommer aucune — le suivant attendrait pour rien.
+  await promouvoirTantQuePossible(inscription.creneauId);
 
   revalidatePath("/inscriptions");
   revalidatePath("/mes-activites");

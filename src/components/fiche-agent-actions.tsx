@@ -31,7 +31,7 @@ export function InscrireDepuisFiche({
 
   if (creneaux.length === 0) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-slate-500">
         Cet agent est déjà positionné sur tous les créneaux de la saison.
       </p>
     );
@@ -76,7 +76,7 @@ export function AbsencePourAgent({
 
   if (seances.length === 0) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-slate-500">
         Aucune séance à venir sur laquelle signaler une absence. Vérifiez ses
         inscriptions.
       </p>

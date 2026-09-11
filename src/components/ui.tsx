@@ -276,7 +276,7 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 bg-white/50 px-6 py-12 text-center">
       <p className="text-sm font-medium text-slate-600">{title}</p>
-      {hint && <p className="mt-1 text-sm text-slate-400">{hint}</p>}
+      {hint && <p className="mt-1 text-sm text-slate-500">{hint}</p>}
     </div>
   );
 }
@@ -301,7 +301,7 @@ export function Field({
         {required && <span className="text-red-500"> *</span>}
       </span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
   );
 }
@@ -393,10 +393,10 @@ export function Stat({
       )}
       <p className="mt-3 text-2xl font-semibold tabular-nums">
         {value}
-        {suffixe && <span className="ml-0.5 text-base font-medium text-slate-400">{suffixe}</span>}
+        {suffixe && <span className="ml-0.5 text-base font-medium text-slate-500">{suffixe}</span>}
       </p>
       <p className="text-sm text-slate-500">{label}</p>
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </>
   );
   const classe = `block rounded-2xl border p-5 shadow-sm ${

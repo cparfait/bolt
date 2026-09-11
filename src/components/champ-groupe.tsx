@@ -75,9 +75,9 @@ export function ChampGroupe({
       {listeVisible && (
         <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
           {cherche && suggestions.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">Interrogation de l&apos;annuaire…</p>
+            <p className="px-4 py-3 text-sm text-slate-500">Interrogation de l&apos;annuaire…</p>
           ) : suggestions.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">
+            <p className="px-4 py-3 text-sm text-slate-500">
               Aucun groupe proposé. Renseignez d&apos;abord le compte de service, ou
               saisissez le nom exact.
             </p>
@@ -95,7 +95,7 @@ export function ChampGroupe({
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-medium">{g.cn}</span>
-                      <span className="block truncate text-xs text-slate-400">{g.dn}</span>
+                      <span className="block truncate text-xs text-slate-500">{g.dn}</span>
                     </span>
                     {valeur === g.cn && (
                       <Check className="h-4 w-4 shrink-0 text-emerald-600" />

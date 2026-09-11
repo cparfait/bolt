@@ -162,10 +162,48 @@ export type ResultatPin =
   | { ok: true }
   | { ok: false; message: string; verrouJusqua?: Date };
 
+const MESSAGE_VERROU = "Trop d'essais. Réessayez dans quelques minutes.";
+
+/**
+ * Ce qu'un échec de plus produit, à partir du compteur **tel que la base l'a
+ * incrémenté** : verrouillage ou non, message à l'écran, détail du journal.
+ *
+ * Pure, pour être testée : c'est là que se décide le passage du cinquième
+ * essai au verrou, et un compteur qui dépasse la borne (essais simultanés,
+ * verrou posé par un autre appel) doit se lire comme un verrou, jamais comme
+ * « -1 essai restant ».
+ */
+export function etatApresEchecPin(essais: number): {
+  verrouille: boolean;
+  message: string;
+  journal: string;
+} {
+  if (essais >= PIN_ESSAIS_MAX) {
+    return {
+      verrouille: true,
+      message: `Trop d'essais : accès bloqué ${PIN_VERROU_MINUTES} minutes.`,
+      journal: `essai ${essais}/${PIN_ESSAIS_MAX} — verrouillé ${PIN_VERROU_MINUTES} min`,
+    };
+  }
+  const restants = PIN_ESSAIS_MAX - essais;
+  const s = restants > 1 ? "s" : "";
+  return {
+    verrouille: false,
+    message: `Code incorrect (${restants} essai${s} restant${s}).`,
+    journal: `essai ${essais}/${PIN_ESSAIS_MAX}`,
+  };
+}
+
 /**
  * Vérifie le code à 6 chiffres et ouvre la session animateur.
  * Double garde-fou : limitation par IP (mémoire) et verrouillage du compte
  * animateur après 5 échecs (base).
+ *
+ * Le compteur d'échecs est incrémenté **par la base**, pas relu puis réécrit :
+ * cinq essais lancés dans la même seconde lisaient tous « 0 », écrivaient tous
+ * « 1 », et la limite ne tombait jamais. Il n'est remis à zéro qu'au succès et
+ * à l'attribution d'un lien ; verrouillé, il continue de monter, ce qui est
+ * sans conséquence et évite une seconde écriture.
  */
 export async function verifierPin(
   token: string,
@@ -182,11 +220,7 @@ export async function verifierPin(
 
   const maintenant = new Date();
   if (coach.pinLockedUntil && coach.pinLockedUntil > maintenant) {
-    return {
-      ok: false,
-      message: "Trop d'essais. Réessayez dans quelques minutes.",
-      verrouJusqua: coach.pinLockedUntil,
-    };
+    return { ok: false, message: MESSAGE_VERROU, verrouJusqua: coach.pinLockedUntil };
   }
 
   // Coupe-circuit indépendant du compte : empêche un balayage depuis une IP.
@@ -195,32 +229,42 @@ export async function verifierPin(
     return { ok: false, message: "Trop de tentatives depuis cet appareil. Patientez." };
   }
 
+  // Le verrou est relu juste avant la comparaison : un essai parti en même
+  // temps que le cinquième échec ne doit pas bénéficier d'une lecture
+  // antérieure au verrou. La comparaison bcrypt n'a lieu qu'à verrou ouvert.
+  const etat = await prisma.coach.findUnique({
+    where: { id: coach.id },
+    select: { pinLockedUntil: true, pinHash: true },
+  });
+  if (!etat?.pinHash) return { ok: false, message: "Lien invalide." };
+  if (etat.pinLockedUntil && etat.pinLockedUntil > new Date()) {
+    return { ok: false, message: MESSAGE_VERROU, verrouJusqua: etat.pinLockedUntil };
+  }
+
   const propre = pin.replace(/\D/g, "");
-  const ok = propre.length === 6 && (await bcrypt.compare(propre, coach.pinHash));
+  const ok = propre.length === 6 && (await bcrypt.compare(propre, etat.pinHash));
 
   if (!ok) {
-    const essais = coach.pinFailedCount + 1;
-    const verrouille = essais >= PIN_ESSAIS_MAX;
-    await prisma.coach.update({
+    const { pinFailedCount: essais } = await prisma.coach.update({
       where: { id: coach.id },
-      data: {
-        pinFailedCount: verrouille ? 0 : essais,
-        pinLockedUntil: verrouille
-          ? new Date(Date.now() + PIN_VERROU_MINUTES * 60 * 1000)
-          : null,
-      },
+      data: { pinFailedCount: { increment: 1 } },
+      select: { pinFailedCount: true },
     });
+    const suite = etatApresEchecPin(essais);
+    let verrouJusqua: Date | undefined;
+    if (suite.verrouille) {
+      verrouJusqua = new Date(Date.now() + PIN_VERROU_MINUTES * 60 * 1000);
+      await prisma.coach.update({
+        where: { id: coach.id },
+        data: { pinLockedUntil: verrouJusqua },
+      });
+    }
     await audit("EMARGEMENT_PIN_ECHEC", {
       acteur: `${coach.prenom} ${coach.nom}`,
       cible: coach.id,
-      details: verrouille ? `verrouillé ${PIN_VERROU_MINUTES} min` : `essai ${essais}/${PIN_ESSAIS_MAX}`,
+      details: suite.journal,
     });
-    return {
-      ok: false,
-      message: verrouille
-        ? `Trop d'essais : accès bloqué ${PIN_VERROU_MINUTES} minutes.`
-        : `Code incorrect (${PIN_ESSAIS_MAX - essais} essai${PIN_ESSAIS_MAX - essais > 1 ? "s" : ""} restant${PIN_ESSAIS_MAX - essais > 1 ? "s" : ""}).`,
-    };
+    return { ok: false, message: suite.message, verrouJusqua };
   }
 
   await prisma.coach.update({

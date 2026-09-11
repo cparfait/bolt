@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import { aujourdhui } from "@/lib/dates";
 import {
   enregistrerPresence,
+  peutEtrePointe,
   reprendreAbsencesAnnoncees,
   retirerPresence,
 } from "@/lib/emargement";
@@ -48,6 +49,9 @@ export async function pointerAction(
   if (!seance) return;
   if (seance.clotureeAt && !estGestionnaire(acteur)) return;
   if (!ETATS.includes(etat as EtatPresence)) return;
+  // Même règle que la feuille publique : l'identifiant vient du navigateur, et
+  // la feuille ne doit pas se remplir de comptes qui n'y ont rien à faire.
+  if (!(await peutEtrePointe(seance, userId))) return;
 
   await enregistrerPresence(seanceId, userId, etat as EtatPresence, `user:${acteur.login}`);
   revalidatePath(`/seances/${seanceId}`);
@@ -99,8 +103,12 @@ export async function annulerSeance(
   });
 
   // Séance à venir : les inscrits ont prévu de s'y rendre. Prévenir n'a en
-  // revanche aucun sens sur une séance passée qu'on se contente de constater.
-  const information = formData.get("prevenir") === "on" ? await prevenir([seanceId], motif) : "";
+  // revanche aucun sens sur une séance passée qu'on se contente de constater —
+  // l'écran cache la case, mais un formulaire rejoué la cochait quand même.
+  const information =
+    formData.get("prevenir") === "on" && seance.date >= aujourdhui()
+      ? await prevenir([seanceId], motif)
+      : "";
 
   revalidatePath("/seances");
   revalidatePath("/seances/calendrier");

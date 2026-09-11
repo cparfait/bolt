@@ -74,7 +74,7 @@ export function CreneauForm({
         hint="Chacun verra ce créneau sur sa feuille de présence."
       >
         {animateurs.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             Aucun animateur actif — créez-en un dans « Animateurs ».
           </p>
         ) : (
@@ -221,7 +221,7 @@ export function CreneauForm({
           Vacances et jours fériés
         </legend>
         {fermetures.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             Aucune période déclarée sur cette saison. Ajoutez-les dans
             Paramètres → Saisons & calendrier ; les séances correspondantes
             seront alors retirées du calendrier.
@@ -248,12 +248,12 @@ export function CreneauForm({
                         />
                         <span>
                           <span className="font-medium">{f.libelle}</span>
-                          <span className="ml-2 text-xs text-slate-400">
+                          <span className="ml-2 text-xs text-slate-500">
                             {f.periode}
                           </span>
                         </span>
                       </span>
-                      <span className="shrink-0 text-xs text-slate-400">
+                      <span className="shrink-0 text-xs text-slate-500">
                         {maintenue ? "ouvert" : "fermé"}
                       </span>
                     </label>

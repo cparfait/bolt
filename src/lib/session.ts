@@ -57,10 +57,23 @@ export async function currentUser(): Promise<User | null> {
  *
  * À n'employer que là où un agent agit sur ses propres données. Tout le reste
  * passe par `requireUser`, qui refuse l'extérieur.
+ *
+ * Une réserve tout de même : « vocation à être joint depuis Internet » ne vaut
+ * que si l'espace agent y est effectivement publié (PUBLIC_AGENT_ACCESS=1,
+ * même arbitrage que `PUBLIC_AGENT_PREFIXES` dans src/proxy.ts). Sans cela,
+ * une action de l'espace agent reste appelable de l'extérieur par son
+ * identifiant, depuis un chemin publié — la feuille d'émargement, une page de
+ * courriel. Le proxy filtre des chemins, pas des actions : c'est ici que la
+ * décision « l'espace agent ne sort pas du réseau » devient vraie.
  */
 export async function requireAgent(): Promise<User> {
   const user = await currentUser();
   if (!user) redirect(await ecranDeConnexion());
+
+  if (process.env.PUBLIC_AGENT_ACCESS !== "1" && !estInterne(clientIp(await headers()))) {
+    await audit("AGENT_HORS_RESEAU", { userId: user.id });
+    redirect("/acces");
+  }
   return user;
 }
 

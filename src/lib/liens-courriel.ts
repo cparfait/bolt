@@ -89,12 +89,39 @@ export function absenceAutorisee(
 
 // ── « Je laisse ma place » — promotion depuis la liste d'attente ────────────
 
-export function signaturePlace(inscriptionId: string): string {
-  return signer("place", [inscriptionId]);
+/**
+ * Une inscription telle que le lien la désigne : son identifiant, et le moment
+ * de la promotion qu'il concerne.
+ *
+ * L'identifiant seul ne suffit pas : une inscription est REUTILISÉE quand
+ * l'agent se réinscrit après un désistement (voir `demanderInscription`,
+ * src/lib/inscriptions.ts). Signé sur le seul identifiant, le lien reçu à une
+ * première promotion restait valable à la suivante, des mois plus tard — et
+ * un vieux courriel rendait une place qu'on venait de reprendre. `promuAt`
+ * est réécrit à chaque promotion et remis à zéro à chaque réinscription : le
+ * lien ne vaut que pour LA promotion qui l'a fait envoyer.
+ */
+export type InscriptionPromue = { id: string; promuAt: Date | null };
+
+export function signaturePlace(inscription: InscriptionPromue): string {
+  return signer("place", partiesPlace(inscription));
 }
 
-export function placeAutorisee(inscriptionId: string, signature: string | undefined): boolean {
-  return verifier("place", [inscriptionId], signature);
+/**
+ * Vérification contre l'inscription RECHARGÉE, jamais contre ce que porte le
+ * formulaire : c'est l'état actuel de l'inscription qui décide, et une
+ * inscription jamais promue (`promuAt` nul) n'a aucun lien valide.
+ */
+export function placeAutorisee(
+  inscription: InscriptionPromue,
+  signature: string | undefined,
+): boolean {
+  if (inscription.promuAt === null) return false;
+  return verifier("place", partiesPlace(inscription), signature);
+}
+
+function partiesPlace(inscription: InscriptionPromue): string[] {
+  return [inscription.id, inscription.promuAt?.toISOString() ?? ""];
 }
 
 // ── Adresses ────────────────────────────────────────────────────────────────
@@ -112,6 +139,6 @@ export function lienAbsence(seanceId: string, userId: string, base: string): str
   return `${racine(base)}/courriel/absence/${seanceId}/${userId}/${signatureAbsence(seanceId, userId)}`;
 }
 
-export function lienPlace(inscriptionId: string, base: string): string {
-  return `${racine(base)}/courriel/place/${inscriptionId}/${signaturePlace(inscriptionId)}`;
+export function lienPlace(inscription: InscriptionPromue, base: string): string {
+  return `${racine(base)}/courriel/place/${inscription.id}/${signaturePlace(inscription)}`;
 }

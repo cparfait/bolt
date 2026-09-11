@@ -47,7 +47,7 @@ export function EmailAgentForm({
         <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
           {emailAnnuaire ?? "Aucune adresse dans l'annuaire"}
         </p>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-500">
           Elle vient de l&apos;Active Directory et s&apos;y corrige : l&apos;application la relit
           à chaque connexion de l&apos;agent et à chaque synchronisation. La saisir
           ici permettrait de détourner son lien de connexion.
@@ -107,7 +107,7 @@ export function RattacherAdForm({ userId }: { userId: string }) {
       <SubmitButton className={btnSecondary} pendingLabel="Rattachement…">
         <Link2 className="h-4 w-4" /> Rattacher au compte
       </SubmitButton>
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         Si l&apos;agent a déjà un compte dans l&apos;application, les deux fiches sont fusionnées et
         vous arrivez sur celle qui subsiste. L&apos;opération ne se défait pas.
       </p>

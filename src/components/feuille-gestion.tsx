@@ -97,7 +97,7 @@ export function FeuilleGestion({
 
       <Card
         title="Feuille de présence"
-        action={coachNom ? <span className="text-xs text-slate-400">{coachNom}</span> : null}
+        action={coachNom ? <span className="text-xs text-slate-500">{coachNom}</span> : null}
       >
         <ul className="divide-y divide-slate-100">
           {lignes.map((l) => {
@@ -113,7 +113,7 @@ export function FeuilleGestion({
                     {l.ponctuel && <BadgePonctuel className="ml-2" />}
                   </p>
                   {(l.service || l.direction) && (
-                    <p className="truncate text-xs text-slate-400">
+                    <p className="truncate text-xs text-slate-500">
                       {l.service ?? l.direction}
                     </p>
                   )}
@@ -161,7 +161,7 @@ export function FeuilleGestion({
                         : `${l.nom} — effacer le pointage`
                     }
                     onClick={() => effacer(l.userId)}
-                    className="col-span-2 flex min-h-[36px] items-center justify-center gap-1.5 rounded-lg text-xs font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 sm:col-span-1 sm:min-h-0 sm:px-2.5 sm:py-1.5"
+                    className="col-span-2 flex min-h-[36px] items-center justify-center gap-1.5 rounded-lg text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30 sm:col-span-1 sm:min-h-0 sm:px-2.5 sm:py-1.5"
                   >
                     <Undo2 className="h-3.5 w-3.5" />
                     {etat === null ? "Retirer" : "Effacer"}

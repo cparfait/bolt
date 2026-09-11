@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { saisonCourante } from "@/lib/saison";
+import { saisonDeTravail, saisonsProposees } from "@/lib/saison";
+import { AvertissementPreparation, SelecteurSaison } from "@/components/selecteur-saison";
 import {
   ajouterJours,
   aujourdhui,
@@ -38,13 +39,16 @@ import {
 export default async function CalendrierPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vue?: string; date?: string; activite?: string }>;
+  searchParams: Promise<{ vue?: string; date?: string; activite?: string; saison?: string }>;
 }) {
   await requireUser("GESTIONNAIRE");
-  const { vue: vueBrute, date: dateBrute, activite } = await searchParams;
+  const { vue: vueBrute, date: dateBrute, activite, saison: saisonParam } = await searchParams;
   const vue: "mois" | "semaine" = vueBrute === "semaine" ? "semaine" : "mois";
 
-  const saison = await saisonCourante();
+  // La saison choisie dans l'adresse, sinon la courante : c'est en préparant
+  // la rentrée qu'on vérifie le plus les séances générées.
+  const saison = await saisonDeTravail(saisonParam);
+  const saisons = await saisonsProposees();
   if (!saison) {
     return (
       <>
@@ -54,9 +58,14 @@ export default async function CalendrierPage({
     );
   }
 
+  // Sans date demandée, le calendrier s'ouvre sur aujourd'hui — sauf sur une
+  // saison qui n'a pas commencé, où aujourd'hui est une grille vide : on
+  // s'ouvre alors sur son premier jour.
   const ancre = /^\d{4}-\d{2}-\d{2}$/.test(dateBrute ?? "")
     ? jourUtc(dateBrute!)
-    : aujourdhui();
+    : saison.debut > aujourdhui()
+      ? jourUtc(saison.debut)
+      : aujourdhui();
 
   // La grille du mois est complétée aux semaines pleines, du lundi au dimanche.
   const debutGrille =
@@ -137,6 +146,7 @@ export default async function CalendrierPage({
   const lien = (d: Date, v: "mois" | "semaine" = vue) => {
     const q = new URLSearchParams({ vue: v, date: isoDate(d) });
     if (activite) q.set("activite", activite);
+    if (saisonParam) q.set("saison", saisonParam);
     return `/seances/calendrier?${q.toString()}`;
   };
   const precedent =
@@ -158,7 +168,7 @@ export default async function CalendrierPage({
   return (
     <>
       <Link
-        href="/seances"
+        href={saisonParam ? `/seances?saison=${saisonParam}` : "/seances"}
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
       >
         <ArrowLeft className="h-4 w-4" /> Retour au planning
@@ -168,6 +178,12 @@ export default async function CalendrierPage({
         title="Calendrier"
         subtitle={`Saison ${saison.nom} — sélectionnez des séances pour les annuler`}
       >
+        <SelecteurSaison
+          saisons={saisons}
+          selection={saison.id}
+          base="/seances/calendrier"
+          params={{ vue, activite }}
+        />
         <div className="inline-flex overflow-hidden rounded-lg border border-slate-300 shadow-sm">
           <Link href={lien(ancre, "mois")} className={btnVue(vue === "mois")}>
             Mois
@@ -180,12 +196,13 @@ export default async function CalendrierPage({
           </Link>
         </div>
       </PageHeader>
+      <AvertissementPreparation saison={saison} />
 
       <FiltreActivites
         base="/seances/calendrier"
         selection={activite}
         activites={activites}
-        params={{ vue, date: isoDate(ancre) }}
+        params={{ vue, date: isoDate(ancre), saison: saisonParam }}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

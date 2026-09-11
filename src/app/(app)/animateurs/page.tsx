@@ -158,7 +158,7 @@ export default async function AnimateursPage() {
                         "—"}
                     </p>
                     {c.user && (
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-500">
                         Compte : {c.user.login}
                         {!c.user.active && " (désactivé)"}
                       </p>
@@ -212,7 +212,7 @@ export default async function AnimateursPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-4 text-sm text-slate-400">
+                  <p className="mt-4 text-sm text-slate-500">
                     Aucun créneau rattaché.
                   </p>
                 )}

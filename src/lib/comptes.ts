@@ -246,16 +246,16 @@ export async function servicesDeLAnnuaire(): Promise<string[]> {
  * sports et la DSI désignent une personne. Celui d'un compte créé à la main —
  * « no_ad.parfait.chloe » — n'est qu'un détail d'implémentation.
  *
- * Il est remplacé par « adresse externe », qui dit la seule chose utile à cet
+ * Il est remplacé par « hors annuaire », qui dit la seule chose utile à cet
  * endroit : cette personne n'a pas de compte de domaine, et l'adresse affichée
  * à côté est la sienne, pas celle de l'annuaire. Sans cette mention, on
  * s'étonne de voir une adresse Gmail dans une liste d'agents.
  *
- * « externe » plutôt que « perso » : ce qui se lit en face, dans les listes de
- * résultats, est « annuaire mairie ». C'est la même opposition dite des deux
- * côtés — dedans / dehors — là où « perso » laissait croire à un choix de la
- * personne entre deux de ses adresses.
+ * « hors annuaire » et non « adresse externe » ou « perso » : c'est le terme
+ * du README, de la colonne Origine des comptes, du badge de la fiche et du
+ * formulaire de création. Une seule notion, un seul mot — l'écran d'en face
+ * dit « annuaire mairie », et l'opposition dedans / dehors se lit toujours.
  */
 export function mentionCompte(login: string): string {
-  return estCreeALaMain(login) ? "adresse externe" : login;
+  return estCreeALaMain(login) ? "hors annuaire" : login;
 }

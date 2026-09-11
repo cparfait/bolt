@@ -556,7 +556,7 @@ export default async function MesActivitesPage({
         <Card
           title="Mon historique"
           action={
-            <span className="flex items-center gap-1.5 text-xs text-slate-400">
+            <span className="flex items-center gap-1.5 text-xs text-slate-500">
               <CalendarCheck className="h-3.5 w-3.5" />
               {presencesVenues} séance{presencesVenues > 1 ? "s" : ""} suivie
               {presencesVenues > 1 ? "s" : ""}
@@ -582,7 +582,7 @@ export default async function MesActivitesPage({
                   >
                     {p.seance.creneau.activite.nom}
                   </Link>
-                  <p className="text-xs text-slate-400">{fmtDateLongue(p.seance.date)}</p>
+                  <p className="text-xs text-slate-500">{fmtDateLongue(p.seance.date)}</p>
                 </div>
                 <Badge color={ETAT_COLORS[p.etat]}>{ETAT_COURT[p.etat]}</Badge>
               </li>

@@ -8,9 +8,17 @@ import { servicesProposes } from "@/lib/services";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui";
 import { DemandeAccesActions, SupprimerDemande } from "@/components/demande-acces-actions";
 import { DemandesMenage } from "@/components/demandes-menage";
+import { Pagination, tranche } from "@/components/pagination";
 import { fmtHorodatage } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Demandes traitées par page. Assez pour couvrir une rentrée d'un coup d'œil ;
+ * au-delà, on tourne les pages plutôt que de couper : une demande de test
+ * vieille de six mois doit rester atteignable pour être effacée.
+ */
+const TRAITEES_PAR_PAGE = 20;
 
 /**
  * File des demandes d'accès déposées depuis Internet.
@@ -20,10 +28,19 @@ export const dynamic = "force-dynamic";
  * reste affiché — sans lui, on ne saurait pas si une demande a été traitée ou
  * si elle s'est perdue.
  */
-export default async function DemandesAccesPage() {
+export default async function DemandesAccesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const utilisateur = await requireUser("GESTIONNAIRE");
   const estAdmin = utilisateur.role === "ADMIN";
   const g = await getGeneralSettings();
+  const { page: pageBrute } = await searchParams;
+
+  const traiteesFiltre = { statut: { not: "EN_ATTENTE" as const } };
+  const totalTraitees = await prisma.demandeAcces.count({ where: traiteesFiltre });
+  const { page, pages, skip, take } = tranche(pageBrute, totalTraitees, TRAITEES_PAR_PAGE);
 
   const [enAttente, traitees] = await Promise.all([
     prisma.demandeAcces.findMany({
@@ -31,9 +48,10 @@ export default async function DemandesAccesPage() {
       orderBy: { createdAt: "asc" }, // la plus ancienne d'abord : elle attend depuis le plus longtemps
     }),
     prisma.demandeAcces.findMany({
-      where: { statut: { not: "EN_ATTENTE" } },
+      where: traiteesFiltre,
       orderBy: { decideAt: "desc" },
-      take: 20,
+      skip,
+      take,
     }),
   ]);
 
@@ -96,7 +114,7 @@ export default async function DemandesAccesPage() {
                     <p className="mt-0.5 text-sm text-slate-500">{d.service}</p>
                   )}
                 </div>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500">
                   Déposée le {fmtHorodatage(d.createdAt)}
                   {/* L'IP n'est pas décorative : plusieurs demandes de la même
                       adresse trahissent un dépôt automatisé plutôt qu'une
@@ -131,7 +149,7 @@ export default async function DemandesAccesPage() {
               <li key={d.id} className="flex flex-wrap items-center gap-2 py-2.5">
                 <Inbox className="h-3.5 w-3.5 shrink-0 text-slate-300" />
                 <span className="font-medium">{d.nom}</span>
-                <span className="min-w-0 truncate text-slate-400">{d.email}</span>
+                <span className="min-w-0 truncate text-slate-500">{d.email}</span>
                 <Badge
                   color={
                     d.statut === "VALIDEE"
@@ -141,7 +159,7 @@ export default async function DemandesAccesPage() {
                 >
                   {d.statut === "VALIDEE" ? "Accès ouvert" : "Refusée"}
                 </Badge>
-                <span className="ml-auto text-xs text-slate-400">
+                <span className="ml-auto text-xs text-slate-500">
                   {d.decidePar ? `${d.decidePar} · ` : ""}
                   {fmtHorodatage(d.decideAt)}
                   {d.motif ? ` · ${d.motif}` : ""}
@@ -154,6 +172,14 @@ export default async function DemandesAccesPage() {
               </li>
             ))}
           </ul>
+          <Pagination
+            base="/agents/demandes"
+            params={{}}
+            page={page}
+            pages={pages}
+            total={totalTraitees}
+            unite="demande traitée"
+          />
         </Card>
       )}
       <DemandesMenage

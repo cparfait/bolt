@@ -83,7 +83,7 @@ export default async function JournalPage({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="pb-2 font-medium">Date</th>
                   <th className="pb-2 font-medium">Action</th>
                   <th className="pb-2 font-medium">Acteur</th>
@@ -103,8 +103,8 @@ export default async function JournalPage({
                       {l.user?.displayName ?? l.acteur ?? "—"}
                     </td>
                     <td className="py-2 pr-3 text-slate-500">{l.cible ?? "—"}</td>
-                    <td className="py-2 pr-3 text-slate-400">{l.details ?? "—"}</td>
-                    <td className="py-2 text-slate-400 tabular-nums">{l.ip ?? "—"}</td>
+                    <td className="py-2 pr-3 text-slate-500">{l.details ?? "—"}</td>
+                    <td className="py-2 text-slate-500 tabular-nums">{l.ip ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

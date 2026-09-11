@@ -110,7 +110,7 @@ export function MailsExemples({ exemples }: { exemples: Exemple[] }) {
                   </span>
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">{e.quand}</p>
-                <p className="mt-1 truncate text-xs text-slate-400">
+                <p className="mt-1 truncate text-xs text-slate-500">
                   <span className="text-slate-500">{e.objet}</span> — {e.apercu}
                 </p>
               </div>

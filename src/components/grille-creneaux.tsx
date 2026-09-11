@@ -22,7 +22,7 @@ export function GrilleCreneaux({
   lien?: (c: CaseGrille) => string;
 }) {
   if (cases.length === 0) {
-    return <p className="text-sm text-slate-400">Aucune séance émargée sur la période.</p>;
+    return <p className="text-sm text-slate-500">Aucune séance émargée sur la période.</p>;
   }
 
   const heures = [...new Set(cases.map((c) => c.heure))].sort((a, b) => a - b);
@@ -47,7 +47,7 @@ export function GrilleCreneaux({
             {jours.map((j) => (
               <th
                 key={j}
-                className="pb-1 text-xs font-medium uppercase tracking-wide text-slate-400"
+                className="pb-1 text-xs font-medium uppercase tracking-wide text-slate-500"
               >
                 {JOUR_LABELS[j].slice(0, 3)}
               </th>
@@ -57,7 +57,7 @@ export function GrilleCreneaux({
         <tbody>
           {heures.map((h) => (
             <tr key={h}>
-              <th className="pr-2 text-right text-xs font-medium tabular-nums text-slate-400">
+              <th className="pr-2 text-right text-xs font-medium tabular-nums text-slate-500">
                 {String(h).padStart(2, "0")} h
               </th>
               {jours.map((j) => {
@@ -100,7 +100,7 @@ export function GrilleCreneaux({
         </tbody>
       </table>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
         <span className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded bg-red-200" /> moins de 50 %
         </span>

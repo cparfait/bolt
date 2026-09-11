@@ -161,3 +161,52 @@ describe("refus", () => {
     assert.equal(await deposerDemande({ nom: "Camille Martin", email }), "enregistree");
   });
 });
+
+describe("règles corrigées à l'audit du 11 septembre 2026", () => {
+  it("réactive un compte désactivé plutôt que d'en créer un second", async () => {
+    const email = adresse();
+    // Un ancien agent AD : boîte professionnelle fermée, compte désactivé à son
+    // départ. Il revient, et dépose sa demande avec une adresse personnelle.
+    const ancien = await prisma.user.create({
+      data: {
+        login: `ancien.${compteur}`,
+        displayName: "Ancien Agent",
+        email: `ancien.${compteur}@collectivite.fr`,
+        emailContact: email,
+        active: false,
+      },
+    });
+    assert.equal(await deposerDemande({ nom: "Ancien Agent", email }), "enregistree");
+    const demande = await prisma.demandeAcces.findFirstOrThrow({ where: { email } });
+
+    const res = await validerDemande(demande.id, gestionnaire);
+    assert.equal(res.ok, true);
+    assert.match(res.message, /réactivé/);
+
+    const relu = await prisma.user.findUniqueOrThrow({ where: { id: ancien.id } });
+    assert.equal(relu.active, true);
+    assert.equal(relu.emailContact, email);
+    assert.equal(
+      await prisma.user.count({ where: { OR: [{ email }, { emailContact: email }] } }),
+      1,
+      "aucun compte no_ad. en double",
+    );
+    const apres = await prisma.demandeAcces.findUniqueOrThrow({ where: { id: demande.id } });
+    assert.equal(apres.statut, "VALIDEE");
+    assert.equal(apres.userId, ancien.id);
+    assert.equal(apres.motif, "Compte réactivé");
+  });
+
+  it("ne crée qu'un compte quand deux gestionnaires valident en même temps", async () => {
+    const email = adresse();
+    await deposerDemande({ nom: "Camille Martin", email });
+    const demande = await prisma.demandeAcces.findFirstOrThrow({ where: { email } });
+
+    const [a, b] = await Promise.all([
+      validerDemande(demande.id, gestionnaire),
+      validerDemande(demande.id, { id: "test-autre", displayName: "Collègue" }),
+    ]);
+    assert.equal([a, b].filter((r) => r.ok).length, 1, "une seule validation passe");
+    assert.equal(await prisma.user.count({ where: { email } }), 1);
+  });
+});

@@ -105,7 +105,7 @@ export function CalendrierSeances({
         <span className="block tabular-nums text-slate-500">
           {s.heureDebut}–{s.heureFin}
         </span>
-        {s.lieu && <span className="block truncate text-slate-400">{s.lieu}</span>}
+        {s.lieu && <span className="block truncate text-slate-500">{s.lieu}</span>}
         <span className="block text-slate-500">
           {s.statut === "ANNULEE"
             ? "Annulée"
@@ -230,7 +230,7 @@ export function CalendrierSeances({
         </div>
       </div>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         Cliquez sur une séance à venir pour la sélectionner ; une séance passée,
         émargée ou annulée s&apos;ouvre dans sa fiche.
       </p>
@@ -265,7 +265,7 @@ export function CalendrierSeances({
               <span>
                 Prévenir les inscrits
                 {inscritsConcernes > 0 && (
-                  <span className="text-slate-400"> ({inscritsConcernes})</span>
+                  <span className="text-slate-500"> ({inscritsConcernes})</span>
                 )}
               </span>
             </label>

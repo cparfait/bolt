@@ -2,11 +2,12 @@ import ExcelJS from "exceljs";
 import { prisma } from "./db";
 import { isoDate } from "./dates";
 import {
+  bilanSeance,
+  chargerSeances,
   evolutionMensuelle,
   indicateurs,
   parActivite,
   parDirection,
-  INSCRIPTIONS_POUR_PLACES,
   placesOffertes,
   type Filtre,
 } from "./stats";
@@ -43,32 +44,28 @@ function titreSection(ws: ExcelJS.Worksheet, texte: string) {
 }
 
 export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
-  const [saison, activite, ind, activites, mensuel, directions, seances] =
+  // La saison est lue une fois, et chaque onglet agrège le même tableau : le
+  // classeur relisait cinq fois les mêmes séances, et deux onglets pouvaient
+  // en principe voir deux états différents de la base.
+  const seances = await chargerSeances(f);
+  const [saison, activite, ind, activites, mensuel, directions, animateurs] =
     await Promise.all([
       prisma.saison.findUnique({ where: { id: f.saisonId } }),
       f.activiteId
         ? prisma.activite.findUnique({ where: { id: f.activiteId } })
         : Promise.resolve(null),
-      indicateurs(f),
-      parActivite(f),
-      evolutionMensuelle(f),
-      parDirection(f),
-      prisma.seance.findMany({
-        where: {
-          creneau: {
-            saisonId: f.saisonId,
-            ...(f.activiteId ? { activiteId: f.activiteId } : {}),
-          },
-        },
-        include: {
-          creneau: {
-            include: { activite: true, animateurs: true, inscriptions: INSCRIPTIONS_POUR_PLACES },
-          },
-          presences: true,
-        },
-        orderBy: { date: "asc" },
+      indicateurs(f, seances),
+      parActivite(f, seances),
+      evolutionMensuelle(f, seances),
+      parDirection(f, seances),
+      prisma.creneau.findMany({
+        where: { id: { in: [...new Set(seances.map((s) => s.creneauId))] } },
+        select: { id: true, animateurs: { select: { prenom: true, nom: true } } },
       }),
     ]);
+  const coachs = new Map(
+    animateurs.map((c) => [c.id, c.animateurs.map((a) => `${a.prenom} ${a.nom}`).join(", ")]),
+  );
 
   const wb = new ExcelJS.Workbook();
   wb.creator = (await getGeneralSettings()).appName;
@@ -87,7 +84,7 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
 
   titreSection(synthese, "Indicateurs");
   const lignes: [string, string | number, string][] = [
-    ["Agents inscrits", ind.inscrits, "inscriptions validées, agents distincts"],
+    ["Agents inscrits à ce jour", ind.inscrits, "inscriptions validées au moment de l'export, agents distincts"],
     ["Agents ayant participé", ind.agentsUniques, "au moins une présence"],
     ["Séances planifiées", ind.seancesTotal, ""],
     ["Séances émargées", ind.seancesEmargees, ""],
@@ -96,12 +93,12 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
       "Taux de feuilles remplies",
       `${ind.tauxEmargement} %`,
       ind.seancesSansEmargement > 0
-        ? `sur les séances passées non annulées ; ${ind.seancesSansEmargement} séance(s) en autonomie exclues`
-        : "sur les séances passées non annulées",
+        ? `feuilles attendues jusqu'à la veille ; ${ind.seancesSansEmargement} séance(s) sans feuille attendue exclue(s) (activité en autonomie, créneau archivé ou personne d'attendu)`
+        : "feuilles attendues jusqu'à la veille",
     ],
     ["Présences", ind.presents, "agents effectivement venus"],
-    ["Absences", ind.absents, "inscrits pointés absents"],
-    ["Taux de présence", `${ind.tauxPresence} %`, "présences / pointages"],
+    ["Absences", ind.absents, "attendus non venus : pointés absents, ou sans pointage"],
+    ["Taux de présence", `${ind.tauxPresence} %`, "présents / attendus"],
     ["Fréquentation moyenne", ind.frequentationMoyenne, "agents par séance émargée"],
     ["Taux de remplissage", `${ind.tauxRemplissage} %`, "présences / places offertes"],
   ];
@@ -178,28 +175,32 @@ export async function classeurStatistiques(f: Filtre): Promise<Buffer> {
     { header: "Lieu", key: "lieu", width: 34 },
     { header: "Animateur(s)", key: "coach", width: 28 },
     { header: "Statut", key: "statut", width: 14 },
-    { header: "Inscrits pointés", key: "pointes", width: 16 },
+    { header: "Attendus", key: "attendus", width: 11 },
     { header: "Présents", key: "presents", width: 11 },
     { header: "Absents", key: "absents", width: 10 },
+    { header: "Pointés", key: "pointes", width: 10 },
     { header: "Places offertes", key: "capacite", width: 15 },
     { header: "Commentaire", key: "commentaire", width: 40 },
   ];
   enTete(detail);
-  // Onze colonnes : A → K. La borne suivait mal le nombre réel de colonnes.
-  detail.autoFilter = { from: "A1", to: "K1" };
+  // Douze colonnes : A → L. La borne suivait mal le nombre réel de colonnes.
+  detail.autoFilter = { from: "A1", to: "L1" };
 
   for (const s of seances) {
-    const n = (etat: string) => s.presences.filter((p) => p.etat === etat).length;
+    // Même formule que la synthèse : attendus = inscrits du jour + ponctuels
+    // pointés, absents = attendus non venus.
+    const b = bilanSeance(s);
     detail.addRow({
       date: isoDate(s.date),
       activite: s.creneau.activite.nom,
       horaire: `${s.creneau.heureDebut}–${s.creneau.heureFin}`,
       lieu: s.creneau.lieu ?? "",
-      coach: s.creneau.animateurs.map((a) => `${a.prenom} ${a.nom}`).join(", "),
+      coach: coachs.get(s.creneauId) ?? "",
       statut: SEANCE_STATUT_LABELS[s.statut],
+      attendus: b.attendus,
+      presents: b.presents,
+      absents: b.absents,
       pointes: s.presences.length,
-      presents: n("PRESENT"),
-      absents: n("ABSENT"),
       capacite: placesOffertes(s),
       commentaire: s.motifAnnulation ?? s.commentaire ?? "",
     });

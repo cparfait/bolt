@@ -83,6 +83,7 @@ export function ActionsSeance({
             <input
               name="motif"
               required
+              maxLength={200}
               placeholder="Salle indisponible, animateur absent…"
               className="w-full rounded-xl border border-amber-300 bg-white px-3.5 py-3 text-sm outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
             />

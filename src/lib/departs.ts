@@ -1,5 +1,5 @@
 import { prisma } from "./db";
-import { promouvoirEtPrevenir, renumeroterFile } from "./inscriptions";
+import { promouvoirTantQuePossible, renumeroterFile } from "./inscriptions";
 import { estCreeALaMain } from "./comptes";
 import { aujourdhui } from "./dates";
 import { audit } from "./audit";
@@ -71,8 +71,10 @@ export async function desinscrireDeTout(
     });
     await renumeroterFile(i.creneauId);
     // Une place libérée profite au suivant, exactement comme sur un
-    // désistement : c'est le même événement, vu de la liste d'attente.
-    const promu = await promouvoirEtPrevenir(i.creneauId);
+    // désistement : c'est le même événement, vu de la liste d'attente. « Tant
+    // que possible », car un promu qui détenait déjà une place du groupe ne
+    // consomme rien, et la place rendue doit alors aller au suivant.
+    const promu = await promouvoirTantQuePossible(i.creneauId);
     if (promu) promotions.push(promu.trim());
   }
 
@@ -210,6 +212,22 @@ export async function anonymiserCompte(
         service,
         serviceForce: false,
       },
+    }),
+    // La demande d'accès qui a fait naître le compte porte encore le nom et
+    // l'adresse saisis sur Internet — et le message libre, qui dit parfois
+    // « vacataire piscine jusqu'en juin ». On garde la ligne, qui documente la
+    // création, mais plus personne ne s'y lit. `email` n'admet pas NULL.
+    prisma.demandeAcces.updateMany({
+      where: { userId },
+      data: { nom: "Agent supprimé", email: "", message: null },
+    }),
+    // Le journal désigne la personne en clair dans `cible` (« Camille MARTIN →
+    // Yoga ») sur chaque ligne qui a porté sur elle, et ces lignes vivent un an.
+    // `cibleId` reste : c'est lui qui relie le journal à la fiche, et il ne
+    // désigne plus personne une fois l'identité effacée.
+    prisma.auditLog.updateMany({
+      where: { cibleId: userId },
+      data: { cible: "Agent supprimé" },
     }),
   ]);
 

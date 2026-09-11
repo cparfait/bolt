@@ -100,7 +100,7 @@ export function UsersTable({
       <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-sm">
         <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+          <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
             <th className="pb-2 font-medium">Utilisateur</th>
             <th className="pb-2 font-medium">Origine</th>
             <th className="pb-2 font-medium">Dernière connexion</th>
@@ -113,7 +113,7 @@ export function UsersTable({
             <tr key={u.id} className={u.active ? "" : "opacity-50"}>
               <td className="py-2.5 pr-3">
                 <p className="font-medium">{u.displayName}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-500">
                   {u.login}
                   {u.email ? ` · ${u.email}` : ""}
                   {u.service ? ` · ${u.service}` : ""}

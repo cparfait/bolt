@@ -49,7 +49,7 @@ export function DemandesMenage({
         <button
           type="button"
           onClick={() => setOuvert(true)}
-          className="text-xs text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
+          className="text-xs text-slate-500 underline-offset-2 hover:text-slate-600 hover:underline"
         >
           Traiter en masse
         </button>
@@ -66,7 +66,7 @@ export function DemandesMenage({
         <button
           type="button"
           onClick={() => setOuvert(false)}
-          className="text-xs text-slate-400 hover:text-slate-600"
+          className="text-xs text-slate-500 hover:text-slate-600"
         >
           Fermer
         </button>

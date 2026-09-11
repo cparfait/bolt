@@ -211,3 +211,75 @@ describe("campagne de rappels", () => {
     }
   });
 });
+
+describe("destinataires des rappels (audit du 11 septembre 2026)", () => {
+  beforeEach(nettoyer);
+  afterEach(() => setSetting("smtp", null));
+
+  it("rappelle aussi les participants attendus à cette seule séance", async () => {
+    const seance = await contexte(1);
+    const ponctuel = await prisma.user.create({
+      data: {
+        login: "test-rappels-ponctuel",
+        displayName: "Ponctuel",
+        email: "ponctuel@exemple.fr",
+      },
+    });
+    const parti = await prisma.user.create({
+      data: {
+        login: "test-rappels-parti",
+        displayName: "Parti",
+        email: "parti@exemple.fr",
+        active: false,
+      },
+    });
+    // L'inscrit est aussi annoncé sur la séance : un seul message pour lui.
+    const inscrit = await prisma.user.findUniqueOrThrow({ where: { login: "test-rappels-1" } });
+    await prisma.participationPonctuelle.createMany({
+      data: [ponctuel.id, parti.id, inscrit.id].map((userId) => ({ seanceId: seance.id, userId })),
+    });
+
+    const factice = messagerieFactice(() => "250 ok");
+    const port = await factice.demarrer();
+    try {
+      await reglages(port);
+      const res = await envoyerRappels();
+      assert.equal(res.envoyes, 2, "l'inscrit et le ponctuel actif, une fois chacun");
+      assert.deepEqual(factice.recus.sort(), ["agent1@exemple.fr", "ponctuel@exemple.fr"]);
+    } finally {
+      await factice.arreter();
+    }
+  });
+
+  it("ne rappelle pas une séance du jour déjà terminée", async () => {
+    const seance = await contexte(1);
+    // Même créneau, séance aujourd'hui, finie à minuit : elle est passée à
+    // toute heure du jour (sauf l'instant précis de minuit).
+    const jour = new Date();
+    const aujourdhuiUtc = new Date(
+      Date.UTC(jour.getUTCFullYear(), jour.getUTCMonth(), jour.getUTCDate()),
+    );
+    const creneau = await prisma.creneau.update({
+      where: { id: seance.creneauId },
+      data: { heureDebut: "00:00", heureFin: "00:00" },
+    });
+    // Séance de demain retirée : seule reste celle du jour, échue.
+    await prisma.seance.delete({ where: { id: seance.id } });
+    const passee = await prisma.seance.create({
+      data: { creneauId: creneau.id, date: aujourdhuiUtc },
+    });
+
+    const factice = messagerieFactice(() => "250 ok");
+    const port = await factice.demarrer();
+    try {
+      await reglages(port);
+      const res = await envoyerRappels();
+      assert.equal(res.envoyes, 0);
+      assert.equal(factice.recus.length, 0, "avant, la séance de 9 h était rappelée à midi");
+      const relue = await prisma.seance.findUniqueOrThrow({ where: { id: passee.id } });
+      assert.equal(relue.rappelEnvoyeAt, null, "pas marquée : demain, la borne l'écarte d'elle-même");
+    } finally {
+      await factice.arreter();
+    }
+  });
+});

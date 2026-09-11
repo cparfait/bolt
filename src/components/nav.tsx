@@ -227,7 +227,7 @@ function Liens({
         return (
           <div key={item.href}>
             {debutPersonnel && (
-              <p className="mb-1 mt-4 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              <p className="mb-1 mt-4 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 Ma pratique sportive
               </p>
             )}
@@ -289,7 +289,7 @@ export function Sidebar({
           externe={externe}
         />
       </nav>
-      <p className="border-t border-slate-100 p-4 text-xs text-slate-400">
+      <p className="border-t border-slate-100 p-4 text-xs text-slate-500">
         Activités sportives · QVT
       </p>
     </aside>
@@ -329,8 +329,8 @@ export function NavMobile({
             {enAttente}
           </span>
         )}
-        <span className="ml-auto text-xs text-slate-400 group-open:hidden">Menu</span>
-        <span className="ml-auto hidden text-xs text-slate-400 group-open:inline">Fermer</span>
+        <span className="ml-auto text-xs text-slate-500 group-open:hidden">Menu</span>
+        <span className="ml-auto hidden text-xs text-slate-500 group-open:inline">Fermer</span>
       </summary>
       <nav className="space-y-0.5 p-3 pt-0">
         <Liens
@@ -345,7 +345,7 @@ export function NavMobile({
           <p className="truncate text-sm font-medium leading-tight">
             {utilisateur.nom}
           </p>
-          <p className="text-xs leading-tight text-slate-400">{utilisateur.role}</p>
+          <p className="text-xs leading-tight text-slate-500">{utilisateur.role}</p>
         </div>
         <form action={logoutAction}>
           <button

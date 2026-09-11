@@ -63,7 +63,7 @@ export function RapprochementService({
             )}
             {ambigu && <Badge>ambigu</Badge>}
           </p>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-0.5 text-xs text-slate-500">
             {effectif} {pluriel(effectif, "personne", "personnes")}
             {horsAnnuaire > 0 && annuaire > 0
               ? ` · dont ${annuaire} de l'annuaire`

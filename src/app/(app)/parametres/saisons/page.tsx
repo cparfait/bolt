@@ -14,6 +14,22 @@ import { fmtDate, isoDate } from "@/lib/dates";
 import { pluriel } from "@/lib/constants";
 import { etatSaison } from "@/lib/saison";
 
+/** Badge d'état d'une saison non active ; l'active a le sien, en vert. */
+const BADGES = {
+  preparation: {
+    couleur: "bg-sky-100 text-sky-700 ring-sky-500/20",
+    libelle: "En préparation — invisible des agents",
+  },
+  encours: {
+    couleur: "bg-amber-100 text-amber-800 ring-amber-500/20",
+    libelle: "En cours, non affichée aux agents",
+  },
+  close: {
+    couleur: "bg-slate-100 text-slate-600 ring-slate-500/20",
+    libelle: "Close",
+  },
+} as const;
+
 export default async function ParametresSaisons() {
   const saisons = await prisma.saison.findMany({
     orderBy: { debut: "desc" },
@@ -52,21 +68,20 @@ export default async function ParametresSaisons() {
           hint="La saison délimite le calendrier : c'est elle qui borne la génération des séances."
         />
       ) : (
-        saisons.map((s) => (
+        saisons.map((s) => {
+          const etat = etatSaison(s);
+          return (
           <Card key={s.id}>
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold">Saison {s.nom}</h3>
-                  {s.active && (
+                  {etat === "active" ? (
                     <Badge color="bg-emerald-100 text-emerald-700 ring-emerald-500/20">
                       Active
                     </Badge>
-                  )}
-                  {etatSaison(s) === "preparation" && (
-                    <Badge color="bg-sky-100 text-sky-700 ring-sky-500/20">
-                      En préparation — invisible des agents
-                    </Badge>
+                  ) : (
+                    <Badge color={BADGES[etat].couleur}>{BADGES[etat].libelle}</Badge>
                   )}
                 </div>
                 <p className="text-sm text-slate-500">
@@ -75,7 +90,10 @@ export default async function ParametresSaisons() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {!s.active && (
+                {/* Pas d'activation d'une saison close : elle n'a plus rien
+                    à montrer aux agents, et prendrait la place de celle qui
+                    tourne. L'action le refuse aussi (voir `activerSaison`). */}
+                {etat !== "active" && etat !== "close" && (
                   <BoutonAction
                     action={activerSaison.bind(null, s.id)}
                     className={btnSecondary}
@@ -108,7 +126,7 @@ export default async function ParametresSaisons() {
                   </BoutonAction>
                 ) : (
                   <span
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-400"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
                     title="Supprimez d'abord les créneaux de cette saison."
                   >
                     <Lock className="h-3.5 w-3.5" />
@@ -139,7 +157,7 @@ export default async function ParametresSaisons() {
                 Périodes sans séance ({s.fermetures.length})
               </p>
               {s.fermetures.length === 0 ? (
-                <p className="mb-4 text-sm text-slate-400">
+                <p className="mb-4 text-sm text-slate-500">
                   Ajoutez les vacances scolaires et les jours fériés : les séances
                   correspondantes sont retirées du calendrier.
                 </p>
@@ -149,7 +167,7 @@ export default async function ParametresSaisons() {
                     <li key={f.id} className="flex items-start justify-between gap-3 py-2">
                       <span>
                         <span className="font-medium">{f.libelle}</span>
-                        <span className="ml-2 text-slate-400">
+                        <span className="ml-2 text-slate-500">
                           {fmtDate(f.debut)} → {fmtDate(f.fin)}
                         </span>
                         {/* Ce qui tourne malgré la fermeture : l'information
@@ -178,7 +196,7 @@ export default async function ParametresSaisons() {
                             ))}
                           </span>
                         ) : (
-                          <span className="mt-1 block text-xs text-slate-400">
+                          <span className="mt-1 block text-xs text-slate-500">
                             toutes les activités sont interrompues
                           </span>
                         )}
@@ -199,7 +217,8 @@ export default async function ParametresSaisons() {
               <FermetureForm saisonId={s.id} />
             </div>
           </Card>
-        ))
+          );
+        })
       )}
     </div>
   );

@@ -14,6 +14,7 @@ import { saisonCourante } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
 import {
   assiduite,
+  chargerSeances,
   decrocheurs,
   demandeNonSatisfaite,
   ecart,
@@ -24,8 +25,10 @@ import {
   parActivite,
   parDirection,
   parService,
+  repartirEnParts,
   saisonPrecedente,
   type Indicateurs,
+  type SeanceChargee,
 } from "@/lib/stats";
 import { fmtDate } from "@/lib/dates";
 import {
@@ -90,8 +93,11 @@ export default async function StatistiquesPage({
   const g = await getGeneralSettings();
   const filtre = { saisonId: saison.id, activiteId: activiteParam || undefined };
 
+  // La saison est chargée une fois et passée à chaque indicateur : chaque vue
+  // en appelait cinq ou six, qui relisaient chacun les mêmes séances.
+  const seances = await chargerSeances(filtre);
   const [ind, listeActivites, precedente] = await Promise.all([
-    indicateurs(filtre),
+    indicateurs(filtre, seances),
     prisma.activite.findMany({
       where: { creneaux: { some: { saisonId: saison.id } } },
       orderBy: { nom: "asc" },
@@ -142,6 +148,10 @@ export default async function StatistiquesPage({
           <Download className="h-4 w-4" /> CSV
         </a>
       </PageHeader>
+      <p className="-mt-3 mb-5 text-xs text-slate-500">
+        Pour lecture, préférez le classeur Excel ; le CSV est destiné au
+        retraitement.
+      </p>
 
       <nav className="mb-6 flex flex-wrap gap-1.5">
         {(Object.keys(VUES) as Vue[]).map((v) => (
@@ -158,7 +168,7 @@ export default async function StatistiquesPage({
           </Link>
         ))}
         {precedente && (
-          <span className="ml-auto self-center text-xs text-slate-400">
+          <span className="ml-auto self-center text-xs text-slate-500">
             Comparaison avec la saison {precedente.nom}
           </span>
         )}
@@ -167,17 +177,19 @@ export default async function StatistiquesPage({
       {vue === "bilan" && (
         <VueBilan
           filtre={filtre}
+          seances={seances}
           ind={ind}
           indPrecedent={indPrecedent}
           vers={versDetail(filtre, "bilan")}
         />
       )}
       {vue === "pilotage" && (
-        <VuePilotage filtre={filtre} vers={versDetail(filtre, "pilotage")} />
+        <VuePilotage filtre={filtre} seances={seances} vers={versDetail(filtre, "pilotage")} />
       )}
       {vue === "agents" && (
         <VueAgents
           filtre={filtre}
+          seances={seances}
           seuil={g.absencesAvantRelance}
           vers={versDetail(filtre, "agents")}
         />
@@ -214,24 +226,26 @@ const LIGNE_CLIQUABLE = "cursor-pointer transition hover:bg-slate-50";
 
 async function VueBilan({
   filtre,
+  seances,
   ind,
   indPrecedent,
   vers,
 }: {
   filtre: Filtre;
+  seances: SeanceChargee[];
   ind: Indicateurs;
   indPrecedent: Indicateurs | null;
   vers: Vers;
 }) {
   const [mensuel, directions, services, activites, assid] = await Promise.all([
-    evolutionMensuelle(filtre),
-    parDirection(filtre),
+    evolutionMensuelle(filtre, seances),
+    parDirection(filtre, seances),
     parService(filtre),
     // Le filtre s'applique ici comme partout ailleurs sur la page : un tableau
     // qui listait les six activités sous un en-tête « Yoga » se lisait comme
     // une contradiction, et le classeur exporté portait la même.
-    parActivite(filtre),
-    assiduite(filtre),
+    parActivite(filtre, seances),
+    assiduite(filtre, seances),
   ]);
   const maxDirection = Math.max(...directions.map((d) => d.presents), 1);
 
@@ -243,8 +257,11 @@ async function VueBilan({
           comme une contre-performance des agents. L'information reste dans le
           classeur exporté, avec sa définition en regard. */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
+        {/* « à ce jour » : le compteur lit les inscriptions validées au moment
+            où l'on regarde, pas celles de toute la saison — un désisté de
+            janvier n'y figure plus en juin. */}
         <StatComparee
-          label="Agents inscrits"
+          label="Agents inscrits à ce jour"
           value={ind.inscrits}
           hint={`${ind.agentsUniques} ont participé`}
           ecart={ecart(ind.inscrits, indPrecedent?.inscrits ?? null)}
@@ -254,7 +271,7 @@ async function VueBilan({
           value={ind.tauxPresence}
           suffixe="%"
           accent="text-emerald-600 bg-emerald-50"
-          hint={`${ind.presents} présences · ${ind.absents} absences`}
+          hint={`${ind.presents} présents sur ${ind.presents + ind.absents} attendus`}
           ecart={ecart(ind.tauxPresence, indPrecedent?.tauxPresence ?? null)}
         />
         <StatComparee
@@ -268,7 +285,7 @@ async function VueBilan({
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         <Card title="Évolution de la fréquentation">
           <HistogrammeMensuel points={mensuel} lien={(p) => vers("mois", p.cle)} />
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-slate-500">
             Nombre de présences par mois. Survolez une barre pour le résumé,
             cliquez pour les séances du mois.
           </p>
@@ -276,7 +293,7 @@ async function VueBilan({
 
         <Card title="Participation par direction">
           {directions.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-slate-500">
               Aucune donnée. Le rattachement est repris de l&apos;annuaire à la
               connexion des agents.
             </p>
@@ -309,7 +326,7 @@ async function VueBilan({
           pas arrivée ; le second seul les confondrait avec les petits. */}
       <Card title="Inscriptions par service" className="mb-6">
         {services.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             Aucun inscrit sur ce périmètre.
           </p>
         ) : (
@@ -317,7 +334,7 @@ async function VueBilan({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+                  <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
                     <th className="py-2 pr-3 font-medium">Service</th>
                     <th className="py-2 pr-3 text-right font-medium">Inscrits</th>
                     <th className="py-2 pr-3 text-right font-medium">Effectif</th>
@@ -343,10 +360,18 @@ async function VueBilan({
                       </td>
                       <td className="py-2 pr-3 text-right font-medium tabular-nums">
                         {s.couverture === null ? "—" : `${s.couverture} %`}
+                        {/* Au-delà de 100 %, le chiffre est gardé : il compte
+                            des inscrits que l'annuaire ne rattache pas au
+                            service, et le taire cacherait l'écart. */}
+                        {s.couverture !== null && s.couverture > 100 && (
+                          <span className="block text-xs font-normal text-slate-500">
+                            inscrits hors annuaire compris
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 pr-3">
                         {s.couverture === null ? (
-                          <span className="text-xs text-slate-400">effectif inconnu</span>
+                          <span className="text-xs text-slate-500">effectif inconnu</span>
                         ) : (
                           <Jauge valeur={Math.min(100, s.couverture)} />
                         )}
@@ -359,12 +384,15 @@ async function VueBilan({
                 </tbody>
               </table>
             </div>
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 text-xs text-slate-500">
               « % inscrits » rapporte les agents inscrits à l&apos;effectif du
-              service dans l&apos;annuaire (comptes actifs) ; « part du total »
-              dit ce que le service pèse parmi tous les inscrits. Un effectif
-              inconnu signale un service absent de l&apos;annuaire — participants
-              hors annuaire, ou libellé saisi à la main.
+              service dans l&apos;annuaire (comptes actifs, après regroupement des
+              libellés) ; « part du total » dit ce que le service pèse parmi
+              tous les inscrits. Un effectif inconnu signale un service auquel
+              aucun compte actif de l&apos;annuaire ne se rattache — participants
+              hors annuaire, ou rattachement saisi à la main. Au-delà de 100 %,
+              des inscrits que l&apos;annuaire ne rattache pas à ce service y
+              sont comptés.
             </p>
           </>
         )}
@@ -385,12 +413,20 @@ async function VueBilan({
 
 // ── Pilotage ───────────────────────────────────────────────────────────────
 
-async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
+async function VuePilotage({
+  filtre,
+  seances,
+  vers,
+}: {
+  filtre: Filtre;
+  seances: SeanceChargee[];
+  vers: Vers;
+}) {
   const [grille, demande, activites, fiab] = await Promise.all([
-    grilleJourHeure(filtre),
+    grilleJourHeure(filtre, seances),
     demandeNonSatisfaite(filtre),
-    parActivite(filtre),
-    fiabilite(filtre),
+    parActivite(filtre, seances),
+    fiabilite(filtre, seances),
   ]);
 
   const totalAttente = demande.reduce((n, d) => n + d.enAttente, 0);
@@ -399,7 +435,7 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
     <>
       <Card title="Remplissage par jour et par heure" className="mb-6">
         <GrilleCreneaux cases={grille} lien={(c) => vers("creneau", `${c.jour}-${c.heure}`)} />
-        <p className="mt-3 text-xs text-slate-400">
+        <p className="mt-3 text-xs text-slate-500">
           Moyenne des présences rapportée aux places du créneau, sur les séances
           émargées. Les tranches sans créneau restent visibles : c&apos;est là
           qu&apos;on peut en ouvrir un.
@@ -418,12 +454,12 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
           }
         >
           {demande.length === 0 ? (
-            <p className="text-sm text-slate-400">Aucun créneau sur cette saison.</p>
+            <p className="text-sm text-slate-500">Aucun créneau sur cette saison.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[420px] text-sm">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                  <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
                     <th className="pb-2 font-medium">Activité</th>
                     <th className="pb-2 text-right font-medium">Places</th>
                     <th className="pb-2 text-right font-medium">File</th>
@@ -460,7 +496,7 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
                       </td>
                       <td
                         className={`py-2.5 text-right tabular-nums font-medium ${
-                          d.enAttente > 0 ? "text-amber-600" : "text-slate-400"
+                          d.enAttente > 0 ? "text-amber-600" : "text-slate-500"
                         }`}
                       >
                         {d.enAttente}
@@ -472,7 +508,7 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
                   ))}
                 </tbody>
               </table>
-              <p className="mt-3 text-xs text-slate-400">
+              <p className="mt-3 text-xs text-slate-500">
                 Une file d&apos;attente qui ne se vide pas justifie un créneau
                 supplémentaire mieux qu&apos;un taux de remplissage, qui plafonne
                 à 100 % sans dire combien attendent derrière.
@@ -483,7 +519,7 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
 
         <Card title="Remplissage par activité">
           {activites.length === 0 ? (
-            <p className="text-sm text-slate-400">Aucune séance émargée.</p>
+            <p className="text-sm text-slate-500">Aucune séance émargée.</p>
           ) : (
             <ul className="space-y-3.5">
               {activites.map((a) => (
@@ -497,7 +533,7 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
                       <span className="tabular-nums text-slate-500">{a.tauxRemplissage}%</span>
                     </div>
                     <Jauge valeur={a.tauxRemplissage} couleur={a.couleur} />
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-500">
                       {a.presents} présences pour {a.capacite} places offertes
                     </p>
                   </Link>
@@ -514,11 +550,11 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
             label="Séances annulées"
             value={fiab.seancesAnnulees}
             suffixe=""
-            hint={`${fiab.tauxAnnulation}% des ${fiab.seancesPrevues} séances`}
+            hint={`${fiab.tauxAnnulation}% des ${fiab.seancesPrevues} séances passées ou annulées`}
             accent={
               fiab.tauxAnnulation > 10
                 ? "text-red-600 bg-red-50"
-                : "text-slate-400 bg-slate-50"
+                : "text-slate-500 bg-slate-50"
             }
             icon={<CalendarX2 className="h-4 w-4" />}
           />
@@ -526,7 +562,7 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
             label="Absences annoncées"
             value={fiab.partAnnoncee}
             suffixe="%"
-            hint={`${fiab.absencesAnnoncees} prévenues sur ${fiab.absencesConstatees} absences`}
+            hint={`${fiab.absencesAnnoncees} prévenues sur ${fiab.absencesConstatees} absences pointées`}
             accent="text-emerald-600 bg-emerald-50"
           />
           <Stat
@@ -552,7 +588,7 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
             accent={
               fiab.tauxPromotionRendue > 30
                 ? "text-amber-600 bg-amber-50"
-                : "text-slate-400 bg-slate-50"
+                : "text-slate-500 bg-slate-50"
             }
             icon={<Undo2 className="h-4 w-4" />}
             href={fiab.promotionsRendues > 0 ? vers("promotion", "rendues") : undefined}
@@ -561,7 +597,7 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
 
         {fiab.motifs.length > 0 && (
           <div className="mt-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               Motifs d&apos;annulation
             </p>
             <ul className="divide-y divide-slate-100 text-sm">
@@ -590,27 +626,31 @@ async function VuePilotage({ filtre, vers }: { filtre: Filtre; vers: Vers }) {
 
 async function VueAgents({
   filtre,
+  seances,
   seuil,
   vers,
 }: {
   filtre: Filtre;
+  seances: SeanceChargee[];
   seuil: number;
   vers: Vers;
 }) {
   const [assid, lachages, fiab] = await Promise.all([
-    assiduite(filtre),
+    assiduite(filtre, seances),
     decrocheurs(filtre, seuil),
-    fiabilite(filtre),
+    fiabilite(filtre, seances),
   ]);
 
   return (
     <>
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* `venus` et non « inscrits − jamais venus » : ceux dont aucune
+            séance n'a encore été émargée ne sont ni l'un ni l'autre. */}
         <Stat
-          label="Inscrits"
+          label="Inscrits à ce jour"
           value={assid.agents}
           icon={<Users className="h-4 w-4" />}
-          hint={`${assid.agents - assid.jamaisVenus} sont venus au moins une fois`}
+          hint={`${assid.venus} ${assid.venus > 1 ? "sont venus" : "est venu"} au moins une fois`}
         />
         <Stat
           label="Taux d'assiduité"
@@ -629,7 +669,7 @@ async function VueAgents({
           label="Jamais venus"
           value={assid.jamaisVenus}
           accent={
-            assid.jamaisVenus > 0 ? "text-red-600 bg-red-50" : "text-slate-400 bg-slate-50"
+            assid.jamaisVenus > 0 ? "text-red-600 bg-red-50" : "text-slate-500 bg-slate-50"
           }
           hint="inscrits sans aucune présence"
           href={assid.jamaisVenus > 0 ? vers("assiduite", "jamais") : undefined}
@@ -649,9 +689,9 @@ async function VueAgents({
                 <span className="tabular-nums text-slate-500">{fiab.partAnnoncee}%</span>
               </div>
               <Jauge valeur={fiab.partAnnoncee} couleur="#059669" />
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-slate-500">
                 {fiab.absencesAnnoncees} absences prévenues sur {fiab.absencesConstatees}{" "}
-                constatées.
+                pointées sur les feuilles.
               </p>
             </div>
             <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
@@ -668,14 +708,14 @@ async function VueAgents({
         <Card
           title={`Agents qui ne viennent plus (${lachages.length})`}
           action={
-            <span className="flex items-center gap-1.5 text-xs text-slate-400">
+            <span className="flex items-center gap-1.5 text-xs text-slate-500">
               <UserX className="h-3.5 w-3.5" />
               {seuil} absences consécutives
             </span>
           }
         >
           {lachages.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-slate-500">
               Personne n&apos;a décroché : la fréquentation est stable.
             </p>
           ) : (
@@ -683,7 +723,7 @@ async function VueAgents({
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[520px] text-sm">
                   <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                    <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
                       <th className="pb-2 font-medium">Agent</th>
                       <th className="pb-2 font-medium">Activité</th>
                       <th className="pb-2 text-right font-medium">Absences</th>
@@ -740,17 +780,19 @@ function TableauActivites({
   vers: Vers;
 }) {
   if (activites.length === 0) {
-    return <p className="text-sm text-slate-400">Aucune séance émargée.</p>;
+    return <p className="text-sm text-slate-500">Aucune séance émargée.</p>;
   }
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[420px] text-sm">
         <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+          <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
             <th className="pb-2 font-medium">Activité</th>
             <th className="pb-2 text-right font-medium">Inscrits</th>
             <th className="pb-2 text-right font-medium">Moy./séance</th>
-            <th className="pb-2 text-right font-medium">Présence</th>
+            <th className="pb-2 text-right font-medium" title="présents / attendus">
+              Présence
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -769,7 +811,7 @@ function TableauActivites({
                   />
                   {a.nom}
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500">
                   {a.suiviPresence ? (
                     <>
                       {a.seancesEmargees}{" "}
@@ -799,6 +841,10 @@ function TableauActivites({
           ))}
         </tbody>
       </table>
+      <p className="mt-3 text-xs text-slate-500">
+        Présence : présents rapportés aux attendus — inscrits du jour et
+        ponctuels pointés —, sur les séances émargées.
+      </p>
     </div>
   );
 }
@@ -824,8 +870,10 @@ function RepartitionAssiduite({
     { cle: "jamais", libelle: "Jamais venus", detail: "aucune présence", n: a.jamaisVenus, couleur: "#dc2626" },
   ];
   if (a.agents === 0) {
-    return <p className="text-sm text-slate-400">Aucun inscrit sur ce périmètre.</p>;
+    return <p className="text-sm text-slate-500">Aucun inscrit sur ce périmètre.</p>;
   }
+  // Parts qui somment à 100 : arrondies une à une, elles affichaient 99 ou 101.
+  const parts = repartirEnParts(groupes.map((g) => g.n));
 
   return (
     <>
@@ -842,7 +890,7 @@ function RepartitionAssiduite({
         )}
       </div>
       <ul className="space-y-1 text-sm">
-        {groupes.map((g) => {
+        {groupes.map((g, idx) => {
           const ligne = (
             <>
               <span className="flex items-center gap-2">
@@ -851,11 +899,11 @@ function RepartitionAssiduite({
                   style={{ backgroundColor: g.couleur }}
                 />
                 {g.libelle}
-                <span className="text-xs text-slate-400">{g.detail}</span>
+                <span className="text-xs text-slate-500">{g.detail}</span>
               </span>
               <span className="shrink-0 tabular-nums text-slate-500">
-                {g.n} <span className="text-xs text-slate-400">
-                  ({Math.round((g.n / a.agents) * 100)}%)
+                {g.n} <span className="text-xs text-slate-500">
+                  ({parts[idx]}%)
                 </span>
               </span>
             </>
@@ -873,13 +921,13 @@ function RepartitionAssiduite({
                   {ligne}
                 </Link>
               ) : (
-                <span className={`${classe} text-slate-400`}>{ligne}</span>
+                <span className={`${classe} text-slate-500`}>{ligne}</span>
               )}
             </li>
           );
         })}
       </ul>
-      <p className="mt-3 text-xs text-slate-400">
+      <p className="mt-3 text-xs text-slate-500">
         Part des séances suivies parmi celles proposées sur ses créneaux, séances
         annulées et feuilles manquantes exclues.
       </p>

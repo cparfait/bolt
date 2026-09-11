@@ -46,7 +46,7 @@ export default async function ParametresDeclarations() {
             {versions.map((v) => (
               <li key={v.version} className="flex items-center justify-between gap-4 py-2">
                 <span className="font-medium tabular-nums">{v.version}</span>
-                <span className="text-slate-400">
+                <span className="text-slate-500">
                   {fmtHorodatage(v.creeLe)}
                   {v.creePar && ` · ${v.creePar}`}
                 </span>

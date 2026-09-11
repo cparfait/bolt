@@ -63,6 +63,18 @@ const PAR_IP_INTERNE = 20;
 const ACCUSE =
   "Votre demande a bien été transmise au service des sports. Vous recevrez un message dès qu'elle aura été examinée.";
 
+const HORS_RESEAU =
+  "Cette page n'est accessible que depuis le réseau de la collectivité ou via le VPN.";
+
+/**
+ * Les crochets et les parenthèses n'ont rien à faire dans un nom, et ils ont
+ * un sens dans les courriels : « [libellé](https://…) » y devient un bouton
+ * (src/lib/mail.ts). Le nom déposé ici finit dans l'avis envoyé au service des
+ * sports — on le refuse plutôt que de compter sur le gabarit pour le
+ * neutraliser. Les retours à la ligne, eux, casseraient la liste de l'avis.
+ */
+const NOM_INTERDIT = /[[\]()\r\n]/;
+
 export async function deposerDemandeAction(
   _prev: ActionState,
   formData: FormData,
@@ -70,6 +82,16 @@ export async function deposerDemandeAction(
   const g = await getGeneralSettings();
   if (!g.demandeAccesActive) {
     return erreur("Les demandes d'accès en ligne ne sont pas activées.");
+  }
+
+  const ip = clientIp(await headers());
+  const interne = estInterne(ip);
+
+  // Même garde que `demanderLienAction` : tant que l'espace agent n'est pas
+  // publié (PUBLIC_AGENT_ACCESS), ce formulaire n'a pas à recevoir de dépôts
+  // venus d'Internet — le proxy filtre des chemins, pas des actions serveur.
+  if (process.env.PUBLIC_AGENT_ACCESS !== "1" && !interne) {
+    return erreur(HORS_RESEAU);
   }
 
   // Champ leurre : un humain ne le voit pas, un robot le remplit. On répond
@@ -93,8 +115,15 @@ export async function deposerDemandeAction(
   if (prenomSaisi.length < 2 || nomSaisi.length < 2) {
     return erreur("Indiquez votre prénom et votre nom.");
   }
+  if (NOM_INTERDIT.test(prenomSaisi) || NOM_INTERDIT.test(nomSaisi)) {
+    return erreur(
+      "Le prénom et le nom ne peuvent pas contenir de crochets, de parenthèses ni de retour à la ligne.",
+    );
+  }
   if (nom.length > 120) return erreur("Nom trop long.");
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+  // 254 : longueur maximale d'une adresse (RFC 5321). Au-delà, ce n'est pas une
+  // adresse, et elle irait telle quelle au journal et dans la file.
+  if (email.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return erreur("Adresse e-mail invalide.");
   }
 
@@ -113,10 +142,6 @@ export async function deposerDemandeAction(
     }
     service = canonique;
   }
-
-  const ip = clientIp(await headers());
-
-  const interne = estInterne(ip);
 
   if (!interne && !rateLimit("demande-acces:global", PLAFOND_HORAIRE, 3600).ok) {
     await audit("DEMANDE_ACCES_PLAFOND", { cible: email });

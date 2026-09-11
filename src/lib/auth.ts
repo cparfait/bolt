@@ -23,10 +23,37 @@ export async function ensureBootstrapAdmin(): Promise<void> {
         "définissez-le pour créer le compte administrateur de secours.",
     );
   }
-  await prisma.user.upsert({
-    where: { login: "admin" },
-    update: { role: "ADMIN", active: true },
-    create: {
+  // Seul un compte LOCAL nommé « admin » est le compte de secours. Un agent de
+  // l'annuaire qui porterait cet identifiant n'a rien demandé : lui donner le
+  // rôle ADMIN et le réactiver au passage ferait d'un homonyme un
+  // administrateur, sans mot de passe local pour le distinguer. Dans ce cas on
+  // ne fait rien — et on l'écrit, une seule fois, pour que l'absence
+  // d'administrateur de secours ait une explication au journal.
+  const existant = await prisma.user.findFirst({ where: { login: "admin" } });
+  if (existant && !existant.isLocal) {
+    const dejaSignale = await prisma.auditLog.findFirst({
+      where: { action: "ADMIN_SECOURS_HOMONYME" },
+      select: { id: true },
+    });
+    if (!dejaSignale) {
+      await audit("ADMIN_SECOURS_HOMONYME", {
+        cibleId: existant.id,
+        cible: "admin",
+        details: "un compte d'annuaire porte l'identifiant « admin » : compte de secours non créé",
+      });
+    }
+    return;
+  }
+
+  if (existant) {
+    await prisma.user.update({
+      where: { id: existant.id },
+      data: { role: "ADMIN", active: true },
+    });
+    return;
+  }
+  await prisma.user.create({
+    data: {
       login: "admin",
       displayName: "Administrateur local",
       role: "ADMIN",

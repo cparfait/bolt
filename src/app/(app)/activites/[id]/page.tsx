@@ -19,7 +19,6 @@ import { saisonDeTravail } from "@/lib/saison";
 import { AvertissementPreparation, SelecteurSaison } from "@/components/selecteur-saison";
 import {
   basculerActivite,
-  basculerInscriptions,
   regenererCalendrier,
   restaurerCreneau,
   supprimerActivite,
@@ -36,7 +35,7 @@ import {
 } from "@/components/ui";
 import { Panneau } from "@/components/panneau";
 import { BoutonAction } from "@/components/bouton-action";
-import { ActiviteForm } from "@/components/activite-form";
+import { ActiviteForm, BoutonInscriptions } from "@/components/activite-form";
 import { CreneauForm } from "@/components/creneau-form";
 import { fmtDate, isoDate, JOUR_LABELS } from "@/lib/dates";
 import { effectifsParActivite } from "@/lib/inscriptions";
@@ -145,7 +144,7 @@ export default async function ActiviteDetail({
   }));
   const saisons = await prisma.saison.findMany({
     orderBy: { debut: "desc" },
-    select: { id: true, nom: true, active: true, fin: true },
+    select: { id: true, nom: true, active: true, debut: true, fin: true },
   });
   /** Adresse de cette fiche, en gardant la saison choisie. */
   const ici = (extra: Record<string, string> = {}, ancre = "") => {
@@ -223,6 +222,7 @@ export default async function ActiviteDetail({
 
       <Panneau titre="Fiche de l'activité" sousTitre="Nom, description, couleur">
         <ActiviteForm
+          saisonId={saison.id}
           initiale={{
             id: activite.id,
             nom: activite.nom,
@@ -283,7 +283,7 @@ export default async function ActiviteDetail({
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-500">
                       {[
                         c.lieu,
                         c.animateurs.length > 0
@@ -368,12 +368,14 @@ export default async function ActiviteDetail({
                     >
                       {enEdition === c.id ? "Fermer" : "Modifier"}
                     </Link>
-                    <BoutonAction
-                      action={basculerInscriptions.bind(null, c.id)}
+                    {/* Composant dédié : il affiche le compte rendu de
+                        l'ouverture — qui a été prévenu —, ce qu'un bouton
+                        d'action muet ne pouvait pas rendre. */}
+                    <BoutonInscriptions
+                      creneauId={c.id}
+                      ouvert={c.ouvertInscription}
                       className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                    >
-                      {c.ouvertInscription ? "Fermer les inscriptions" : "Ouvrir"}
-                    </BoutonAction>
+                    />
                     <BoutonAction
                       action={regenererCalendrier.bind(null, c.id)}
                       className="rounded-lg border border-slate-200 px-2 py-1.5 text-slate-500 transition hover:bg-slate-50"
@@ -440,7 +442,7 @@ export default async function ActiviteDetail({
                     <Archive className="h-3.5 w-3.5 text-slate-400" />
                     {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
                   </span>
-                  <span className="block text-xs text-slate-400">
+                  <span className="block text-xs text-slate-500">
                     {[
                       c.lieu,
                       `${c._count.seances} ${pluriel(c._count.seances, "séance")} conservée${c._count.seances > 1 ? "s" : ""}`,

@@ -1,6 +1,13 @@
 import nodemailer from "nodemailer";
 import { dimensionsImage, redimensionner } from "./images";
-import { getGeneralSettings, getSmtpSettings, type SmtpSettings } from "./settings";
+import { lienItineraire } from "./lieux";
+import {
+  getGeneralSettings,
+  getSmtpSettings,
+  urlEspaceAgent,
+  type GeneralSettings,
+  type SmtpSettings,
+} from "./settings";
 
 export type MailResult = {
   ok: boolean;
@@ -95,6 +102,7 @@ export async function ouvrirMessagerie(
   // déjà le nom de l'application dans son en-tête, et c'est l'habillage en
   // cours qu'on y reconnaît.
   const logo = logoPourMail(g.logo || g.logoVille);
+  const origines = originesAutorisees(g);
 
   return {
     async envoyer(to, subject, corps) {
@@ -104,8 +112,8 @@ export async function ouvrirMessagerie(
           from: smtp.from,
           to,
           subject,
-          text: sansNotation(corps),
-          html: gabarit(subject, corps, logo, g.appName, g.appDescription, g.orgName),
+          text: sansNotation(corps, origines),
+          html: gabarit(subject, corps, logo, g.appName, g.appDescription, g.orgName, origines),
           attachments: logo
             ? [
                 {
@@ -300,6 +308,52 @@ const ACTION = /^\[([^\]]{1,60})\]\((https?:\/\/[^\s)]+)\)$/;
 const ACTION_GLOBAL = /\[([^\]]{1,60})\]\((https?:\/\/[^\s)]+)\)/g;
 
 /**
+ * Où un bouton a le droit de mener.
+ *
+ * La notation s'applique à tout le corps du message, et une partie de ce corps
+ * n'est pas écrite par l'application : le motif d'annulation d'un animateur, le
+ * libellé d'une demande d'accès déposée depuis Internet. Sans cette liste,
+ * quiconque écrit « [Me connecter](https://site-piège) » dans un champ libre
+ * obtient un bouton dans un courriel signé de la collectivité, et c'est
+ * exactement la forme que prend un hameçonnage.
+ *
+ * On ne filtre pas les champs un par un : il faudrait y penser à chaque
+ * nouveau gabarit, et l'oubli ne se verrait pas. On borne plutôt la notation
+ * elle-même aux origines que l'application connaît — les siennes, et celle des
+ * itinéraires. Ailleurs, la notation reste du texte : l'adresse se voit telle
+ * qu'elle est, et un lien qu'on lit n'est plus un piège.
+ */
+export function originesAutorisees(g: GeneralSettings): string[] {
+  const candidates = [
+    g.appUrl,
+    g.pointageUrl,
+    urlEspaceAgent(g),
+    process.env.BOLT_PUBLIC_URL ?? "",
+    lienItineraire(""),
+  ];
+  return [...new Set(candidates.map(origineDe).filter((o): o is string => o !== null))];
+}
+
+function origineDe(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `origines` absent : aucune restriction. C'est le cas de l'aperçu des
+ * gabarits dans Paramètres → Messagerie, dont le texte est écrit dans le code —
+ * et des tests. Un envoi réel passe toujours par `originesAutorisees`.
+ */
+function actionAcceptee(url: string, origines?: string[]): boolean {
+  if (!origines) return true;
+  const origine = origineDe(url);
+  return origine !== null && origines.includes(origine);
+}
+
+/**
  * Bouton d'appel à l'action.
  *
  * En TABLEAU et non en `div` : Outlook rend le message avec le moteur de Word,
@@ -336,9 +390,11 @@ const GRAS = /\*\*([^*\n]+)\*\*/g;
  * telle quelle dans la seconde donnerait des crochets, des parenthèses et des
  * étoiles à quelqu'un qui, précisément, ne voit ni les boutons ni le gras.
  */
-export function sansNotation(corps: string): string {
+export function sansNotation(corps: string, origines?: string[]): string {
   return corps
-    .replace(ACTION_GLOBAL, (_, libelle, url) => `${libelle} : ${url}`)
+    .replace(ACTION_GLOBAL, (tout, libelle, url) =>
+      actionAcceptee(url, origines) ? `${libelle} : ${url}` : tout,
+    )
     .replace(GRAS, "$1");
 }
 
@@ -348,8 +404,8 @@ export function sansNotation(corps: string): string {
  * Christophe, » n'apprend rien. On saute donc la salutation pour prendre la
  * première phrase utile.
  */
-export function apercu(corps: string): string {
-  const paragraphes = sansNotation(corps).split(/\n{2,}/).map((p) => p.trim());
+export function apercu(corps: string, origines?: string[]): string {
+  const paragraphes = sansNotation(corps, origines).split(/\n{2,}/).map((p) => p.trim());
   const utile = paragraphes.find((p) => p && !/^bonjour\b/i.test(p)) ?? paragraphes[0] ?? "";
   const plat = utile.replace(/\s+/g, " ");
   return plat.length > 140 ? `${plat.slice(0, 139)}…` : plat;
@@ -378,6 +434,10 @@ export function apercu(corps: string): string {
 export async function rendreMail(titre: string, corps: string): Promise<string> {
   const g = await getGeneralSettings();
   const marque = g.logo || g.logoVille;
+  // Sans liste d'origines : les exemples (src/lib/mail-exemples.ts) sont écrits
+  // dans le code et se replient sur une adresse fictive tant que l'URL de
+  // l'application n'est pas renseignée — l'aperçu doit montrer les boutons
+  // quand même.
   const html = gabarit(titre, corps, logoPourMail(marque), g.appName, g.appDescription, g.orgName);
   // Le logo voyage en pièce jointe (`cid:`) dans un vrai envoi ; un navigateur
   // ne sait pas résoudre cette référence et n'afficherait qu'une image cassée.
@@ -392,18 +452,25 @@ function gabarit(
   appName: string,
   appDescription: string,
   organisation: string,
+  origines?: string[],
 ): string {
   const paragraphes = corps
     .split(/\n{2,}/)
     .filter((p) => p.trim())
     .map((p) => {
       const seul = p.trim().match(ACTION);
-      if (seul) return bouton(echapper(seul[1]), echapper(seul[2]));
+      if (seul && actionAcceptee(seul[2], origines)) {
+        return bouton(echapper(seul[1]), echapper(seul[2]));
+      }
       const enHtml = echapper(p.trim())
         // Les actions au fil du texte redeviennent des liens ordinaires, portés
-        // par leur libellé : c'est plus court à lire qu'une URL entière.
-        .replace(ACTION_GLOBAL, (_, libelle, url) =>
-          `<a href="${url}" style="color:${VERT};text-decoration:underline">${libelle}</a>`,
+        // par leur libellé : c'est plus court à lire qu'une URL entière. Une
+        // origine étrangère reste en toutes lettres — `avecLiens` rendra
+        // l'adresse cliquable, mais sous son propre nom.
+        .replace(ACTION_GLOBAL, (tout, libelle, url) =>
+          actionAcceptee(url, origines)
+            ? `<a href="${url}" style="color:${VERT};text-decoration:underline">${libelle}</a>`
+            : tout,
         )
         // `font-weight` en plus de la balise : le moteur de Word, avec lequel
         // Outlook rend les courriels, n'appuie pas toujours un `strong` qui
@@ -448,7 +515,7 @@ function gabarit(
 </head>
 <body style="margin:0;padding:0;background:#f1f5f9;-webkit-text-size-adjust:100%">
 <!-- Texte d'aperçu : lu par la messagerie dans sa liste, jamais affiché. -->
-<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden">${echapper(apercu(corps))}</div>
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden">${echapper(apercu(corps, origines))}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f1f5f9">
   <tr>
     <td align="center" style="padding:24px 12px">

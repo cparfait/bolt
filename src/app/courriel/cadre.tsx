@@ -29,7 +29,7 @@ export async function CadreCourriel({ children }: { children: ReactNode }) {
           {children}
         </div>
         {g.contactEmail && (
-          <p className="mt-6 text-center text-xs text-slate-400">
+          <p className="mt-6 text-center text-xs text-slate-500">
             Une question ? Écrivez au service des sports :{" "}
             <a href={`mailto:${g.contactEmail}`} className="underline">
               {g.contactEmail}

@@ -19,7 +19,7 @@ export default function Error({
             conteneur (src/instrumentation.ts) : c'est ce qui permet à la DSI
             de retrouver l'incident sans faire décrire l'écran. */}
         {error.digest && (
-          <p className="mt-3 font-mono text-xs text-slate-400">{error.digest}</p>
+          <p className="mt-3 font-mono text-xs text-slate-500">{error.digest}</p>
         )}
         <button
           type="button"

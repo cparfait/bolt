@@ -622,3 +622,138 @@ describe("règles corrigées à l'audit du 9 septembre 2026", () => {
     assert.deepEqual(attente.map((r) => r.rang), [1]);
   });
 });
+
+describe("règles corrigées à l'audit du 11 septembre 2026", () => {
+  it("gèle la file tant que le créneau est fermé aux inscriptions", async () => {
+    const c = await contexte({ capacites: [1], agents: 2 });
+    await demanderInscription(c.agents[0], c.creneaux[0]);
+    await demanderInscription(c.agents[1], c.creneaux[0]); // en file
+    await prisma.creneau.update({
+      where: { id: c.creneaux[0] },
+      data: { ouvertInscription: false },
+    });
+    await prisma.inscription.updateMany({
+      where: { userId: c.agents[0] },
+      data: { statut: "DESISTEE", rang: null },
+    });
+    // Le service a fermé le créneau pour le stabiliser : la place libérée
+    // attend, elle ne fait pas entrer la file par la porte de derrière.
+    assert.equal(await promouvoirListeAttente(c.creneaux[0]), null);
+    assert.equal(await promouvoirTantQuePossible(c.creneaux[0]), "");
+
+    // La réouverture promeut ce que la file peut prendre.
+    await prisma.creneau.update({
+      where: { id: c.creneaux[0] },
+      data: { ouvertInscription: true },
+    });
+    await promouvoirTantQuePossible(c.creneaux[0]);
+    const rows = await file(c.creneaux[0]);
+    assert.equal(rows.find((r) => r.userId === c.agents[1])?.statut, "VALIDEE");
+  });
+
+  it("en capacité mutualisée, ne sert que les créneaux ouverts de la file commune", async () => {
+    const c = await contexte({
+      capacites: [10, 10],
+      partagee: true,
+      capaciteActivite: 1,
+      agents: 3,
+    });
+    await demanderInscription(c.agents[0], c.creneaux[0]);
+    await demanderInscription(c.agents[1], c.creneaux[0]); // rang 1, créneau qu'on va fermer
+    await demanderInscription(c.agents[2], c.creneaux[1]); // rang 2, créneau ouvert
+    await prisma.creneau.update({
+      where: { id: c.creneaux[0] },
+      data: { ouvertInscription: false },
+    });
+    await prisma.inscription.updateMany({
+      where: { userId: c.agents[0] },
+      data: { statut: "DESISTEE", rang: null },
+    });
+    const promu = await promouvoirListeAttente(c.creneaux[0]);
+    assert.equal(
+      promu?.userId,
+      c.agents[2],
+      "le premier attendait un créneau fermé : c'est le second qui passe",
+    );
+  });
+
+  it("continue de promouvoir quand le promu détenait déjà une place du groupe", async () => {
+    const c = await contexte({
+      capacites: [10, 10],
+      partagee: true,
+      capaciteActivite: 2,
+      agents: 3,
+    });
+    // agents[0] suit les deux créneaux ; agents[1] le premier : le groupe est plein.
+    await demanderInscription(c.agents[0], c.creneaux[0]);
+    await demanderInscription(c.agents[0], c.creneaux[1]);
+    await demanderInscription(c.agents[1], c.creneaux[0]);
+    // Le service replace agents[0] en attente sur le second créneau — il garde
+    // sa place par le premier. Puis agents[2] demande : file, derrière lui.
+    await prisma.inscription.updateMany({
+      where: { userId: c.agents[0], creneauId: c.creneaux[1] },
+      data: { statut: "LISTE_ATTENTE", rang: 1 },
+    });
+    await demanderInscription(c.agents[2], c.creneaux[0]);
+    assert.equal((await file(c.creneaux[0])).find((r) => r.userId === c.agents[2])?.rang, 2);
+
+    // agents[1] se désiste : une place se libère. Le premier de la file,
+    // agents[0], est promu mais ne consomme rien — la place est toujours là.
+    await prisma.inscription.updateMany({
+      where: { userId: c.agents[1] },
+      data: { statut: "DESISTEE", rang: null },
+    });
+    await promouvoirTantQuePossible(c.creneaux[0]);
+
+    const rows = await prisma.inscription.findMany({
+      where: { userId: { in: [c.agents[0], c.agents[2]] } },
+      select: { userId: true, statut: true },
+    });
+    assert.ok(
+      rows.every((r) => r.statut === "VALIDEE"),
+      "la place rendue est allée jusqu'au suivant, pas seulement au détenteur",
+    );
+  });
+
+  it("garde en mémoire le motif d'un refus quand l'agent redemande", async () => {
+    const c = await contexte({ capacites: [5], agents: 1 });
+    await demanderInscription(c.agents[0], c.creneaux[0]);
+    await prisma.inscription.updateMany({
+      where: { userId: c.agents[0] },
+      data: { statut: "REFUSEE", motif: "Certificat médical manquant" },
+    });
+    const reprise = await demanderInscription(c.agents[0], c.creneaux[0]);
+    assert.equal(reprise.ok, true);
+    const [ligne] = await prisma.inscription.findMany({ where: { userId: c.agents[0] } });
+    assert.match(ligne.motif ?? "", /Précédemment refusée : Certificat médical manquant/);
+  });
+
+  it("laisse le service arbitrer une demande en attente en inscrivant depuis la fiche", async () => {
+    const c = await contexte({ capacites: [5], agents: 1 });
+    await inscrireDirectement(c.creneaux[0], c.agents[0], null); // signalée par un animateur
+    const res = await inscrireDirectement(c.creneaux[0], c.agents[0], "service");
+    assert.deepEqual(res, { deja: false, statut: "VALIDEE", rang: null });
+    // Un animateur, lui, ne repositionne pas une demande déjà en attente.
+    const c2 = await contexte({ capacites: [5], agents: 1 });
+    await inscrireDirectement(c2.creneaux[0], c2.agents[0], null);
+    assert.deepEqual(await inscrireDirectement(c2.creneaux[0], c2.agents[0], null), {
+      deja: true,
+    });
+  });
+
+  it("n'attribue la dernière place qu'une fois entre le guichet et les demandes", async () => {
+    const c = await contexte({ capacites: [1], agents: 6 });
+    const resultats = await Promise.all(
+      c.agents.map((a, i) =>
+        i % 2 === 0
+          ? inscrireDirectement(c.creneaux[0], a, "service")
+          : demanderInscription(a, c.creneaux[0]),
+      ),
+    );
+    assert.equal(resultats.length, 6);
+    const validees = await prisma.inscription.count({
+      where: { creneauId: c.creneaux[0], statut: "VALIDEE" },
+    });
+    assert.equal(validees, 1, "l'inscription directe passe par le même verrou que les demandes");
+  });
+});

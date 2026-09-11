@@ -140,7 +140,7 @@ export function DemandeAccesForm({
         Transmettre ma demande
       </SubmitButton>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         Aucun compte n&apos;est créé à cette étape. Le service des sports examine
         votre demande, et vous recevrez un message dès qu&apos;il l&apos;aura
         validée. Vous pourrez alors consulter les activités et vous y inscrire.

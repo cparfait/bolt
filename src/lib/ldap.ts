@@ -74,6 +74,25 @@ function escapeFilter(value: string): string {
   });
 }
 
+/**
+ * Échappe une valeur insérée dans un DN (RFC 4514, § 2.4).
+ *
+ * Le gabarit `userDnTemplate` y colle l'identifiant saisi à l'écran de
+ * connexion : sans échappement, « x,OU=Admins » déplace le bind dans une autre
+ * branche de l'annuaire. Le mot de passe reste à fournir, donc ce n'est pas
+ * une porte — mais c'est un identifiant qui ne désigne plus celui qu'on croit,
+ * et un journal qui ne dit plus qui a essayé quoi. Exportée pour être testée.
+ */
+export function echapperDn(valeur: string): string {
+  return valeur
+    .replace(/[\\,+"<>;=]/g, (c) => `\\${c}`)
+    .replace(/\0/g, "\\00")
+    // Un « # » ou un espace en tête, un espace en queue, ont un sens de
+    // syntaxe dans un DN ; ailleurs ils sont ordinaires.
+    .replace(/^([ #])/, "\\$1")
+    .replace(/( )$/, "\\$1");
+}
+
 function attr(entry: Entry, name: string): string | undefined {
   const v = entry[name];
   if (v === undefined) return undefined;
@@ -218,7 +237,7 @@ export async function ldapAuthenticate(
   let client: Client;
 
   if (cfg.userDnTemplate) {
-    const dn = cfg.userDnTemplate.replace(/\{username\}/g, login);
+    const dn = cfg.userDnTemplate.replace(/\{username\}/g, echapperDn(login));
     client = buildClient(cfg);
     try {
       await client.bind(dn, password);

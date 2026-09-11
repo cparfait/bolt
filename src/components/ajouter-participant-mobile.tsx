@@ -155,10 +155,10 @@ function Selecteur({
       {!choisi && !horsAnnuaire && terme.trim().length >= 2 && (
         <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white">
           {cherche && affiches.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">Recherche…</p>
+            <p className="px-4 py-3 text-sm text-slate-500">Recherche…</p>
           ) : affiches.length === 0 ? (
             <div className="space-y-2 px-4 py-3">
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-500">
                 Personne ne porte ce nom dans l&apos;application — élu, stagiaire ou invité
                 d&apos;un autre organisme, peut-être.
               </p>
@@ -181,7 +181,7 @@ function Selecteur({
                   >
                     <span className="block text-sm font-medium">{c.nom}</span>
                     {c.situation && (
-                      <span className="block truncate text-xs text-slate-400">
+                      <span className="block truncate text-xs text-slate-500">
                         {c.situation}
                       </span>
                     )}

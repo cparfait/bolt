@@ -173,7 +173,7 @@ export function LdapOutils() {
           </SubmitButton>
         </form>
       </div>
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         La synchronisation est en lecture seule : l&apos;application n&apos;écrit jamais dans
         l&apos;Active Directory.
       </p>
@@ -349,7 +349,7 @@ function ValeurReservee({ valeur }: { valeur: string }) {
   return (
     <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
       {valeur || "Non renseignée"}
-      <span className="ml-2 text-xs text-slate-400">— réservé à la DSI</span>
+      <span className="ml-2 text-xs text-slate-500">— réservé à la DSI</span>
     </p>
   );
 }

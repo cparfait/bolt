@@ -93,7 +93,7 @@ export function EditeurTexte({
         <button type="button" onClick={enPuces} className={bouton} title="Liste à puces">
           <List className="h-3.5 w-3.5" />
         </button>
-        <span className="ml-1 text-[11px] text-slate-400">
+        <span className="ml-1 text-[11px] text-slate-500">
           **gras** · __souligné__ · « - » en début de ligne pour une puce
         </span>
       </div>
@@ -108,16 +108,16 @@ export function EditeurTexte({
         className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs leading-relaxed outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
       />
 
-      {aide && <p className="mt-1 text-[11px] text-slate-400">{aide}</p>}
+      {aide && <p className="mt-1 text-[11px] text-slate-500">{aide}</p>}
 
       <div className="mt-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-3">
-        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">
           Aperçu
         </p>
         {valeur.trim() ? (
           <TexteMisEnForme texte={valeur} className="text-xs leading-relaxed text-slate-600" />
         ) : (
-          <p className="text-xs italic text-slate-400">vide</p>
+          <p className="text-xs italic text-slate-500">vide</p>
         )}
       </div>
     </div>

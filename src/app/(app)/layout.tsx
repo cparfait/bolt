@@ -7,7 +7,7 @@ import { NavMobile, Sidebar, type Compteurs } from "@/components/nav";
 import { ROLE_LABELS } from "@/lib/constants";
 import { getGeneralSettings } from "@/lib/settings";
 import { compterDemandesEnAttente } from "@/lib/demandes";
-import { saisonCourante } from "@/lib/saison";
+import { aujourdhui } from "@/lib/dates";
 import { clientIp, estInterne } from "@/lib/net";
 
 export default async function AppLayout({
@@ -25,15 +25,14 @@ export default async function AppLayout({
   // les voir depuis n'importe quel écran, pas seulement en ouvrant la page.
   const compteurs: Compteurs = {};
   if (estGestionnaire(user) && !externe) {
-    // La saison courante et non la saison « active » : tant que le service
-    // n'a pas cliqué sur Activer, le compteur restait à zéro pendant que les
-    // demandes s'accumulaient sur la saison affichée aux agents.
-    const saison = await saisonCourante();
-    const aValider = saison
-      ? await prisma.inscription.count({
-          where: { statut: "EN_ATTENTE", creneau: { saisonId: saison.id } },
-        })
-      : 0;
+    // Toutes les saisons non closes, pas seulement la courante : pendant que
+    // la rentrée se prépare, les demandes arrivent sur la saison encore
+    // active tandis que le service travaille sur la suivante — et sur la
+    // seule courante, le compteur se taisait sur l'une des deux. Une saison
+    // close, elle, n'a plus rien à arbitrer.
+    const aValider = await prisma.inscription.count({
+      where: { statut: "EN_ATTENTE", creneau: { saison: { fin: { gte: aujourdhui() } } } },
+    });
     if (aValider > 0) compteurs["/inscriptions"] = aValider;
 
     // Une demande d'accès qui dort, c'est quelqu'un qui attend sans savoir
@@ -66,7 +65,7 @@ export default async function AppLayout({
         <header className="sticky top-0 z-10 hidden h-14 md:flex items-center justify-end gap-4 border-b border-slate-200 bg-white/80 px-4 backdrop-blur lg:px-6">
           <div className="text-right">
             <p className="text-sm font-medium leading-tight">{user.displayName}</p>
-            <p className="text-xs leading-tight text-slate-400">{ROLE_LABELS[user.role]}</p>
+            <p className="text-xs leading-tight text-slate-500">{ROLE_LABELS[user.role]}</p>
           </div>
           <form action={logoutAction}>
             <button
@@ -81,7 +80,7 @@ export default async function AppLayout({
         <main className="mx-auto w-full max-w-6xl flex-1 p-4 lg:p-8">{children}</main>
         {/* Les mentions d'information doivent rester consultables après coup,
             pas seulement au moment où l'agent les accepte pour s'inscrire. */}
-        <footer className="mx-auto w-full max-w-6xl px-4 pb-6 text-xs text-slate-400 lg:px-8">
+        <footer className="mx-auto w-full max-w-6xl px-4 pb-6 text-xs text-slate-500 lg:px-8">
           <a href="/mentions" className="underline-offset-2 hover:underline">
             Mentions d&apos;information et protection des données
           </a>

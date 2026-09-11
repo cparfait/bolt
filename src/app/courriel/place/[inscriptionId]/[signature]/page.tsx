@@ -31,8 +31,10 @@ export default async function PlacePage({
   params: Promise<{ inscriptionId: string; signature: string }>;
 }) {
   const { inscriptionId, signature } = await params;
-  if (!placeAutorisee(inscriptionId, signature)) notFound();
 
+  // L'inscription d'abord, la signature ensuite : elle se vérifie contre
+  // l'état actuel de l'inscription (sa dernière promotion), pas contre ce que
+  // porte l'adresse. Inconnue ou lien périmé : même 404, rien à distinguer.
   const inscription = await prisma.inscription.findUnique({
     where: { id: inscriptionId },
     include: {
@@ -40,7 +42,7 @@ export default async function PlacePage({
       creneau: { include: { activite: true } },
     },
   });
-  if (!inscription) notFound();
+  if (!inscription || !placeAutorisee(inscription, signature)) notFound();
 
   const { creneau } = inscription;
   const itineraire = await lienItineraireDuLieu(creneau.lieu);

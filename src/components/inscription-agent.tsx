@@ -135,7 +135,7 @@ export function InscrireForm({
               >
                 Avant de valider votre inscription
               </h2>
-              {intitule && <p className="mt-0.5 text-xs text-slate-400">{intitule}</p>}
+              {intitule && <p className="mt-0.5 text-xs text-slate-500">{intitule}</p>}
             </div>
             {/* type="button" : dans un <form>, un bouton sans type soumet. */}
             <button
@@ -261,7 +261,7 @@ export function InscrireForm({
             {/* Un bouton grisé sans explication se lit comme une panne : on
                 dit ce qui manque, tant que ça manque. */}
             {!toutAccepte && (
-              <p className="mt-2 text-right text-xs text-slate-400">
+              <p className="mt-2 text-right text-xs text-slate-500">
                 Cochez les déclarations et le consentement pour continuer.
               </p>
             )}

@@ -3,7 +3,8 @@ import { AlertTriangle, CalendarDays, CalendarX2 } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { estGestionnaire, requireUser } from "@/lib/session";
-import { saisonCourante } from "@/lib/saison";
+import { saisonDeTravail, saisonsProposees } from "@/lib/saison";
+import { AvertissementPreparation, SelecteurSaison } from "@/components/selecteur-saison";
 import { aujourdhui, ajouterJours, fmtDateComplete, isoDate } from "@/lib/dates";
 import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
 import { Badge, EmptyState, PageHeader, Select, btnSecondary } from "@/components/ui";
@@ -30,15 +31,20 @@ type Periode = keyof typeof PERIODES;
 export default async function SeancesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ periode?: string; activite?: string }>;
+  searchParams: Promise<{ periode?: string; activite?: string; saison?: string }>;
 }) {
   const user = await requireUser("GESTIONNAIRE", "COACH");
-  const { periode: periodeBrute, activite } = await searchParams;
+  const { periode: periodeBrute, activite, saison: saisonParam } = await searchParams;
   const periode: Periode =
     periodeBrute && periodeBrute in PERIODES ? (periodeBrute as Periode) : "semaine";
   const p = PERIODES[periode];
 
-  const saison = await saisonCourante();
+  // La saison choisie dans l'adresse, sinon la courante : vérifier le
+  // calendrier de la rentrée avant de l'activer se fait ici aussi.
+  const saison = await saisonDeTravail(saisonParam);
+  const saisons = estGestionnaire(user) ? await saisonsProposees() : [];
+  /** Adresse d'un écran voisin du planning, en gardant la saison choisie. */
+  const vers = (chemin: string) => (saisonParam ? `${chemin}?saison=${saisonParam}` : chemin);
   if (!saison) {
     return (
       <>
@@ -145,6 +151,7 @@ export default async function SeancesPage({
             catégories, et une pastille par période brouillerait la lecture. */}
         <FiltreForm>
           {activite && <input type="hidden" name="activite" value={activite} />}
+          {saisonParam && <input type="hidden" name="saison" value={saisonParam} />}
           <Select name="periode" defaultValue={periode} className="w-auto">
             {Object.entries(PERIODES).map(([k, v]) => (
               <option key={k} value={k}>
@@ -154,20 +161,33 @@ export default async function SeancesPage({
           </Select>
         </FiltreForm>
         {estGestionnaire(user) && (
-          <Link href="/seances/calendrier" className={btnSecondary}>
+          <Link href={vers("/seances/calendrier")} className={btnSecondary}>
             <CalendarDays className="h-4 w-4" /> Vue calendrier
           </Link>
         )}
-        <Link href="/seances/annuler" className={btnSecondary}>
+        <Link href={vers("/seances/annuler")} className={btnSecondary}>
           <CalendarX2 className="h-4 w-4" /> Annuler des séances
         </Link>
       </PageHeader>
+      {/* Le choix de saison est réservé au service : un animateur suit ses
+          créneaux de la saison courante, il n'en prépare pas d'autre. */}
+      {saisons.length > 0 && (
+        <div className="mb-4">
+          <SelecteurSaison
+            saisons={saisons}
+            selection={saison.id}
+            base="/seances"
+            params={{ periode, activite }}
+          />
+        </div>
+      )}
+      {estGestionnaire(user) && <AvertissementPreparation saison={saison} />}
 
       <FiltreActivites
         base="/seances"
         selection={activite}
         activites={activites}
-        params={{ periode }}
+        params={{ periode, saison: saisonParam }}
       />
 
       {periode === "manquantes" && seances.length > 0 && (
@@ -232,7 +252,7 @@ export default async function SeancesPage({
                           <span className="block truncate text-sm font-medium">
                             {s.creneau.activite.nom}
                           </span>
-                          <span className="block truncate text-xs text-slate-400">
+                          <span className="block truncate text-xs text-slate-500">
                             {[
                               s.creneau.lieu,
                               s.creneau.animateurs.length > 0

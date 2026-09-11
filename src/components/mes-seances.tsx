@@ -138,7 +138,7 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
           >
             <div className="min-w-0">
               <p
-                className={`text-sm font-medium ${s.annulee ? "text-slate-400 line-through" : "text-slate-900"}`}
+                className={`text-sm font-medium ${s.annulee ? "text-slate-500 line-through" : "text-slate-900"}`}
               >
                 <span className="first-letter:uppercase">{fmtDateLongue(s.date)}</span> ·{" "}
                 {s.heureDebut}–{s.heureFin}
@@ -146,7 +146,7 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
               {/* Activité et lieu se lisent autant que la date au-dessus : en
                   gris clair, on ne savait plus où se rendre sans s'approcher. */}
               <p
-                className={`truncate text-xs ${s.annulee ? "text-slate-400 line-through" : "text-slate-700"}`}
+                className={`truncate text-xs ${s.annulee ? "text-slate-500 line-through" : "text-slate-700"}`}
               >
                 <span style={s.annulee ? undefined : { color: s.couleur }}>{s.activite}</span>
                 {s.lieu ? ` · ${s.lieu}` : ""}
@@ -247,7 +247,7 @@ export function MesSeances({ seances }: { seances: SeanceAgent[] }) {
         </button>
       )}
 
-      <p className="mt-3 text-xs text-slate-400">
+      <p className="mt-3 text-xs text-slate-500">
         Prévenir permet à l&apos;animateur de ne pas vous attendre, et au service
         des sports de distinguer un empêchement ponctuel d&apos;un abandon.
       </p>

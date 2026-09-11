@@ -112,7 +112,10 @@ export default async function EmargementAccueil({
               </p>
             </div>
           ) : (
-            <PinForm token={token} prenom={lien.coach.prenom} />
+            /* Le formulaire reste anonyme : le prénom n'apparaît qu'une fois
+               le code validé. Un lien qui fuite ne doit rien apprendre de
+               son détenteur avant le second facteur. */
+            <PinForm token={token} />
           )}
         </Carte>
       </Coquille>
@@ -200,7 +203,7 @@ export default async function EmargementAccueil({
 
       <ChangerPinCoach token={token} />
 
-      <p className="mt-8 text-center text-xs text-slate-400">
+      <p className="mt-8 text-center text-xs text-slate-500">
         Ce lien est personnel. Ne le transmettez pas.
       </p>
     </Coquille>
@@ -227,12 +230,12 @@ function SectionSeances({
   return (
     <section className="mb-5">
       <h2
-        className={`mb-2 px-1 text-xs font-semibold uppercase tracking-wide ${accent ? "text-amber-600" : "text-slate-400"}`}
+        className={`mb-2 px-1 text-xs font-semibold uppercase tracking-wide ${accent ? "text-amber-600" : "text-slate-500"}`}
       >
         {titre}
       </h2>
       {seances.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 px-4 py-8 text-center text-sm text-slate-400">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 px-4 py-8 text-center text-sm text-slate-500">
           {vide}
         </div>
       ) : (

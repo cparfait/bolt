@@ -98,7 +98,7 @@ export default async function ParametresServices({
                         <Building2 className="h-4 w-4 shrink-0 text-slate-400" />
                         {s.nom}
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-400">
+                      <p className="mt-0.5 text-xs text-slate-500">
                         {utilise > 0 ? (
                           <Link
                             href={`/agents?${new URLSearchParams({ f: "tous", service: s.nom })}`}
@@ -194,7 +194,7 @@ export default async function ParametresServices({
                   <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
                     <div className="min-w-0">
                       <p className="truncate text-slate-600">{s.nom}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-500">
                         {utilise > 0 ? (
                           <Link
                             href={`/agents?${new URLSearchParams({ f: "tous", service: s.nom })}`}

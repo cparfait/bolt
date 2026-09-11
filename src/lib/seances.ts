@@ -46,9 +46,12 @@ export function datesDuCreneau(
   curseur = ajouterJours(curseur, decalage);
 
   const dates: Date[] = [];
-  // Borne de sécurité : une saison ne dépasse pas ~70 semaines.
+  // Borne de sécurité, au-delà des deux ans que `enregistrerSaison` accepte
+  // (104 semaines, plus un peu de marge) : une boucle qui ne s'arrêterait
+  // pas ne doit jamais remplir la base. À 100, elle coupait sans le dire une
+  // saison de deux ans, qui est pourtant admise.
   let garde = 0;
-  while (curseur <= fin && garde++ < 100) {
+  while (curseur <= fin && garde++ < 160) {
     if (!estFerme(curseur, fermetures)) dates.push(curseur);
     curseur = ajouterJours(curseur, 7);
   }
@@ -59,14 +62,34 @@ export type ResultatGeneration = {
   creees: number;
   existantes: number;
   supprimees: number;
+  /**
+   * Ce que les séances retirées emportaient avec elles : les absences que des
+   * agents avaient annoncées et les participations ponctuelles qu'on y
+   * attendait. Ces lignes partent en cascade avec la séance — le compte rendu
+   * doit le dire, sans quoi un changement de jour efface silencieusement des
+   * engagements pris.
+   */
+  absencesRetirees: number;
+  participationsRetirees: number;
+};
+
+const AUCUNE: ResultatGeneration = {
+  creees: 0,
+  existantes: 0,
+  supprimees: 0,
+  absencesRetirees: 0,
+  participationsRetirees: 0,
 };
 
 /**
  * (Re)génère les séances d'un créneau.
  *
  * Les séances devenues hors calendrier (créneau raccourci, nouvelle période de
- * fermeture) sont supprimées **uniquement** si elles sont encore planifiées et
- * sans aucune présence saisie : on ne détruit jamais un émargement.
+ * fermeture) sont supprimées **uniquement** si elles sont encore planifiées ou
+ * annulées, et sans aucune présence saisie : on ne détruit jamais un
+ * émargement. Une séance annulée hors calendrier n'a plus rien à dire — son
+ * motif portait sur une date qui n'existe plus — et la garder la faisait
+ * réapparaître, barrée, sur un jour où le créneau n'a jamais eu lieu.
  */
 export async function genererSeancesCreneau(creneauId: string): Promise<ResultatGeneration> {
   const creneau = await prisma.creneau.findUnique({
@@ -76,7 +99,7 @@ export async function genererSeancesCreneau(creneauId: string): Promise<Resultat
       fermeturesMaintenues: { select: { id: true } },
     },
   });
-  if (!creneau) return { creees: 0, existantes: 0, supprimees: 0 };
+  if (!creneau) return { ...AUCUNE };
 
   // Les périodes que ce créneau traverse malgré tout ne l'interrompent pas.
   const maintenues = new Set(creneau.fermeturesMaintenues.map((f) => f.id));
@@ -87,7 +110,7 @@ export async function genererSeancesCreneau(creneauId: string): Promise<Resultat
 
   const existantes = await prisma.seance.findMany({
     where: { creneauId },
-    include: { _count: { select: { presences: true } } },
+    include: { _count: { select: { presences: true, absences: true, participations: true } } },
   });
   const existantesIso = new Set(existantes.map((s) => isoDate(s.date)));
 
@@ -102,9 +125,12 @@ export async function genererSeancesCreneau(creneauId: string): Promise<Resultat
   const obsoletes = existantes.filter(
     (s) =>
       !attenduesIso.has(isoDate(s.date)) &&
-      s.statut === "PLANIFIEE" &&
+      (s.statut === "PLANIFIEE" || s.statut === "ANNULEE") &&
       s._count.presences === 0,
   );
+  // Comptées AVANT la suppression : elles partent en cascade avec la séance.
+  const absencesRetirees = obsoletes.reduce((n, s) => n + s._count.absences, 0);
+  const participationsRetirees = obsoletes.reduce((n, s) => n + s._count.participations, 0);
   if (obsoletes.length > 0) {
     await prisma.seance.deleteMany({ where: { id: { in: obsoletes.map((s) => s.id) } } });
   }
@@ -113,7 +139,29 @@ export async function genererSeancesCreneau(creneauId: string): Promise<Resultat
     creees: aCreer.length,
     existantes: existantes.length - obsoletes.length,
     supprimees: obsoletes.length,
+    absencesRetirees,
+    participationsRetirees,
   };
+}
+
+/**
+ * Phrase du compte rendu pour ce que la régénération a emporté, ou chaîne
+ * vide s'il n'y a rien à dire. Commence par une espace pour se coller au
+ * message qui précède.
+ */
+export function decrirePertesGeneration(r: ResultatGeneration): string {
+  const s = (n: number) => (n > 1 ? "s" : "");
+  const pertes = [
+    r.participationsRetirees > 0
+      ? `${r.participationsRetirees} participation${s(r.participationsRetirees)} ponctuelle${s(r.participationsRetirees)}`
+      : null,
+    r.absencesRetirees > 0
+      ? `${r.absencesRetirees} absence${s(r.absencesRetirees)} annoncée${s(r.absencesRetirees)}`
+      : null,
+  ].filter(Boolean);
+  if (pertes.length === 0) return "";
+  const total = r.participationsRetirees + r.absencesRetirees;
+  return ` ${pertes.join(" et ")} retirée${s(total)} avec les séances.`;
 }
 
 /** (Re)génère les séances de tous les créneaux d'une saison. */
@@ -122,12 +170,14 @@ export async function genererSeancesSaison(saisonId: string): Promise<ResultatGe
     where: { saisonId, archiveAt: null },
     select: { id: true },
   });
-  const total = { creees: 0, existantes: 0, supprimees: 0 };
+  const total = { ...AUCUNE };
   for (const c of creneaux) {
     const r = await genererSeancesCreneau(c.id);
     total.creees += r.creees;
     total.existantes += r.existantes;
     total.supprimees += r.supprimees;
+    total.absencesRetirees += r.absencesRetirees;
+    total.participationsRetirees += r.participationsRetirees;
   }
   return total;
 }

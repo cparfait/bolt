@@ -14,6 +14,7 @@ import {
   fmtDateLongue,
   fmtHeure,
   heureCourante,
+  isoDate,
   normaliserHeure,
 } from "./dates";
 import { nomPourSalutation } from "./constants";
@@ -111,6 +112,23 @@ export function borneDesRappels(
 }
 
 /**
+ * Vrai si la séance est déjà terminée au moment où l'on passe.
+ *
+ * Avec une avance nulle et un envoi à midi, une séance de 9 h le jour même
+ * recevait son rappel à 12 h — trois heures après la fin. La borne des
+ * rappels raisonne en jours ; il faut aussi l'heure pour le jour courant. Une
+ * séance sans heure de fin lisible est jugée sur son début.
+ */
+export function seanceDejaPassee(
+  seance: { date: Date; creneau: { heureDebut: string; heureFin: string } },
+  maintenant: Date = new Date(),
+): boolean {
+  if (isoDate(seance.date) !== isoDate(aujourdhui(maintenant))) return false;
+  const fin = normaliserHeure(seance.creneau.heureFin) ?? normaliserHeure(seance.creneau.heureDebut);
+  return fin !== null && fin < heureCourante(maintenant);
+}
+
+/**
  * Envoie les rappels dus. Chaque inscrit n'est rappelé qu'une fois
  * (`RappelEnvoye`), même si la fonction est appelée en boucle.
  */
@@ -143,7 +161,7 @@ async function campagne(): Promise<ResultatRappels> {
     };
   }
 
-  const seances = await prisma.seance.findMany({
+  const candidates = await prisma.seance.findMany({
     where: {
       statut: "PLANIFIEE",
       rappelEnvoyeAt: null,
@@ -161,6 +179,14 @@ async function campagne(): Promise<ResultatRappels> {
           },
         },
       },
+      // Attendus à cette seule séance : ils se déplacent comme un inscrit, et
+      // sont prévenus d'une annulation comme lui (src/lib/notifications.ts).
+      // Les oublier ici, c'est leur rappeler les annulations mais jamais la
+      // séance. Mêmes règles : compte actif, adresse, pas d'absence annoncée.
+      participations: {
+        where: { user: { active: true } },
+        include: { user: true },
+      },
       // Un agent qui a prévenu de son absence n'a pas besoin qu'on lui rappelle
       // la séance à laquelle il vient de dire qu'il ne viendrait pas.
       absences: { select: { userId: true } },
@@ -170,6 +196,9 @@ async function campagne(): Promise<ResultatRappels> {
     orderBy: { date: "asc" },
     take: 50, // garde-fou : jamais plus de 50 séances par passage
   });
+  // Une séance du jour déjà terminée n'a plus rien à rappeler. Elle n'est pas
+  // marquée pour autant : demain, la borne basse l'écarte d'elle-même.
+  const seances = candidates.filter((s) => !seanceDejaPassee(s));
   if (seances.length === 0) return { ...VIDE, message: "Aucun rappel à envoyer." };
 
   // Nom public de l'application : la page qui porte le bouton est joignable
@@ -190,9 +219,19 @@ async function campagne(): Promise<ResultatRappels> {
         ...s.absences.map((a) => a.userId),
         ...s.rappels.map((r) => r.userId),
       ]);
-      for (const i of s.creneau.inscriptions) {
-        if (aEcarter.has(i.userId)) continue;
-        const adresse = adresseDeContact(i.user);
+      // Un même agent peut être inscrit au créneau et annoncé sur la séance :
+      // un seul rappel, comme un seul avis d'annulation.
+      const destinataires = [
+        ...new Map(
+          [
+            ...s.creneau.inscriptions.map((i) => i.user),
+            ...s.participations.map((p) => p.user),
+          ].map((u) => [u.id, u]),
+        ).values(),
+      ];
+      for (const u of destinataires) {
+        if (aEcarter.has(u.id)) continue;
+        const adresse = adresseDeContact(u);
         if (!adresse) {
           bilan.ignores += 1;
           continue;
@@ -201,14 +240,14 @@ async function campagne(): Promise<ResultatRappels> {
           adresse,
           `Rappel — ${s.creneau.activite.nom} ${fmtDateLongue(s.date)}`,
           [
-            `Bonjour ${nomPourSalutation(i.user.displayName)},`,
+            `Bonjour ${nomPourSalutation(u.displayName)},`,
             `Petit rappel : votre séance de ${s.creneau.activite.nom} a lieu **${fmtDateLongue(s.date)} de ${s.creneau.heureDebut} à ${s.creneau.heureFin}**${s.creneau.lieu ? `, **${s.creneau.lieu}**` : ""}.`,
             // Un bouton, et non « prévenez le service des sports » : le rappel se
             // lit sur un téléphone, et prévenir par courriel demandait d'ouvrir un
             // nouveau message, de trouver quoi écrire et à qui. Personne ne le
             // faisait, l'animateur attendait, et la place restait perdue.
             `Un empêchement ? Signalez-le d'un clic : votre place profitera à un collègue en liste d'attente, et l'animateur ne vous attendra pas.`,
-            base ? `[Je ne pourrai pas venir](${lienAbsence(s.id, i.userId, base)})` : null,
+            base ? `[Je ne pourrai pas venir](${lienAbsence(s.id, u.id, base)})` : null,
             // Dans une phrase et non seul sur sa ligne : le gabarit n'en fait
             // alors pas un second bouton, qui concurrencerait le premier.
             itineraire ? `Pour vous y rendre : [itinéraire vers ${s.creneau.lieu}](${itineraire}).` : null,
@@ -224,7 +263,7 @@ async function campagne(): Promise<ResultatRappels> {
           break;
         }
         await prisma.rappelEnvoye.create({
-          data: { seanceId: s.id, userId: i.userId, erreur: res.ok ? null : res.message },
+          data: { seanceId: s.id, userId: u.id, erreur: res.ok ? null : res.message },
         });
         if (res.ok) bilan.envoyes += 1;
         else bilan.refuses += 1;

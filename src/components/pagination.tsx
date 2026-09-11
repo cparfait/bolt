@@ -57,7 +57,7 @@ export function Pagination({
       {/* Le total avant les flèches : « page 2 sur 7 » ne dit pas combien il y
           en a, et c'est la première chose qu'on veut savoir devant une liste
           tronquée. */}
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         {total} {pluriel(total, unite)} · page {page} sur {pages}
       </p>
       <div className="flex items-center gap-2">

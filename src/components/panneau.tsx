@@ -25,7 +25,7 @@ export function Panneau({
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
         <div>
           <span className="text-sm font-semibold">{titre}</span>
-          {sousTitre && <p className="text-xs text-slate-400">{sousTitre}</p>}
+          {sousTitre && <p className="text-xs text-slate-500">{sousTitre}</p>}
         </div>
         <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180" />
       </summary>

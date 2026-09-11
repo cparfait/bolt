@@ -12,6 +12,12 @@ import type { Decrocheur } from "@/lib/stats";
  * Relance groupée. Les agents sans adresse e-mail sont listés à part : le
  * service des sports doit les contacter autrement, il ne faut pas qu'ils
  * disparaissent silencieusement de la relance.
+ *
+ * Le formulaire envoie des identifiants d'agent, pas des adresses : c'est le
+ * serveur qui relit l'adresse de contact au moment de l'envoi. Une adresse
+ * passée en clair par le navigateur aurait permis d'écrire à n'importe qui
+ * depuis la messagerie du service des sports. L'adresse reste affichée, pour
+ * que le gestionnaire voie à qui part le message.
  */
 export function RelanceForm({ decrocheurs }: { decrocheurs: Decrocheur[] }) {
   const [state, action] = useActionState<ActionState, FormData>(
@@ -36,15 +42,15 @@ export function RelanceForm({ decrocheurs }: { decrocheurs: Decrocheur[] }) {
               <label className="flex items-center gap-2.5 text-sm">
                 <input
                   type="checkbox"
-                  name="email"
-                  value={d.email!}
+                  name="userId"
+                  value={d.userId}
                   defaultChecked
                   className="h-4 w-4 rounded border-slate-300"
                 />
                 <span>
                   {d.nom}
-                  <span className="ml-2 text-xs text-slate-400">
-                    {d.activite} · {d.absencesConsecutives} absences
+                  <span className="ml-2 text-xs text-slate-500">
+                    {d.email} · {d.activite} · {d.absencesConsecutives} absences
                   </span>
                 </span>
               </label>

@@ -103,9 +103,9 @@ export function ChampAgent({
         terme.trim().length >= 2 && (
           <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200">
             {cherche && affiches.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-slate-400">Recherche…</p>
+              <p className="px-4 py-3 text-sm text-slate-500">Recherche…</p>
             ) : affiches.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-slate-400">
+              <p className="px-4 py-3 text-sm text-slate-500">
                 {source === "connus"
                   ? "Aucun agent trouvé parmi ceux déjà connus de l'application. Le service des sports peut le chercher dans l'annuaire."
                   : source === "ad"
@@ -123,10 +123,10 @@ export function ChampAgent({
                     >
                       <span className="min-w-0">
                         <span className="block text-sm font-medium">{c.nom}</span>
-                        <span className="block truncate text-xs text-slate-400">
+                        <span className="block truncate text-xs text-slate-500">
                           {[
                             // La provenance est dite par la pastille de droite :
-                            // la répéter ici mettrait « adresse externe » deux
+                            // la répéter ici mettrait « hors annuaire » deux
                             // fois sur la même ligne.
                             estCreeALaMain(c.login) ? null : mentionCompte(c.login),
                             c.service ?? c.direction,
@@ -138,13 +138,13 @@ export function ChampAgent({
                       {/* Chaque résultat dit d'où il vient, et les deux
                           pastilles se répondent : « annuaire mairie » pour un
                           compte de l'Active Directory de la collectivité,
-                          « adresse externe » pour quelqu'un qui n'y figure pas
+                          « hors annuaire » pour quelqu'un qui n'y figure pas
                           et n'a que son adresse. Sans la seconde, l'absence de
                           pastille se lisait comme une information manquante
                           plutôt que comme une réponse. */}
                       {estCreeALaMain(c.login) ? (
                         <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
-                          adresse externe
+                          hors annuaire
                         </span>
                       ) : (
                         c.source === "annuaire" && (
@@ -164,7 +164,7 @@ export function ChampAgent({
 
       <input type="hidden" name="login" value={choisi?.login ?? ""} />
       {!choisi && (
-        <p className="text-xs text-slate-400">Sélectionnez d&apos;abord un agent.</p>
+        <p className="text-xs text-slate-500">Sélectionnez d&apos;abord un agent.</p>
       )}
     </>
   );

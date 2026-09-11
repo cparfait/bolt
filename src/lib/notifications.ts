@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import { adresseDeContact } from "./comptes";
-import { envoyerMail } from "./mail";
+import { ouvrirMessagerie } from "./mail";
 import { getGeneralSettings } from "./settings";
 import { fmtDate, fmtDateLongue, JOUR_LABELS } from "./dates";
 import { nomPourSalutation } from "./constants";
@@ -15,6 +15,14 @@ import { audit } from "./audit";
  * soit des agents devant une porte close.
  *
  * Best-effort : l'envoi ne doit jamais empêcher l'enregistrement du créneau.
+ *
+ * Chaque fonction est une campagne — un message par inscrit — et passe par
+ * `ouvrirMessagerie()`, cadencée (src/lib/mail.ts) : une annulation de
+ * piscine touche cent personnes, et Microsoft 365 refusait tout au-delà de
+ * la trentième soumission dans la minute, sans que rien ne le signale.
+ *
+ * Seuls les comptes actifs sont prévenus : un compte désactivé qui garde sa
+ * place — congé long — n'a plus de boîte à lire, comme pour les rappels.
  */
 
 export type ChangementCreneau = {
@@ -46,7 +54,7 @@ export async function notifierSeanceRetablie(
         include: {
           activite: { select: { nom: true } },
           inscriptions: {
-            where: { statut: "VALIDEE" },
+            where: { statut: "VALIDEE", user: { active: true } },
             include: { user: { select: { id: true, displayName: true, email: true, emailContact: true } } },
           },
         },
@@ -54,6 +62,7 @@ export async function notifierSeanceRetablie(
       // Symétrique de l'annulation : celui qui était attendu sur cette seule
       // séance a rayé la date, il faut la lui rendre.
       participations: {
+        where: { user: { active: true } },
         include: { user: { select: { id: true, displayName: true, email: true, emailContact: true } } },
       },
     },
@@ -71,22 +80,27 @@ export async function notifierSeanceRetablie(
   ];
   const g = await getGeneralSettings();
   let envoyes = 0;
-  for (const u of inscrits) {
-    const adresse = adresseDeContact(u);
-    if (!adresse) continue;
-    const res = await envoyerMail(
-      adresse,
-      `Séance maintenue — ${seance.creneau.activite.nom}`,
-      [
-        `Bonjour ${nomPourSalutation(u.displayName)},`,
-        `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du **${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}**${seance.creneau.lieu ? ` (**${seance.creneau.lieu}**)` : ""}, aura finalement bien lieu.`,
-        `Elle avait été annulée : vous pouvez la réinscrire à votre agenda.`,
-        g.contactEmail
-          ? `Le service des sports — ${g.contactEmail}`
-          : `Le service des sports`,
-      ].join("\n\n"),
-    );
-    if (res.ok) envoyes += 1;
+  const messagerie = await ouvrirMessagerie();
+  try {
+    for (const u of inscrits) {
+      const adresse = adresseDeContact(u);
+      if (!adresse) continue;
+      const res = await messagerie.envoyer(
+        adresse,
+        `Séance maintenue — ${seance.creneau.activite.nom}`,
+        [
+          `Bonjour ${nomPourSalutation(u.displayName)},`,
+          `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du **${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}**${seance.creneau.lieu ? ` (**${seance.creneau.lieu}**)` : ""}, aura finalement bien lieu.`,
+          `Elle avait été annulée : vous pouvez la réinscrire à votre agenda.`,
+          g.contactEmail
+            ? `Le service des sports — ${g.contactEmail}`
+            : `Le service des sports`,
+        ].join("\n\n"),
+      );
+      if (res.ok) envoyes += 1;
+    }
+  } finally {
+    messagerie.fermer();
   }
 
   await audit("SEANCE_RETABLIE_NOTIFIEE", {
@@ -119,7 +133,7 @@ export async function notifierSeancesAnnulees(
         include: {
           activite: { select: { nom: true } },
           inscriptions: {
-            where: { statut: "VALIDEE" },
+            where: { statut: "VALIDEE", user: { active: true } },
             include: { user: { select: { id: true, displayName: true, email: true, emailContact: true } } },
           },
         },
@@ -128,6 +142,7 @@ export async function notifierSeancesAnnulees(
       // inscrit, et n'ont même pas le créneau des semaines suivantes pour se
       // rattraper. Les oublier, c'est les envoyer devant une porte close.
       participations: {
+        where: { user: { active: true } },
         include: { user: { select: { id: true, displayName: true, email: true, emailContact: true } } },
       },
     },
@@ -167,26 +182,31 @@ export async function notifierSeancesAnnulees(
 
   const g = await getGeneralSettings();
   let envoyes = 0;
-  for (const agent of parAgent.values()) {
-    const plusieurs = agent.lignes.length > 1;
-    const seuleActivite = agent.activites.size === 1 ? [...agent.activites][0] : null;
-    const res = await envoyerMail(
-      agent.email,
-      `${plusieurs ? "Séances annulées" : "Séance annulée"}${seuleActivite ? ` — ${seuleActivite}` : ""}`,
-      [
-        `Bonjour ${nomPourSalutation(agent.nom)},`,
-        plusieurs
-          ? `Les séances suivantes n'auront pas lieu :`
-          : `La séance suivante n'aura pas lieu :`,
-        agent.lignes.join("\n"),
-        `Motif : ${motif}`,
-        `Votre inscription reste valable et les autres séances sont maintenues : il n'y a rien à faire de votre part.`,
-        g.contactEmail
-          ? `Le service des sports — ${g.contactEmail}`
-          : `Le service des sports`,
-      ].join("\n\n"),
-    );
-    if (res.ok) envoyes += 1;
+  const messagerie = await ouvrirMessagerie();
+  try {
+    for (const agent of parAgent.values()) {
+      const plusieurs = agent.lignes.length > 1;
+      const seuleActivite = agent.activites.size === 1 ? [...agent.activites][0] : null;
+      const res = await messagerie.envoyer(
+        agent.email,
+        `${plusieurs ? "Séances annulées" : "Séance annulée"}${seuleActivite ? ` — ${seuleActivite}` : ""}`,
+        [
+          `Bonjour ${nomPourSalutation(agent.nom)},`,
+          plusieurs
+            ? `Les séances suivantes n'auront pas lieu :`
+            : `La séance suivante n'aura pas lieu :`,
+          agent.lignes.join("\n"),
+          `Motif : ${motif}`,
+          `Votre inscription reste valable et les autres séances sont maintenues : il n'y a rien à faire de votre part.`,
+          g.contactEmail
+            ? `Le service des sports — ${g.contactEmail}`
+            : `Le service des sports`,
+        ].join("\n\n"),
+      );
+      if (res.ok) envoyes += 1;
+    }
+  } finally {
+    messagerie.fermer();
   }
 
   await audit("SEANCES_ANNULEES_NOTIFIEES", {
@@ -211,7 +231,7 @@ export async function notifierChangementCreneau(
     include: {
       activite: true,
       inscriptions: {
-        where: { statut: "VALIDEE" },
+        where: { statut: "VALIDEE", user: { active: true } },
         include: { user: { select: { displayName: true, email: true, emailContact: true } } },
       },
     },
@@ -260,21 +280,26 @@ export async function notifierChangementCreneau(
   }
 
   let envoyes = 0;
-  for (const i of inscrits) {
-    const res = await envoyerMail(
-      adresseDeContact(i.user)!,
-      `Changement — ${creneau.activite.nom}`,
-      [
-        `Bonjour ${nomPourSalutation(i.user.displayName)},`,
-        `Votre créneau de ${creneau.activite.nom} — **${JOUR_LABELS[creneau.jour].toLowerCase()} ${creneau.heureDebut}** a été modifié.`,
-        ...blocs,
-        `Votre inscription reste valable : rien à faire de votre part. Consultez le détail dans l'application à tout moment.`,
-        g.contactEmail
-          ? `Le service des sports — ${g.contactEmail}`
-          : `Le service des sports`,
-      ].join("\n\n"),
-    );
-    if (res.ok) envoyes += 1;
+  const messagerie = await ouvrirMessagerie();
+  try {
+    for (const i of inscrits) {
+      const res = await messagerie.envoyer(
+        adresseDeContact(i.user)!,
+        `Changement — ${creneau.activite.nom}`,
+        [
+          `Bonjour ${nomPourSalutation(i.user.displayName)},`,
+          `Votre créneau de ${creneau.activite.nom} — **${JOUR_LABELS[creneau.jour].toLowerCase()} ${creneau.heureDebut}** a été modifié.`,
+          ...blocs,
+          `Votre inscription reste valable : rien à faire de votre part. Consultez le détail dans l'application à tout moment.`,
+          g.contactEmail
+            ? `Le service des sports — ${g.contactEmail}`
+            : `Le service des sports`,
+        ].join("\n\n"),
+      );
+      if (res.ok) envoyes += 1;
+    }
+  } finally {
+    messagerie.fermer();
   }
 
   await audit("CRENEAU_CHANGEMENT_NOTIFIE", {

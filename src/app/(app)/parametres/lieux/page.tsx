@@ -59,7 +59,7 @@ export default async function ParametresLieux({
                         {l.nom}
                         {!l.actif && <Badge>Retiré</Badge>}
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-400">
+                      <p className="mt-0.5 text-xs text-slate-500">
                         {[
                           l.adresse,
                           utilise > 0

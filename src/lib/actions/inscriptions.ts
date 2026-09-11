@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireAgent, requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
-import { accuserReception } from "@/lib/inscriptions";
 import {
   CHAMP_RGPD,
   champDeclaration,
@@ -14,15 +13,16 @@ import {
 } from "@/lib/declarations";
 import {
   demanderInscription,
+  inscrireDirectement,
   placeDisponiblePour,
   prochainRang,
-  promouvoirEtPrevenir,
+  promouvoirTantQuePossible,
   renumeroterFile,
   verrouCapacite,
 } from "@/lib/inscriptions";
 import { adresseDeContact } from "@/lib/comptes";
 import { nomPourSalutation } from "@/lib/constants";
-import { envoyerMail } from "@/lib/mail";
+import { envoyerMail, ouvrirMessagerie } from "@/lib/mail";
 import { getGeneralSettings } from "@/lib/settings";
 import { assurerCompteAgent } from "@/lib/comptes-annuaire";
 import { erreur, succes, type ActionState } from "./types";
@@ -113,7 +113,10 @@ export async function desisterAction(
     },
   });
   await renumeroterFile(inscription.creneauId);
-  const promu = await promouvoirEtPrevenir(inscription.creneauId);
+  // « Tant que possible » et non une seule promotion : en capacité mutualisée,
+  // le premier de la file peut déjà détenir une place et ne rien consommer —
+  // la place rendue doit alors profiter au suivant (voir `promouvoirTantQuePossible`).
+  const promu = await promouvoirTantQuePossible(inscription.creneauId);
 
   await audit("INSCRIPTION_DESISTEE", {
     userId: user.id,
@@ -206,7 +209,7 @@ export async function deciderInscription(
     // Rétrograder un inscrit libère sa place : la file avance, comme sur un
     // désistement. Sans cela elle restait figée jusqu'au prochain départ.
     // Sauf lui : file vide, il repassait validé dans la seconde.
-    const promu = await promouvoirEtPrevenir(inscription.creneauId, id);
+    const promu = await promouvoirTantQuePossible(inscription.creneauId, id);
     // L'agent l'apprenait en ne recevant pas le rappel de la veille. Le refus
     // et la validation écrivent ; la rétrogradation doit écrire aussi.
     if (inscription.statut === "VALIDEE") {
@@ -246,7 +249,7 @@ export async function deciderInscription(
       details: motif,
     });
     // Refuser une inscription déjà validée rend sa place au groupe.
-    const promu = await promouvoirEtPrevenir(inscription.creneauId);
+    const promu = await promouvoirTantQuePossible(inscription.creneauId);
     const adresse = adresseDeContact(inscription.user);
     if (adresse) {
       await envoyerMail(
@@ -288,29 +291,15 @@ export async function inscrireAgentAction(
   });
   if (!agent || !creneau) return erreur("Agent ou créneau introuvable.");
 
-  const complet = !(await placeDisponiblePour(creneauId, userId));
-  const existante = await prisma.inscription.findUnique({
-    where: { creneauId_userId: { creneauId, userId } },
-  });
-  if (existante && ["VALIDEE", "LISTE_ATTENTE"].includes(existante.statut)) {
+  // Le même moteur que le guichet et la feuille d'émargement : contrôle de la
+  // place et écriture sous le verrou de capacité. Cette action comptait la
+  // place puis écrivait hors verrou — la seule porte par laquelle deux
+  // validations simultanées de la dernière place passaient encore. L'accusé
+  // de réception part de là aussi : l'agent n'a rien demandé, et sans ce
+  // message il découvrirait son inscription en recevant le rappel de la veille.
+  const res = await inscrireDirectement(creneauId, userId, admin.displayName);
+  if (res.deja) {
     return erreur(`${agent.displayName} est déjà positionné sur ce créneau.`);
-  }
-
-  const data = {
-    statut: complet ? ("LISTE_ATTENTE" as const) : ("VALIDEE" as const),
-    rang: complet ? await prochainRang(creneauId) : null,
-    decisionAt: new Date(),
-    decidePar: admin.displayName,
-    motif: null,
-    // Le service repositionne quelqu'un : cycle neuf, la promotion éventuelle
-    // du précédent ne dit plus rien de celui-ci.
-    promuAt: null,
-  };
-
-  if (existante) {
-    await prisma.inscription.update({ where: { id: existante.id }, data });
-  } else {
-    await prisma.inscription.create({ data: { creneauId, userId, ...data } });
   }
 
   await audit("INSCRIPTION_MANUELLE", {
@@ -319,52 +308,91 @@ export async function inscrireAgentAction(
     cible: `${agent.displayName} → ${creneau.activite.nom}`,
   });
 
-  // L'agent n'a rien demandé : sans ce message, il découvrirait son inscription
-  // en recevant le rappel de la veille — ou sur place. Il part à l'adresse que
-  // le service des sports a saisie pour lui quand elle existe.
-  await accuserReception(userId, creneauId, data.statut, data.rang, "service");
-
   rafraichirInscription(userId);
   return succes(
-    complet
+    res.statut === "LISTE_ATTENTE"
       ? `${agent.displayName} placé en liste d'attente (créneau complet).`
       : `${agent.displayName} inscrit à ${creneau.activite.nom}.`,
   );
 }
 
-/** Relance groupée des agents qui ne viennent plus. */
+/** Jamais plus de destinataires par relance : une liste de décrocheurs n'en a pas autant. */
+const MAX_RELANCE = 200;
+
+/**
+ * Relance groupée des agents qui ne viennent plus.
+ *
+ * Le formulaire désigne des AGENTS (`userId`), et l'adresse est relue en base
+ * (`adresseDeContact`) : une action serveur s'appelle sans passer par
+ * l'écran, et recevoir les adresses en clair en faisait un service d'envoi de
+ * courriels, au nom de la collectivité, vers n'importe qui. Le champ `email`
+ * reste accepté le temps que le formulaire change, mais seulement si
+ * l'adresse est celle d'un compte actif — sinon elle est ignorée.
+ *
+ * Cadencé (`ouvrirMessagerie`) : une relance de rentrée compte des dizaines
+ * de destinataires, et Microsoft 365 plafonne les soumissions par minute.
+ */
 export async function relancerDecrocheurs(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   const admin = await requireUser("GESTIONNAIRE");
-  const emails = formData.getAll("email").map(String).filter(Boolean);
-  if (emails.length === 0) return erreur("Aucun destinataire sélectionné.");
+  const userIds = [...new Set(formData.getAll("userId").map(String).filter(Boolean))];
+  const emails = [
+    ...new Set(formData.getAll("email").map((e) => String(e).trim().toLowerCase()).filter(Boolean)),
+  ];
+  if (userIds.length === 0 && emails.length === 0) {
+    return erreur("Aucun destinataire sélectionné.");
+  }
+  if (userIds.length + emails.length > MAX_RELANCE) {
+    return erreur(`Pas plus de ${MAX_RELANCE} destinataires par relance.`);
+  }
+
+  const comptes = await prisma.user.findMany({
+    where: {
+      active: true,
+      OR: [
+        ...(userIds.length > 0 ? [{ id: { in: userIds } }] : []),
+        ...emails.map((email) => ({ email: { equals: email, mode: "insensitive" as const } })),
+        ...emails.map((email) => ({ emailContact: { equals: email, mode: "insensitive" as const } })),
+      ],
+    },
+    select: { id: true, displayName: true, email: true, emailContact: true },
+  });
+  const destinataires = comptes
+    .map((u) => ({ nom: u.displayName, adresse: adresseDeContact(u) }))
+    .filter((d): d is { nom: string; adresse: string } => d.adresse !== null);
+  if (destinataires.length === 0) return erreur("Aucun destinataire joignable.");
 
   const g = await getGeneralSettings();
   const message = String(formData.get("message") ?? "").trim();
   let envoyes = 0;
   const echecs: string[] = [];
 
-  for (const email of emails) {
-    const res = await envoyerMail(
-      email,
-      "Vos activités sportives — on ne vous voit plus",
-      message ||
-        [
-          `Bonjour,`,
-          `Nous avons remarqué que vous n'avez pas participé à vos dernières séances. Si vos disponibilités ont changé, vous pouvez vous désinscrire depuis l'application : cela libérera votre place pour un collègue en liste d'attente.`,
-          `Et si c'est un simple contretemps, nous serons ravis de vous revoir à la prochaine séance !`,
-          g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
-        ].join("\n\n"),
-    );
-    if (res.ok) envoyes += 1;
-    else echecs.push(email);
+  const messagerie = await ouvrirMessagerie();
+  try {
+    for (const d of destinataires) {
+      const res = await messagerie.envoyer(
+        d.adresse,
+        "Vos activités sportives — on ne vous voit plus",
+        message ||
+          [
+            `Bonjour,`,
+            `Nous avons remarqué que vous n'avez pas participé à vos dernières séances. Si vos disponibilités ont changé, vous pouvez vous désinscrire depuis l'application : cela libérera votre place pour un collègue en liste d'attente.`,
+            `Et si c'est un simple contretemps, nous serons ravis de vous revoir à la prochaine séance !`,
+            g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
+          ].join("\n\n"),
+      );
+      if (res.ok) envoyes += 1;
+      else echecs.push(d.nom);
+    }
+  } finally {
+    messagerie.fermer();
   }
 
   await audit("RELANCE_DECROCHEURS", {
     userId: admin.id,
-    details: `${envoyes}/${emails.length} envoyés`,
+    details: `${envoyes}/${destinataires.length} envoyés`,
   });
 
   if (envoyes === 0) {

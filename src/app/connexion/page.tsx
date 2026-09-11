@@ -23,7 +23,7 @@ export default async function ConnexionPage() {
           />
         </div>
         <LoginForm />
-        <p className="mt-6 text-center text-xs text-slate-400">
+        <p className="mt-6 text-center text-xs text-slate-500">
           Votre mot de passe est celui de votre session Windows. L&apos;identifiant
           peut être celui de votre session ou votre adresse professionnelle.
         </p>
@@ -32,7 +32,7 @@ export default async function ConnexionPage() {
             Le renvoi n'apparaît que si ce mode est activé : sinon /acces est
             une impasse qui dirait simplement « pas activé ». */}
         {g.lienMagiqueActif && (
-          <p className="mt-2 text-center text-xs text-slate-400">
+          <p className="mt-2 text-center text-xs text-slate-500">
             Pas d&apos;identifiant Windows ?{" "}
             <Link href="/acces" className="font-medium text-brand-600 hover:underline">
               Connexion par lien e-mail

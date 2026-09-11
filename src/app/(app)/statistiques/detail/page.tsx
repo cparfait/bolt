@@ -81,7 +81,7 @@ export default async function DetailStatistiques({
           title={`Agents (${d.agents.length})`}
           className="mb-6"
           action={
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-500">
               Cliquez un nom pour ouvrir sa fiche
             </span>
           }
@@ -89,7 +89,7 @@ export default async function DetailStatistiques({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="pb-2 font-medium">Agent</th>
                   <th className="pb-2 font-medium">Service</th>
                   <th className="pb-2 text-right font-medium">Venues</th>
@@ -132,7 +132,7 @@ export default async function DetailStatistiques({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="pb-2 font-medium">Date</th>
                   <th className="pb-2 font-medium">Activité</th>
                   <th className="pb-2 font-medium">Créneau</th>
@@ -146,9 +146,9 @@ export default async function DetailStatistiques({
                   <tr key={s.id}>
                     <td className="py-2.5 whitespace-nowrap">
                       {fmtDate(s.date)}
-                      <span className="ml-2 text-xs text-slate-400">{s.statut}</span>
+                      <span className="ml-2 text-xs text-slate-500">{s.statut}</span>
                       {s.motif && (
-                        <span className="block text-xs text-slate-400">« {s.motif} »</span>
+                        <span className="block text-xs text-slate-500">« {s.motif} »</span>
                       )}
                     </td>
                     <td className="py-2.5">
@@ -181,7 +181,7 @@ export default async function DetailStatistiques({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
                   <th className="pb-2 font-medium">Agent</th>
                   <th className="pb-2 font-medium">Service</th>
                   <th className="pb-2 font-medium">Créneau</th>
@@ -196,7 +196,7 @@ export default async function DetailStatistiques({
                         {i.nom}
                       </Link>
                       {i.motif && (
-                        <span className="block text-xs text-slate-400">« {i.motif} »</span>
+                        <span className="block text-xs text-slate-500">« {i.motif} »</span>
                       )}
                     </td>
                     <td className="py-2.5 text-slate-500">{i.situation ?? "—"}</td>
@@ -222,7 +222,7 @@ export default async function DetailStatistiques({
             </table>
           </div>
           {d.noteInscriptions && (
-            <p className="mt-3 text-xs text-slate-400">{d.noteInscriptions}</p>
+            <p className="mt-3 text-xs text-slate-500">{d.noteInscriptions}</p>
           )}
         </Card>
       )}

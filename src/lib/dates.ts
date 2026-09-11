@@ -83,6 +83,25 @@ export function heureCourante(now: Date = new Date()): string {
   return FMT_HEURE_PARIS.format(now);
 }
 
+/**
+ * Heure entière qu'il est chez la collectivité (0–23), et jour de la semaine
+ * courant (0 = dimanche … 6 = samedi, comme `getDay()`), tous deux en
+ * Europe/Paris.
+ *
+ * `getHours()` et `getDay()` répondent dans le fuseau du processus : sur un
+ * conteneur resté en UTC, un avis réglé « le lundi à 9 h » partait à 11 h en
+ * été, et « minuit » y était encore dimanche. Même raison que `heureCourante`.
+ */
+export function heureEntiereCourante(now: Date = new Date()): number {
+  return Number(heureCourante(now).slice(0, 2));
+}
+
+export function jourSemaineCourant(now: Date = new Date()): number {
+  // `aujourdhui` ramène la date parisienne à minuit UTC : son jour UTC est
+  // donc le jour de la semaine chez la collectivité.
+  return aujourdhui(now).getUTCDay();
+}
+
 export function ajouterJours(d: Date, n: number): Date {
   const r = new Date(d);
   r.setUTCDate(r.getUTCDate() + n);

@@ -1,4 +1,5 @@
 import { prisma } from "./db";
+import { aujourdhui, jourUtc } from "./dates";
 
 /**
  * Saison courante, pour le BACK-OFFICE : celle marquée active, sinon la plus
@@ -115,13 +116,62 @@ export async function saisonDeTravail(saisonId?: string) {
   return saisonCourante();
 }
 
-export type EtatSaison = "active" | "preparation" | "close";
+/**
+ * Les saisons offertes au sélecteur des écrans du service, de la plus
+ * récente à la plus ancienne, avec juste ce qu'il faut pour les nommer et
+ * dire leur état.
+ */
+export async function saisonsProposees() {
+  return prisma.saison.findMany({
+    orderBy: { debut: "desc" },
+    select: { id: true, nom: true, active: true, debut: true, fin: true },
+  });
+}
+
+/**
+ * Ce qu'une saison est pour le service :
+ *  — `active` : activée, c'est elle que voient les agents ;
+ *  — `preparation` : pas encore commencée, invisible des agents ;
+ *  — `encours` : commencée mais jamais activée — le service a oublié le
+ *    bouton, ou une autre saison est restée active à sa place. Les agents ne
+ *    la voient pas non plus, mais ce n'est plus « en préparation » : des
+ *    séances ont lieu ;
+ *  — `close` : son dernier jour est passé.
+ */
+export type EtatSaison = "active" | "preparation" | "encours" | "close";
 
 /** Ce qu'une saison est pour le service, au regard de la date et du drapeau. */
 export function etatSaison(
-  s: { active: boolean; fin: Date },
-  aujourdHui: Date = new Date(),
+  s: { active: boolean; debut: Date; fin: Date },
+  // Jour calendaire, pas instant : `fin` est stockée à minuit UTC, et la
+  // comparer à `new Date()` fermait la saison dès le matin de son dernier
+  // jour — alors que la séance du soir a encore lieu.
+  aujourdHui: Date = aujourdhui(),
 ): EtatSaison {
   if (s.active) return "active";
-  return s.fin < aujourdHui ? "close" : "preparation";
+  const jour = jourUtc(aujourdHui);
+  if (jourUtc(s.fin) < jour) return "close";
+  return jourUtc(s.debut) <= jour ? "encours" : "preparation";
+}
+
+/** Libellés des états, partagés par le sélecteur et l'écran des saisons. */
+export const LIBELLES_ETAT_SAISON: Record<EtatSaison, string> = {
+  active: "en cours",
+  preparation: "en préparation",
+  encours: "en cours, non affichée aux agents",
+  close: "close",
+};
+
+/**
+ * Durée maximale d'une saison, en années. Une saison sportive dure un an ;
+ * deux ans laissent la place à une saison à cheval ou décalée, pas à une
+ * faute de frappe sur l'année qui générerait des centaines de séances.
+ */
+export const DUREE_MAX_SAISON_ANS = 2;
+
+/** Vrai si la saison dépasse la durée maximale admise. */
+export function saisonTropLongue(debut: Date, fin: Date): boolean {
+  const limite = new Date(debut);
+  limite.setUTCFullYear(limite.getUTCFullYear() + DUREE_MAX_SAISON_ANS);
+  return jourUtc(fin) > limite;
 }

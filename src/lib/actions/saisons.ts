@@ -7,8 +7,13 @@ import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { aujourdhui, jourUtc } from "@/lib/dates";
 import { genererSeancesSaison } from "@/lib/seances";
-import { notifierSeancesAnnulees } from "@/lib/notifications";
-import { reprendreCreneaux } from "@/lib/saison";
+import { notifierSeancesAnnulees, type ResultatNotification } from "@/lib/notifications";
+import {
+  DUREE_MAX_SAISON_ANS,
+  etatSaison,
+  reprendreCreneaux,
+  saisonTropLongue,
+} from "@/lib/saison";
 import { pluriel } from "@/lib/constants";
 import { erreur, succes, type ActionState } from "./types";
 
@@ -34,11 +39,25 @@ export async function enregistrerSaison(
   const debut = jourUtc(parsed.data.debut);
   const fin = jourUtc(parsed.data.fin);
   if (fin <= debut) return erreur("La fin de saison doit suivre son début.");
+  // Une année de trop dans la date de fin générait des centaines de séances
+  // sans que rien ne le signale — et la génération s'arrêtait en route.
+  if (saisonTropLongue(debut, fin)) {
+    return erreur(
+      `Une saison ne peut pas dépasser ${DUREE_MAX_SAISON_ANS} ans. Vérifiez l'année de la date de fin.`,
+    );
+  }
 
   // La reprise ne vaut qu'à la création : sur une saison existante, elle
   // dupliquerait des créneaux déjà là. Le champ n'est d'ailleurs pas proposé
   // par le formulaire de modification.
   const source = id ? "" : String(formData.get("dupliquerDe") ?? "");
+
+  // Bornes d'avant, pour savoir si la saison se raccourcit : c'est là que des
+  // séances déjà notées par les inscrits vont disparaître.
+  const avant = id
+    ? await prisma.saison.findUnique({ where: { id }, select: { debut: true, fin: true } })
+    : null;
+  if (id && !avant) return erreur("Saison introuvable.");
 
   let creee: { id: string } | null = null;
   try {
@@ -59,6 +78,50 @@ export async function enregistrerSaison(
     cible: parsed.data.nom,
   });
   revalidatePath("/parametres/saisons");
+
+  if (id && avant) {
+    // Des bornes qui bougent, c'est un calendrier qui bouge : les séances
+    // suivent, comme après l'ajout d'une période de fermeture. Sans cela, une
+    // saison prolongée n'avait aucune séance sur ses nouvelles semaines, et
+    // une saison raccourcie gardait des séances hors saison.
+    //
+    // Raccourcie, elle retire des séances que les inscrits ont notées : ils
+    // sont prévenus AVANT la suppression — après, il n'y a plus rien à lire.
+    // Même liste que ce que la génération retirera : à venir, planifiées,
+    // sans présence.
+    const retirees = await prisma.seance.findMany({
+      where: {
+        creneau: { saisonId: id, archiveAt: null },
+        statut: "PLANIFIEE",
+        presences: { none: {} },
+        date: { gte: aujourdhui() },
+        OR: [{ date: { lt: debut } }, { date: { gt: fin } }],
+      },
+      select: { id: true },
+    });
+    const prevenir = formData.get("prevenir") === "on";
+    const information =
+      prevenir && retirees.length > 0
+        ? await notifierSeancesAnnulees(
+            retirees.map((s) => s.id),
+            `Modification des dates de la saison ${parsed.data.nom}`,
+          )
+        : null;
+    const gen = await genererSeancesSaison(id);
+    revalidatePath("/seances");
+    revalidatePath("/mes-activites");
+    const bilan = [
+      gen.creees > 0 ? `${gen.creees} ${pluriel(gen.creees, "séance")} ${pluriel(gen.creees, "ajoutée")}` : null,
+      gen.supprimees > 0
+        ? `${gen.supprimees} ${pluriel(gen.supprimees, "retirée")} du calendrier`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    return succes(
+      `Saison « ${parsed.data.nom} » enregistrée${bilan ? ` — ${bilan}` : ""}.${decrirePrevenus(information)}`,
+    );
+  }
 
   if (!creee || !source) {
     return succes(`Saison « ${parsed.data.nom} » enregistrée.`);
@@ -121,6 +184,14 @@ export async function enregistrerSaison(
 /** Active une saison — une seule à la fois : c'est elle que voient les agents. */
 export async function activerSaison(id: string): Promise<void> {
   const user = await requireUser("GESTIONNAIRE");
+  const saison = await prisma.saison.findUnique({
+    where: { id },
+    select: { active: true, debut: true, fin: true },
+  });
+  // Une saison close n'a plus rien à montrer : l'activer désactiverait celle
+  // qui tourne et laisserait les agents devant un catalogue de l'an dernier.
+  // L'écran ne propose pas le bouton ; la règle tient aussi sans l'écran.
+  if (!saison || etatSaison(saison) === "close") return;
   await prisma.$transaction([
     prisma.saison.updateMany({ where: { active: true }, data: { active: false } }),
     prisma.saison.update({ where: { id }, data: { active: true } }),
@@ -154,6 +225,13 @@ export async function ajouterFermeture(
   const fin = jourUtc(parsed.data.fin);
   if (fin < debut) return erreur("La fin de la période doit suivre son début.");
 
+  // La période d'abord : tant qu'elle n'est pas écrite, rien n'est décidé, et
+  // prévenir des inscrits d'une fermeture que la base refuserait ensuite
+  // enverrait un courriel pour rien.
+  await prisma.fermeture.create({
+    data: { saisonId: parsed.data.saisonId, libelle: parsed.data.libelle, debut, fin },
+  });
+
   // Les séances que la période va retirer, AVANT de les retirer : une
   // fermeture ajoutée en cours de saison — piscine en vidange, scrutin —
   // efface des séances que les inscrits ont notées, et pour lesquelles un
@@ -178,10 +256,6 @@ export async function ajouterFermeture(
         )
       : null;
 
-  await prisma.fermeture.create({
-    data: { saisonId: parsed.data.saisonId, libelle: parsed.data.libelle, debut, fin },
-  });
-
   // Les séances tombant dans la période sont retirées du calendrier — sauf
   // celles déjà émargées, que la génération préserve.
   const gen = await genererSeancesSaison(parsed.data.saisonId);
@@ -194,20 +268,24 @@ export async function ajouterFermeture(
   revalidatePath("/parametres/saisons");
   revalidatePath("/seances");
   revalidatePath("/mes-activites");
-  const prevenus = information
-    ? information.envoyes > 0
-      ? ` ${information.envoyes} inscrit${information.envoyes > 1 ? "s" : ""} prévenu${information.envoyes > 1 ? "s" : ""} par courriel.`
-      : information.destinataires > 0
-        ? " Aucun inscrit n'a pu être prévenu — vérifiez la messagerie."
-        : ""
-    : "";
   return succes(
-    `Période ajoutée — ${gen.supprimees} séance${gen.supprimees > 1 ? "s" : ""} retirée${gen.supprimees > 1 ? "s" : ""} du calendrier.${prevenus}`,
+    `Période ajoutée — ${gen.supprimees} séance${gen.supprimees > 1 ? "s" : ""} retirée${gen.supprimees > 1 ? "s" : ""} du calendrier.${decrirePrevenus(information)}`,
   );
 }
 
 function max(a: Date, b: Date): Date {
   return a > b ? a : b;
+}
+
+/** Fragment du compte rendu sur les inscrits prévenus, ou chaîne vide. */
+function decrirePrevenus(information: ResultatNotification | null): string {
+  if (!information) return "";
+  if (information.envoyes > 0) {
+    return ` ${information.envoyes} inscrit${information.envoyes > 1 ? "s" : ""} prévenu${information.envoyes > 1 ? "s" : ""} par courriel.`;
+  }
+  return information.destinataires > 0
+    ? " Aucun inscrit n'a pu être prévenu — vérifiez la messagerie."
+    : "";
 }
 
 export async function supprimerFermeture(id: string): Promise<void> {

@@ -109,14 +109,36 @@ export async function envoyerLienConnexion(
       where: { email: { equals: email, mode: "insensitive" }, enabled: true },
     });
     if (!ad) {
-      await audit("LIEN_MAGIQUE_INCONNU", { cible: email });
+      // Tronquée : cette adresse vient d'un formulaire publié sur Internet, et
+      // le journal n'a pas à stocker ce qu'on y a collé.
+      await audit("LIEN_MAGIQUE_INCONNU", { cible: email.slice(0, 254) });
       return;
     }
+    const login = ad.samAccountName.toLowerCase();
+
+    // Un compte désactivé à la main — fiche agent, Paramètres — reste
+    // désactivé. La recherche ci-dessus ne trouve que les comptes actifs, donc
+    // arriver ici avec un compte existant veut dire qu'il a été fermé : le
+    // recréer par l'annuaire rouvrirait l'accès que quelqu'un vient de retirer,
+    // sans que personne ne l'ait décidé. Réponse indifférenciée pour
+    // l'appelant, mais une ligne au journal — c'est là qu'on cherchera quand
+    // l'agent dira qu'il ne reçoit rien.
+    const existant = await prisma.user.findUnique({ where: { login } });
+    if (existant && !existant.active) {
+      await audit("LIEN_MAGIQUE_REFUS_INACTIF", {
+        userId: existant.id,
+        cible: email.slice(0, 254),
+      });
+      return;
+    }
+
+    // `update` ne touche jamais à `active` : ce champ n'appartient qu'au
+    // service des sports.
     user = await prisma.user.upsert({
-      where: { login: ad.samAccountName.toLowerCase() },
-      update: { email: ad.email, active: true },
+      where: { login },
+      update: { email: ad.email },
       create: {
-        login: ad.samAccountName.toLowerCase(),
+        login,
         displayName: ad.displayName ?? ad.samAccountName,
         email: ad.email,
         direction: ad.direction,

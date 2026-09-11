@@ -106,7 +106,7 @@ export default async function FeuillePage({
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <span className="flex items-center gap-2 text-sm font-semibold text-slate-400">
+          <span className="flex items-center gap-2 text-sm font-semibold text-slate-500">
             <Dumbbell className="h-4 w-4" /> {appName}
           </span>
         </div>
@@ -182,7 +182,7 @@ export default async function FeuillePage({
               <p className="text-sm font-medium text-slate-600">
                 Aucun inscrit sur ce créneau
               </p>
-              <p className="mt-1 text-sm text-slate-400">
+              <p className="mt-1 text-sm text-slate-500">
                 {!verrouillee && !avantPointage
                   ? "Quelqu'un est venu quand même ? Ajoutez-le ci-dessus : il sera pointé présent."
                   : "Le service des sports doit d'abord valider des inscriptions."}
@@ -194,7 +194,7 @@ export default async function FeuillePage({
              lieu n'aurait aucun sens, et la feuille interactive afficherait une
              barre « Terminer » sans destination. */
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
               {lignes.length} inscrit{lignes.length > 1 ? "s" : ""}
             </p>
             <ul className="divide-y divide-slate-100">
@@ -202,7 +202,7 @@ export default async function FeuillePage({
                 <li key={l.userId} className="py-2.5">
                   <p className="font-medium leading-tight">{l.nom}</p>
                   {(l.service || l.direction) && (
-                    <p className="truncate text-xs text-slate-400">
+                    <p className="truncate text-xs text-slate-500">
                       {l.service ?? l.direction}
                     </p>
                   )}
@@ -215,7 +215,7 @@ export default async function FeuillePage({
                 </li>
               ))}
             </ul>
-            <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
+            <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
               Le pointage s&apos;ouvrira la veille de la séance.
             </p>
           </div>

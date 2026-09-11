@@ -6,12 +6,7 @@ import { requireUser } from "@/lib/session";
 import { saisonCourante } from "@/lib/saison";
 import { aujourdhui, fmtDate, fmtDateLongue, fmtHorodatage, JOUR_LABELS } from "@/lib/dates";
 import { effectifsParActivite } from "@/lib/inscriptions";
-import {
-  adresseDeContact,
-  estCreeALaMain,
-  estHorsAnnuaire,
-  mentionCompte,
-} from "@/lib/comptes";
+import { adresseDeContact, estCreeALaMain, estHorsAnnuaire } from "@/lib/comptes";
 import { Badge, Card, EmptyState, PageHeader, Stat } from "@/components/ui";
 import {
   EmailAgentForm,
@@ -203,9 +198,12 @@ export default async function FicheAgent({
         <ArrowLeft className="h-4 w-4" /> Retour à la recherche
       </Link>
 
+      {/* La provenance d'un participant hors annuaire est dite par le badge
+          juste à côté : son identifiant technique n'a rien à faire dans le
+          sous-titre, et y écrire « hors annuaire » le répéterait. */}
       <PageHeader
         title={agent.displayName}
-        subtitle={[mentionCompte(agent.login), agent.service, agent.direction]
+        subtitle={[horsAnnuaire ? null : agent.login, agent.service, agent.direction]
           .filter(Boolean)
           .join(" · ")}
       >
@@ -280,7 +278,7 @@ export default async function FicheAgent({
               <li key={a.id} className="flex items-start justify-between gap-3 py-2.5">
                 <div className="min-w-0">
                   <p className="font-medium">{a.seance.creneau.activite.nom}</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     <span className="first-letter:uppercase">
                       {fmtDateLongue(a.seance.date)}
                     </span>{" "}
@@ -305,7 +303,7 @@ export default async function FicheAgent({
                 <li key={i.id} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="min-w-0">
                     <p className="font-medium">{i.creneau.activite.nom}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-500">
                       {JOUR_LABELS[i.creneau.jour]} {i.creneau.heureDebut}–
                       {i.creneau.heureFin}
                       {i.motif ? ` · ${i.motif}` : ""}
@@ -331,7 +329,7 @@ export default async function FicheAgent({
           title="Historique de présence"
           action={
             pointages > presences.length ? (
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-500">
                 {presences.length} derniers sur {pointages}
               </span>
             ) : null
@@ -345,7 +343,7 @@ export default async function FicheAgent({
                 <li key={p.id} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="min-w-0">
                     <p className="font-medium">{p.seance.creneau.activite.nom}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-500">
                       {fmtDate(p.seance.date)}
                       {p.saisiAt ? ` · pointé le ${fmtHorodatage(p.saisiAt)}` : ""}
                     </p>
@@ -367,7 +365,7 @@ export default async function FicheAgent({
         title="Journal du compte"
         className="mt-6"
         action={
-          <span className="flex items-center gap-1.5 text-xs text-slate-400">
+          <span className="flex items-center gap-1.5 text-xs text-slate-500">
             <History className="h-3.5 w-3.5" />
             {/* « les N derniers » n'a de sens que si la liste est tronquée :
                 trois lignes affichées sur trois, ce sont les trois, pas les
@@ -387,18 +385,18 @@ export default async function FicheAgent({
           <ul className="divide-y divide-slate-100 text-sm">
             {journal.map((l) => (
               <li key={l.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2">
-                <span className="w-32 shrink-0 tabular-nums text-xs text-slate-400">
+                <span className="w-32 shrink-0 tabular-nums text-xs text-slate-500">
                   {fmtHorodatage(l.quand)}
                 </span>
                 <span className="font-medium">{l.libelle}</span>
                 {l.cible && <span className="text-slate-500">{l.cible}</span>}
                 {l.details && (
-                  <span className="text-xs text-slate-400">{l.details}</span>
+                  <span className="text-xs text-slate-500">{l.details}</span>
                 )}
                 {/* Nul quand c'est l'agent lui-même : le répéter à chaque ligne
                     noierait les rares où quelqu'un d'autre est intervenu. */}
                 {l.acteur && (
-                  <span className="text-xs text-slate-400">par {l.acteur}</span>
+                  <span className="text-xs text-slate-500">par {l.acteur}</span>
                 )}
               </li>
             ))}

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowLeft, Info } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { estGestionnaire, requireUser } from "@/lib/session";
-import { saisonCourante } from "@/lib/saison";
+import { saisonDeTravail, saisonsProposees } from "@/lib/saison";
+import { AvertissementPreparation, SelecteurSaison } from "@/components/selecteur-saison";
 import { ajouterJours, aujourdhui, fmtJourCourt, isoDate, jourUtc } from "@/lib/dates";
 import { Card, EmptyState, PageHeader, Select, Input } from "@/components/ui";
 import { FiltreForm } from "@/components/filtre-form";
@@ -23,11 +24,19 @@ import { AnnulationGroupee } from "@/components/annulation-groupee";
 export default async function AnnulerSeancesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ activite?: string; creneau?: string; du?: string; au?: string }>;
+  searchParams: Promise<{
+    activite?: string;
+    creneau?: string;
+    du?: string;
+    au?: string;
+    saison?: string;
+  }>;
 }) {
   const user = await requireUser("GESTIONNAIRE", "COACH");
-  const { activite, creneau, du, au } = await searchParams;
-  const saison = await saisonCourante();
+  const { activite, creneau, du, au, saison: saisonParam } = await searchParams;
+  // La saison choisie dans l'adresse, sinon la courante (voir le planning).
+  const saison = await saisonDeTravail(saisonParam);
+  const saisons = estGestionnaire(user) ? await saisonsProposees() : [];
 
   if (!saison) {
     return (
@@ -106,7 +115,7 @@ export default async function AnnulerSeancesPage({
   return (
     <>
       <Link
-        href="/seances"
+        href={saisonParam ? `/seances?saison=${saisonParam}` : "/seances"}
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800"
       >
         <ArrowLeft className="h-4 w-4" /> Retour au planning
@@ -114,11 +123,22 @@ export default async function AnnulerSeancesPage({
 
       <PageHeader
         title="Annuler des séances"
-        subtitle="Prévenir à l'avance que des séances n'auront pas lieu"
-      />
+        subtitle={`Saison ${saison.nom} — prévenir à l'avance que des séances n'auront pas lieu`}
+      >
+        {saisons.length > 0 && (
+          <SelecteurSaison
+            saisons={saisons}
+            selection={saison.id}
+            base="/seances/annuler"
+            params={{ activite, creneau, du, au }}
+          />
+        )}
+      </PageHeader>
+      {estGestionnaire(user) && <AvertissementPreparation saison={saison} />}
 
       <Card title="Séances concernées" className="mb-6">
         <FiltreForm className="mb-4 flex flex-wrap items-end gap-3">
+          {saisonParam && <input type="hidden" name="saison" value={saisonParam} />}
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-700">Activité</span>
             <Select name="activite" defaultValue={activite ?? ""} className="w-auto">

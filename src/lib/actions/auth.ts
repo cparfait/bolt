@@ -120,7 +120,10 @@ export async function demanderLienAction(
   _prev: AccesState,
   formData: FormData,
 ): Promise<AccesState> {
-  const email = String(formData.get("email") ?? "").trim();
+  // Tronquée à la longueur maximale d'une adresse (RFC 5321) : elle finit au
+  // journal, et ce formulaire est publié sur Internet — ce qu'on y colle n'a
+  // pas à y rester en entier pendant un an.
+  const email = String(formData.get("email") ?? "").trim().slice(0, 254);
   if (!email.includes("@")) return { error: "Adresse e-mail invalide." };
 
   const g = await getGeneralSettings();
@@ -220,6 +223,14 @@ export async function demanderLienAction(
 export async function activerLienAction(formData: FormData): Promise<void> {
   const token = String(formData.get("token") ?? "");
   const ip = clientIp(await headers());
+
+  // Même garde que `demanderLienAction` : tant que l'espace agent n'est pas
+  // publié, un lien ne s'active pas depuis Internet. Le filtrage de chemins du
+  // proxy ne protège pas une action serveur, appelable depuis n'importe quel
+  // chemin publié. Le jeton n'est pas consommé — il servira depuis le réseau.
+  if (process.env.PUBLIC_AGENT_ACCESS !== "1" && !estInterne(ip)) {
+    redirect("/acces?erreur=lien");
+  }
 
   const user = await consommerLien(token, { externe: !estInterne(ip) });
   if (!user) redirect("/acces?erreur=lien");

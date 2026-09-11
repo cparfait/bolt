@@ -115,7 +115,7 @@ export function LienForm({
       </div>
 
       {!avecEmail && (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-500">
           Cet animateur n&apos;a pas d&apos;adresse e-mail : le lien devra être
           transmis par un autre moyen.
         </p>

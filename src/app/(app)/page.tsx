@@ -256,7 +256,7 @@ export default async function TableauDeBord({
                     <Link href={`/seances/${s.id}`} className="font-medium hover:text-brand-600">
                       {s.creneau.activite.nom}
                     </Link>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-500">
                       {fmtDateLongue(s.date)} · {s.creneau.heureDebut}–{s.creneau.heureFin}
                     </p>
                   </div>
@@ -383,7 +383,7 @@ export default async function TableauDeBord({
         <Stat
           label="Inscriptions à traiter"
           value={aTraiter}
-          accent={aTraiter > 0 ? "text-amber-600 bg-amber-50" : "text-slate-400 bg-slate-50"}
+          accent={aTraiter > 0 ? "text-amber-600 bg-amber-50" : "text-slate-500 bg-slate-50"}
           icon={<ClipboardCheck className="h-4 w-4" />}
           href="/inscriptions"
           hint={
@@ -400,7 +400,7 @@ export default async function TableauDeBord({
         <Stat
           label="Feuilles non transmises"
           value={aEmarger}
-          accent={aEmarger > 0 ? "text-red-600 bg-red-50" : "text-slate-400 bg-slate-50"}
+          accent={aEmarger > 0 ? "text-red-600 bg-red-50" : "text-slate-500 bg-slate-50"}
           icon={<AlertTriangle className="h-4 w-4" />}
           hint={`${JOURS_FEUILLES_MANQUANTES} derniers jours`}
           href="/seances?periode=manquantes"
@@ -494,7 +494,7 @@ export default async function TableauDeBord({
           title="Séances"
           className="lg:col-span-2"
           action={
-            <Link href="/seances" className="text-xs text-slate-400 hover:text-slate-600">
+            <Link href="/seances" className="text-xs text-slate-500 hover:text-slate-600">
               Tout le planning
             </Link>
           }
@@ -513,7 +513,7 @@ export default async function TableauDeBord({
               >
                 {VUES[o.vue].label}
                 <span
-                  className={`ml-1.5 tabular-nums ${vue === o.vue ? "text-brand-100" : "text-slate-400"}`}
+                  className={`ml-1.5 tabular-nums ${vue === o.vue ? "text-brand-100" : "text-slate-500"}`}
                 >
                   {o.nombre}
                 </span>
@@ -538,7 +538,7 @@ export default async function TableauDeBord({
                       />
                       {s.creneau.activite.nom}
                     </Link>
-                    <p className="truncate text-xs text-slate-400">
+                    <p className="truncate text-xs text-slate-500">
                       {vue !== "jour" && `${fmtJourCourt(s.date)} · `}
                       {s.creneau.heureDebut}–{s.creneau.heureFin}
                       {s.creneau.lieu ? ` · ${s.creneau.lieu}` : ""}
@@ -560,7 +560,7 @@ export default async function TableauDeBord({
 
         <Card title="Fréquentation par activité">
           {activites.length === 0 ? (
-            <p className="text-sm text-slate-400">Aucune séance émargée pour l&apos;instant.</p>
+            <p className="text-sm text-slate-500">Aucune séance émargée pour l&apos;instant.</p>
           ) : (
             <ul className="space-y-3.5">
               {activites.map((a) => (
@@ -568,11 +568,11 @@ export default async function TableauDeBord({
                   <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
                     <span className="font-medium">{a.nom}</span>
                     <span className="tabular-nums text-slate-500">
-                      {a.moyenne} <span className="text-xs text-slate-400">/séance</span>
+                      {a.moyenne} <span className="text-xs text-slate-500">/séance</span>
                     </span>
                   </div>
                   <Jauge valeur={a.tauxRemplissage} couleur={a.couleur} />
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-slate-500">
                     {a.inscrits} inscrits · {a.tauxRemplissage}% de remplissage
                   </p>
                 </li>

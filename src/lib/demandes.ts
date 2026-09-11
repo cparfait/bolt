@@ -1,8 +1,9 @@
 import { prisma } from "./db";
 import { FREQUENCES_AVIS, type FrequenceAvis } from "./frequences";
 import { getGeneralSettings, getSetting, setSetting, urlEspaceAgent } from "./settings";
-import { creerParticipantHorsAnnuaire } from "./comptes";
+import { adresseDeContact, creerParticipantHorsAnnuaire } from "./comptes";
 import { nomPourSalutation } from "./constants";
+import { aujourdhui, heureEntiereCourante, isoDate, jourSemaineCourant } from "./dates";
 import { envoyerMail } from "./mail";
 import { audit } from "./audit";
 
@@ -44,6 +45,11 @@ export async function deposerDemande(donnees: {
   // Adresse déjà connue : la personne a déjà un accès, elle doit passer par
   // /acces. On ne le lui dit pas — on ne crée simplement pas de demande, que le
   // service des sports aurait à traiter pour rien.
+  //
+  // Seuls les comptes ACTIFS ferment la porte. Un ancien agent dont le compte
+  // a été désactivé n'a plus d'accès, et le lien de connexion lui est refusé :
+  // sa demande doit parvenir au service, qui réactivera le compte existant à
+  // la validation (`validerDemande`) plutôt que d'en créer un second.
   const connu = await prisma.user.findFirst({
     where: {
       active: true,
@@ -111,13 +117,16 @@ export function creneauEchu(
   frequence: FrequenceAvis,
 ): string | null {
   const { heures, jour } = FREQUENCES_AVIS[frequence];
-  if (jour !== null && maintenant.getDay() !== jour) return null;
+  // Heure et jour de la collectivité, pas ceux du processus : un conteneur
+  // resté en UTC décalait tous les créneaux d'une ou deux heures (src/lib/dates.ts).
+  if (jour !== null && jourSemaineCourant(maintenant) !== jour) return null;
 
-  const passees = heures.filter((h) => maintenant.getHours() >= h);
+  const heure = heureEntiereCourante(maintenant);
+  const passees = heures.filter((h) => heure >= h);
   if (passees.length === 0) return null;
 
   const h = passees[passees.length - 1];
-  const jourIso = `${maintenant.getFullYear()}-${String(maintenant.getMonth() + 1).padStart(2, "0")}-${String(maintenant.getDate()).padStart(2, "0")}`;
+  const jourIso = isoDate(aujourdhui(maintenant));
   return `${jourIso}#${String(h).padStart(2, "0")}`;
 }
 
@@ -194,30 +203,67 @@ export async function validerDemande(
 
   // La personne a pu obtenir un compte entre-temps — un vrai compte AD, ou une
   // création à la main par le service. On ne fabrique pas de doublon.
+  //
+  // Actif ou non : un ancien agent, désactivé à son départ, revient parfois
+  // — vacataire d'un été à l'autre, retraité invité. Ne chercher que les
+  // comptes actifs lui fabriquait un second compte « no_ad. », et sa
+  // fréquentation passée restait sur le premier. On réactive l'ancien.
   const existant = await prisma.user.findFirst({
     where: {
-      active: true,
       OR: [
         { email: { equals: demande.email, mode: "insensitive" } },
         { emailContact: { equals: demande.email, mode: "insensitive" } },
       ],
     },
-    select: { id: true, displayName: true },
+    select: { id: true, displayName: true, active: true, email: true, login: true },
   });
-  if (existant) {
-    await prisma.demandeAcces.update({
-      where: { id: demandeId },
-      data: {
-        statut: "VALIDEE",
-        decidePar: gestionnaire.displayName,
-        decideAt: new Date(),
-        userId: existant.id,
-        motif: "Compte déjà existant",
-      },
-    });
+
+  // La demande est prise AVANT que le compte n'existe, et par une écriture
+  // conditionnelle : deux gestionnaires qui validaient la même fiche au même
+  // instant passaient tous deux le contrôle de statut lu plus haut, et la
+  // personne se retrouvait avec deux comptes. Ici, un seul des deux voit
+  // `count === 1` ; l'autre apprend que la demande est déjà traitée.
+  const prise = await prisma.demandeAcces.updateMany({
+    where: { id: demandeId, statut: "EN_ATTENTE" },
+    data: {
+      statut: "VALIDEE",
+      decidePar: gestionnaire.displayName,
+      decideAt: new Date(),
+      userId: existant?.id ?? null,
+      motif: existant ? (existant.active ? "Compte déjà existant" : "Compte réactivé") : null,
+    },
+  });
+  if (prise.count !== 1) {
+    return { ok: false, message: "Cette demande a déjà été traitée." };
+  }
+
+  if (existant?.active) {
     return {
       ok: true,
       message: `${existant.displayName} avait déjà un compte : la demande est classée, aucun doublon créé.`,
+    };
+  }
+
+  if (existant) {
+    // Compte désactivé : on le rouvre. L'adresse de la demande devient
+    // l'adresse de contact quand elle diffère de celle du compte — un ancien
+    // agent AD n'a plus sa boîte professionnelle, et c'est sur celle qu'il
+    // vient de saisir qu'il attend le lien de connexion.
+    const memeAdresse = existant.email?.toLowerCase() === demande.email.toLowerCase();
+    await prisma.user.update({
+      where: { id: existant.id },
+      data: { active: true, ...(memeAdresse ? {} : { emailContact: demande.email }) },
+    });
+    await audit("DEMANDE_ACCES_VALIDEE", {
+      userId: gestionnaire.id,
+      cibleId: existant.id,
+      cible: demande.nom,
+      details: `${existant.login} — compte réactivé`,
+    });
+    await annoncerAcces(existant.id);
+    return {
+      ok: true,
+      message: `${existant.displayName} avait un compte désactivé : il est réactivé, aucun doublon créé.`,
     };
   }
 
@@ -229,12 +275,7 @@ export async function validerDemande(
 
   await prisma.demandeAcces.update({
     where: { id: demandeId },
-    data: {
-      statut: "VALIDEE",
-      decidePar: gestionnaire.displayName,
-      decideAt: new Date(),
-      userId: user.id,
-    },
+    data: { userId: user.id },
   });
 
   await audit("DEMANDE_ACCES_VALIDEE", {
@@ -257,12 +298,15 @@ export async function validerDemande(
  */
 async function annoncerAcces(userId: string): Promise<void> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user?.email) return;
+  // L'adresse de contact d'abord : un compte réactivé est joint sur celle que
+  // la personne vient de saisir, pas sur une boîte d'annuaire fermée.
+  const adresse = user ? adresseDeContact(user) : null;
+  if (!user || !adresse) return;
   const g = await getGeneralSettings();
   const base = urlEspaceAgent(g);
 
   const envoi = await envoyerMail(
-    user.email,
+    adresse,
     `Votre accès à ${g.appName} est ouvert`,
     [
       `Bonjour ${nomPourSalutation(user.displayName)},`,

@@ -19,7 +19,7 @@ export function HistogrammeMensuel({
   lien?: (p: PointMois) => string;
 }) {
   if (points.length === 0) {
-    return <p className="text-sm text-slate-400">Pas encore de séance émargée.</p>;
+    return <p className="text-sm text-slate-500">Pas encore de séance émargée.</p>;
   }
 
   const max = Math.max(...points.map((p) => p.presents), 1);
@@ -68,7 +68,7 @@ export function HistogrammeMensuel({
         {points.map((p) => (
           <div
             key={p.cle}
-            className="flex-1 truncate text-center text-[11px] text-slate-400"
+            className="flex-1 truncate text-center text-[11px] text-slate-500"
             style={{ minWidth: `${Math.min(largeurBarre, 12)}%` }}
           >
             {p.court}

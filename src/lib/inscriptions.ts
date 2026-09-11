@@ -516,13 +516,17 @@ export async function demanderInscription(
     };
   }
 
-  return verrouCapacite(creneauId, async () => {
+  // Le verrou ne couvre que la décision et l'écriture. L'accusé de réception
+  // part APRÈS : un envoi SMTP dure parfois plusieurs secondes, et tant qu'il
+  // durait, tout le créneau — ou toute l'activité mutualisée — restait bloqué
+  // pour les autres demandes et les promotions.
+  const decision = await verrouCapacite(creneauId, async () => {
     const existante = await prisma.inscription.findUnique({
       where: { creneauId_userId: { creneauId, userId } },
     });
     if (existante && !["DESISTEE", "REFUSEE"].includes(existante.statut)) {
       return {
-        ok: false,
+        ok: false as const,
         message: "Vous avez déjà une demande sur ce créneau.",
       };
     }
@@ -537,7 +541,7 @@ export async function demanderInscription(
       await engagementsDeLaSaison(userId, creneau.saisonId, existante?.id),
       complet,
     );
-    if (refus) return { ok: false, message: refus };
+    if (refus) return { ok: false as const, message: refus };
 
     let statut: InscriptionStatut;
     if (complet) statut = "LISTE_ATTENTE";
@@ -553,7 +557,16 @@ export async function demanderInscription(
       demandeAt: new Date(),
       decisionAt: statut === "VALIDEE" ? new Date() : null,
       decidePar: statut === "VALIDEE" ? "automatique" : null,
-      motif: null,
+      // Une redemande après un refus repart de zéro pour l'agent, mais pas
+      // pour le service : sans trace, le gestionnaire qui arbitre la nouvelle
+      // demande ne voit pas qu'il a déjà dit non, ni pourquoi — et l'agent
+      // pouvait redemander jusqu'à tomber sur un collègue moins informé. Le
+      // motif précédent reste donc lisible sur la fiche, jusqu'à la décision
+      // suivante qui l'écrase.
+      motif:
+        existante?.statut === "REFUSEE" && existante.motif
+          ? `Précédemment refusée : ${existante.motif}`
+          : null,
       // Nouvelle demande sur une inscription désistée ou refusée : c'est un cycle
       // qui recommence, la promotion du précédent ne le concerne pas.
       promuAt: null,
@@ -582,17 +595,20 @@ export async function demanderInscription(
       details: statut,
     });
 
-    await accuserReception(userId, creneauId, statut, rang, "agent");
-
-    const messages: Record<InscriptionStatut, string> = {
-      VALIDEE: `Inscription confirmée pour ${creneau.activite.nom}.`,
-      EN_ATTENTE: `Demande envoyée au service des sports pour ${creneau.activite.nom}.`,
-      LISTE_ATTENTE: `Créneau complet : vous êtes en liste d'attente (position ${rang}).`,
-      REFUSEE: "",
-      DESISTEE: "",
-    };
-    return { ok: true, message: messages[statut] };
+    return { ok: true as const, statut, rang };
   });
+  if (!decision.ok) return decision;
+
+  await accuserReception(userId, creneauId, decision.statut, decision.rang, "agent");
+
+  const messages: Record<InscriptionStatut, string> = {
+    VALIDEE: `Inscription confirmée pour ${creneau.activite.nom}.`,
+    EN_ATTENTE: `Demande envoyée au service des sports pour ${creneau.activite.nom}.`,
+    LISTE_ATTENTE: `Créneau complet : vous êtes en liste d'attente (position ${decision.rang}).`,
+    REFUSEE: "",
+    DESISTEE: "",
+  };
+  return { ok: true, message: messages[decision.statut] };
 }
 
 export type InscriptionDirecte =
@@ -607,6 +623,14 @@ export type InscriptionDirecte =
  * est validée d'emblée (ou mise en file si le créneau est plein). Nul = c'est
  * un animateur qui signale : il n'arbitre pas, la demande part en attente et
  * apparaît sur le tableau de bord du service des sports.
+ *
+ * Une demande EN_ATTENTE de l'agent n'arrête pas le service : l'inscrire
+ * depuis sa fiche, c'est arbitrer cette demande — elle passe validée (ou en
+ * file), comme depuis le tableau de bord. Un animateur, lui, n'y touche pas.
+ *
+ * Contrôle de la place et écriture sous le verrou de capacité, comme toute
+ * attribution de place (`verrouCapacite`) ; l'accusé de réception part après
+ * l'avoir rendu, pour ne pas bloquer le groupe le temps d'un envoi SMTP.
  */
 export async function inscrireDirectement(
   creneauId: string,
@@ -614,14 +638,14 @@ export async function inscrireDirectement(
   decidePar: string | null,
   commentaire?: string,
 ): Promise<InscriptionDirecte> {
-  return verrouCapacite(creneauId, async () => {
+  const res = await verrouCapacite(creneauId, async (): Promise<InscriptionDirecte> => {
     const existante = await prisma.inscription.findUnique({
       where: { creneauId_userId: { creneauId, userId } },
     });
-    if (
-      existante &&
-      ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"].includes(existante.statut)
-    ) {
+    const intouchables = decidePar
+      ? ["VALIDEE", "LISTE_ATTENTE"]
+      : ["VALIDEE", "EN_ATTENTE", "LISTE_ATTENTE"];
+    if (existante && intouchables.includes(existante.statut)) {
       return { deja: true };
     }
 
@@ -651,15 +675,17 @@ export async function inscrireDirectement(
       await prisma.inscription.create({ data: { creneauId, userId, ...data } });
     }
 
-    // Prévenir l'agent, mais seulement quand la décision est prise : `decidePar`
-    // nul, c'est un animateur qui signale une venue, la demande part en attente
-    // et c'est l'arbitrage du service qui écrira. Sans cette réserve, l'agent
-    // recevrait deux courriels pour une inscription qu'il n'a pas demandée.
-    if (decidePar)
-      await accuserReception(userId, creneauId, statut, rang, "service");
-
     return { deja: false, statut, rang };
   });
+
+  // Prévenir l'agent, mais seulement quand la décision est prise : `decidePar`
+  // nul, c'est un animateur qui signale une venue, la demande part en attente
+  // et c'est l'arbitrage du service qui écrira. Sans cette réserve, l'agent
+  // recevrait deux courriels pour une inscription qu'il n'a pas demandée.
+  if (!res.deja && decidePar) {
+    await accuserReception(userId, creneauId, res.statut, res.rang, "service");
+  }
+  return res;
 }
 
 /**
@@ -671,6 +697,16 @@ export async function inscrireDirectement(
  * agent qui quitte un créneau mais garde l'autre ne libère aucune place — sa
  * place étant comptée une seule fois, l'effectif ne bouge pas et personne n'est
  * promu à tort.
+ *
+ * LA FILE EST GELÉE TANT QUE LE CRÉNEAU EST FERMÉ AUX INSCRIPTIONS. Fermer un
+ * créneau, c'est dire « plus personne n'y entre pour l'instant » — animateur
+ * à confirmer, salle incertaine, effectif à arbitrer. Un désistement libère
+ * bien la place, mais elle attend : c'est la réouverture (`basculerInscriptions`,
+ * src/lib/actions/activites.ts) qui promeut, en une fois, tout ce que la file
+ * peut prendre. Sans ce gel, le service fermait un créneau pour le stabiliser
+ * et voyait la file continuer d'y entrer par les désistements. En capacité
+ * mutualisée, la règle se lit créneau par créneau : la file commune ne sert
+ * que les créneaux ouverts.
  */
 export async function promouvoirListeAttente(
   creneauId: string,
@@ -691,6 +727,7 @@ export async function promouvoirListeAttente(
       where: {
         creneauId: { in: p.creneauIds },
         statut: "LISTE_ATTENTE",
+        creneau: { ouvertInscription: true }, // file gelée sur un créneau fermé
         ...(sauf ? { NOT: { id: sauf } } : {}),
       },
       orderBy: [{ rang: "asc" }, { demandeAt: "asc" }],
@@ -698,17 +735,20 @@ export async function promouvoirListeAttente(
     });
     if (!suivant) return null;
 
+    // Horodaté pour survivre à ce qui suit : un désistement réécrirait
+    // `decidePar` et effacerait le fait qu'une place a été prise à la file
+    // pour rien (voir `promuAt`, prisma/schema.prisma). C'est aussi ce que
+    // signe le lien « je ne veux plus cette place » (src/lib/liens-courriel.ts) :
+    // l'inscription renvoyée porte cette valeur, pas celle d'avant.
+    const promuAt = new Date();
     await prisma.inscription.update({
       where: { id: suivant.id },
       data: {
         statut: "VALIDEE",
         rang: null,
-        decisionAt: new Date(),
+        decisionAt: promuAt,
         decidePar: "liste d'attente",
-        // Horodaté pour survivre à ce qui suit : un désistement réécrirait
-        // `decidePar` et effacerait le fait qu'une place a été prise à la file
-        // pour rien (voir `promuAt`, prisma/schema.prisma).
-        promuAt: new Date(),
+        promuAt,
       },
     });
 
@@ -739,7 +779,7 @@ export async function promouvoirListeAttente(
       cible: suivant.creneau.activite.nom,
       details: "depuis la liste d'attente",
     });
-    return suivant;
+    return { ...suivant, statut: "VALIDEE" as const, rang: null, promuAt };
   });
 }
 
@@ -780,7 +820,7 @@ export async function promouvoirEtPrevenir(
         // et le service ne l'apprenait qu'au bout de trois absences.
         `Si elle ne vous convient plus, rendez-la : elle repartira aussitôt à la personne suivante sur la liste d'attente.`,
         base
-          ? `[Je ne veux plus cette place](${lienPlace(promu.id, base)})`
+          ? `[Je ne veux plus cette place](${lienPlace(promu, base)})`
           : null,
         g.contactEmail
           ? `Le service des sports — ${g.contactEmail}`
@@ -796,19 +836,30 @@ export async function promouvoirEtPrevenir(
 /**
  * Promeut tant qu'il reste une place ET quelqu'un pour la prendre.
  *
- * Une place libérée n'en promeut qu'une, et c'est juste. Mais une capacité qui
- * passe de dix à treize en libère trois d'un coup, et une réouverture des
+ * Une place libérée n'en promeut qu'une, presque toujours. Mais une capacité
+ * qui passe de dix à treize en libère trois d'un coup, et une réouverture des
  * inscriptions peut en trouver plusieurs : promouvoir une seule personne
  * laissait des places vides sous les yeux du service pendant que la file
  * attendait toujours. Renvoie les fragments de message des promotions.
+ *
+ * Même un simple désistement doit passer par ici. En capacité mutualisée, le
+ * premier de la file détient parfois déjà une place du groupe — replacé en
+ * attente sur un créneau alors qu'il en garde un autre — et sa promotion ne
+ * consomme rien : la place libérée est toujours là, pour le suivant, qu'une
+ * promotion unique laissait attendre.
+ *
+ * `sauf` : inscription à ne jamais promouvoir, celle qu'on vient de
+ * rétrograder (voir `promouvoirListeAttente`) — exclue à chaque tour, pas
+ * seulement au premier.
  */
 export async function promouvoirTantQuePossible(
   creneauId: string,
+  sauf?: string,
 ): Promise<string> {
   const messages: string[] = [];
   // Borne de sécurité : la file est finie, mais un bogue ne doit pas boucler.
   for (let i = 0; i < 200; i++) {
-    const m = await promouvoirEtPrevenir(creneauId);
+    const m = await promouvoirEtPrevenir(creneauId, sauf);
     if (!m) break;
     messages.push(m);
   }

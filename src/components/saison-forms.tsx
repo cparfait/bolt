@@ -40,6 +40,15 @@ export function SaisonForm({
           <Input name="fin" type="date" defaultValue={initiale?.fin} required />
         </Field>
       </div>
+      {/* Raccourcir une saison retire des séances que les inscrits ont
+          notées : ils sont prévenus comme pour une fermeture ajoutée en
+          cours d'année. Sans objet à la création, où personne n'est inscrit. */}
+      {initiale && (
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" name="prevenir" defaultChecked className="h-4 w-4 rounded border-slate-300" />
+          Prévenir par courriel les inscrits des séances retirées si la saison est raccourcie
+        </label>
+      )}
       {reprise && (
         <Field
           label="Reprendre les créneaux d'une saison"

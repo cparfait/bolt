@@ -115,7 +115,7 @@ export function RechercheRapide() {
           className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"
         >
           {affiches.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-slate-400">
+            <p className="px-4 py-3 text-sm text-slate-500">
               {cherche
                 ? "Recherche…"
                 : `Aucun agent ne correspond à « ${terme.trim()} ».`}
@@ -134,11 +134,11 @@ export function RechercheRapide() {
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">{s.nom}</span>
-                      <span className="block truncate text-xs text-slate-400">
+                      <span className="block truncate text-xs text-slate-500">
                         {[mentionCompte(s.login), s.detail].filter(Boolean).join(" · ")}
                       </span>
                     </span>
-                    <span className="shrink-0 text-xs tabular-nums text-slate-400">
+                    <span className="shrink-0 text-xs tabular-nums text-slate-500">
                       {s.inscriptions > 0
                         ? `${s.inscriptions} inscription${s.inscriptions > 1 ? "s" : ""}`
                         : "aucune inscription"}

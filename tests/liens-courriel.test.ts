@@ -50,18 +50,37 @@ describe("signature d'un lien d'absence", () => {
   });
 });
 
+const PROMUE = { id: "inscription-1", promuAt: new Date("2026-09-01T10:00:00Z") };
+
 describe("signature d'un lien de place", () => {
   it("accepte l'inscription qu'elle désigne, et lui seule", () => {
-    const s = signaturePlace("inscription-1");
-    assert.equal(placeAutorisee("inscription-1", s), true);
-    assert.equal(placeAutorisee("inscription-2", s), false);
+    const s = signaturePlace(PROMUE);
+    assert.equal(placeAutorisee(PROMUE, s), true);
+    assert.equal(placeAutorisee({ ...PROMUE, id: "inscription-2" }, s), false);
+  });
+
+  it("ne vaut que pour la promotion qui l'a fait envoyer", () => {
+    // L'inscription est réutilisée à la réinscription : le lien reçu pour une
+    // première promotion ne doit pas rendre la place obtenue à la suivante.
+    const s = signaturePlace(PROMUE);
+    const repromue = { ...PROMUE, promuAt: new Date("2026-11-03T09:00:00Z") };
+    assert.equal(placeAutorisee(repromue, s), false);
+  });
+
+  it("refuse une inscription jamais promue, quelle que soit la signature", () => {
+    // `promuAt` est remis à zéro à la réinscription : entre deux promotions,
+    // aucun lien n'est valable — pas même celui signé sur le vide.
+    const jamais = { ...PROMUE, promuAt: null };
+    assert.equal(placeAutorisee(jamais, signaturePlace(jamais)), false);
+    assert.equal(placeAutorisee(jamais, signaturePlace(PROMUE)), false);
   });
 
   it("ne se confond pas avec un lien d'absence", () => {
     // Les deux usages partagent le secret : sans préfixe distinct, la signature
     // d'un « je ne viens pas » vaudrait pour un « je rends ma place ».
-    assert.notEqual(signaturePlace(SEANCE), signatureAbsence(SEANCE, ""));
-    assert.equal(placeAutorisee(SEANCE, signatureAbsence(SEANCE, "")), false);
+    const inscription = { id: SEANCE, promuAt: PROMUE.promuAt };
+    assert.notEqual(signaturePlace(inscription), signatureAbsence(SEANCE, ""));
+    assert.equal(placeAutorisee(inscription, signatureAbsence(SEANCE, "")), false);
   });
 });
 
@@ -79,7 +98,7 @@ describe("adresses produites", () => {
     // messagerie échappe, coupe, ou traite comme la fin de l'adresse. Le « / »
     // découperait en outre un segment de chemin de plus, et la route ne
     // reconnaîtrait plus l'adresse.
-    assert.match(signaturePlace("x"), /^[A-Za-z0-9_-]{32}$/);
-    assert.match(lienPlace("x", "https://s.fr"), /^https:\/\/s\.fr\/[A-Za-z0-9_/-]+$/);
+    assert.match(signaturePlace(PROMUE), /^[A-Za-z0-9_-]{32}$/);
+    assert.match(lienPlace(PROMUE, "https://s.fr"), /^https:\/\/s\.fr\/[A-Za-z0-9_/-]+$/);
   });
 });

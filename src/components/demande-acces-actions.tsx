@@ -55,7 +55,7 @@ export function DemandeAccesActions({
             autoFocus
             maxLength={200}
           />
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500">
             Rien n&apos;est envoyé à la personne : à vous de reprendre contact si
             vous le jugez utile.
           </p>
@@ -183,7 +183,7 @@ function BoutonSuppression({ nom }: { nom: string }) {
       type="submit"
       disabled={pending}
       title={`Supprimer la demande de ${nom}`}
-      className="rounded-lg px-1.5 py-0.5 text-xs text-slate-400 underline-offset-2 transition hover:text-red-600 hover:underline disabled:opacity-50"
+      className="rounded-lg px-1.5 py-0.5 text-xs text-slate-500 underline-offset-2 transition hover:text-red-600 hover:underline disabled:opacity-50"
     >
       {pending ? "Suppression…" : "Supprimer"}
     </button>

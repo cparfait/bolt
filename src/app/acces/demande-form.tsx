@@ -129,7 +129,7 @@ export function DemandeLienForm({ services = [] }: { services?: string[] }) {
         Continuer
       </SubmitButton>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-500">
         Vous recevez un lien valable {LIEN_VALIDITE_LIBELLE}. Aucun mot de passe
         ne vous est demandé.
       </p>

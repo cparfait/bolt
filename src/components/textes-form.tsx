@@ -20,7 +20,7 @@ export function TextesForm({ textes }: { textes: TextesLegaux }) {
   const [state, action] = useActionState<ActionState, FormData>(enregistrerTextes, null);
 
   const retirer = (nom: string, quoi: string) => (
-    <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400 transition hover:text-red-600">
+    <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 transition hover:text-red-600">
       <input type="checkbox" name={nom} className="h-3.5 w-3.5 accent-red-600" />
       <Trash2 className="h-3.5 w-3.5" />
       Retirer {quoi}
@@ -42,7 +42,7 @@ export function TextesForm({ textes }: { textes: TextesLegaux }) {
           {textes.declarations.map((d, i) => (
             <div key={d.cle} className="rounded-xl border border-slate-200 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Déclaration {i + 1}
                 </span>
                 {retirer(`retirer_${d.cle}`, "")}
@@ -52,7 +52,7 @@ export function TextesForm({ textes }: { textes: TextesLegaux }) {
           ))}
 
           <div className="rounded-xl border border-dashed border-slate-300 p-4">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <Plus className="h-3.5 w-3.5" />
               Ajouter une déclaration
             </p>
@@ -91,7 +91,7 @@ export function TextesForm({ textes }: { textes: TextesLegaux }) {
           ))}
 
           <div className="rounded-xl border border-dashed border-slate-300 p-4">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <Plus className="h-3.5 w-3.5" />
               Ajouter une mention
             </p>
@@ -129,7 +129,7 @@ export function TextesForm({ textes }: { textes: TextesLegaux }) {
       </Card>
 
       <div className="flex items-center justify-between gap-4">
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-500">
           Publier crée une nouvelle version. Les inscriptions déjà enregistrées gardent
           la trace de celle qu&apos;elles ont acceptée.
         </p>

@@ -41,7 +41,7 @@ export default async function ActivitesPage({
   const saison = await saisonDeTravail(saisonParam);
   const saisons = await prisma.saison.findMany({
     orderBy: { debut: "desc" },
-    select: { id: true, nom: true, active: true, fin: true },
+    select: { id: true, nom: true, active: true, debut: true, fin: true },
   });
   /** Lien vers une fiche d'activité, en gardant la saison choisie. */
   const fiche = (activiteId: string, extra: Record<string, string> = {}, ancre = "") => {
@@ -174,7 +174,7 @@ export default async function ActivitesPage({
                   {a.description && (
                     <p className="mt-1.5 text-sm text-slate-500">{a.description}</p>
                   )}
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-slate-500">
                     {a.creneaux.length}{" "}
                     {pluriel(a.creneaux.length, "créneau", "créneaux")} cette saison
                     {groupe && " · groupe unique, places partagées"}
@@ -231,7 +231,7 @@ export default async function ActivitesPage({
                           <p className="font-medium">
                             {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
                           </p>
-                          <p className="truncate text-xs text-slate-400">
+                          <p className="truncate text-xs text-slate-500">
                             {[
                               c.lieu,
                               c.animateurs.length > 0
@@ -246,7 +246,7 @@ export default async function ActivitesPage({
                           {nbFermetures > 0 && (
                             <p className="text-xs">
                               {c.fermeturesMaintenues.length === 0 ? (
-                                <span className="text-slate-400">
+                                <span className="text-slate-500">
                                   fermé pendant les vacances
                                 </span>
                               ) : c.fermeturesMaintenues.length === nbFermetures ? (
@@ -326,7 +326,7 @@ export default async function ActivitesPage({
                     style={{ backgroundColor: a.couleur }}
                   />
                   <span className="font-medium text-slate-600">{a.nom}</span>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-500">
                     retirée le {fmtDate(a.archiveAt)}
                   </span>
                 </span>

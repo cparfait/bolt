@@ -4,7 +4,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { mentionCompte } from "@/lib/comptes";
 import { requireUser } from "@/lib/session";
-import { saisonCourante } from "@/lib/saison";
+import { saisonDeTravail, saisonsProposees } from "@/lib/saison";
+import { AvertissementPreparation, SelecteurSaison } from "@/components/selecteur-saison";
 import {
   Badge,
   Card,
@@ -61,16 +62,22 @@ export default async function AgentsPage({
     activite?: string;
     creneau?: string;
     page?: string;
+    saison?: string;
   }>;
 }) {
   await requireUser("GESTIONNAIRE");
-  const { q, f, service, activite, creneau, page: pageBrute } = await searchParams;
+  const { q, f, service, activite, creneau, page: pageBrute, saison: saisonParam } =
+    await searchParams;
   const terme = (q ?? "").trim();
   const filtre: Filtre = f && f in FILTRES ? (f as Filtre) : "actifs";
   // Filtre par service : « __aucun » désigne les comptes sans rattachement,
   // ceux qu'il faut précisément aller voir pour compléter la répartition.
   const parService = (service ?? "").trim();
-  const saison = await saisonCourante();
+  // La saison choisie dans l'adresse, sinon la courante : elle borne les
+  // critères « inscrits à l'activité / au créneau », qui doivent pouvoir
+  // porter sur la rentrée qui se prépare comme sur la saison qui tourne.
+  const saison = await saisonDeTravail(saisonParam);
+  const saisons = await saisonsProposees();
 
   // La recherche porte sur TOUS les comptes, filtre compris : chercher
   // quelqu'un dont on ne sait plus s'il est encore là ne doit pas renvoyer
@@ -188,7 +195,10 @@ export default async function AgentsPage({
   const criteres = [parService, parActivite, parCreneau].filter(Boolean).length;
 
   const lienAgents = (params: Record<string, string>) => {
-    const qs = new URLSearchParams(params).toString();
+    const qs = new URLSearchParams({
+      ...(saisonParam ? { saison: saisonParam } : {}),
+      ...params,
+    }).toString();
     return qs ? `/agents?${qs}` : "/agents";
   };
   const lienCategorie = lienAgents(filtre !== "actifs" ? { f: filtre } : {});
@@ -203,7 +213,17 @@ export default async function AgentsPage({
             ? `Inscriptions et assiduité — saison ${saison.nom}`
             : "Inscriptions et assiduité"
         }
-      />
+      >
+        {saison && (
+          <SelecteurSaison
+            saisons={saisons}
+            selection={saison.id}
+            base="/agents"
+            params={{ q, f, service, activite, creneau }}
+          />
+        )}
+      </PageHeader>
+      {saison && <AvertissementPreparation saison={saison} />}
 
       <Card className="mb-6">
         {/* Un seul formulaire : la recherche et les critères avancés partent
@@ -213,6 +233,7 @@ export default async function AgentsPage({
           {/* L'onglet de statut voyage caché : ouvrir la recherche avancée
               depuis « Accès fermés » ne doit pas ramener aux comptes actifs. */}
           {filtre !== "actifs" && <input type="hidden" name="f" value={filtre} />}
+          {saisonParam && <input type="hidden" name="saison" value={saisonParam} />}
           <div className="flex flex-wrap gap-2">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -302,7 +323,7 @@ export default async function AgentsPage({
                 </Link>
               )}
               {parCreneau && parActivite && (
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500">
                   Le créneau l&apos;emporte : il désigne déjà son activité.
                 </span>
               )}
@@ -333,7 +354,7 @@ export default async function AgentsPage({
             >
               {FILTRES[cle].label}
               <span
-                className={`ml-1.5 tabular-nums ${filtre === cle ? "text-brand-100" : "text-slate-400"}`}
+                className={`ml-1.5 tabular-nums ${filtre === cle ? "text-brand-100" : "text-slate-500"}`}
               >
                 {compteurs[i]}
               </span>
@@ -375,7 +396,7 @@ export default async function AgentsPage({
         >
           {/* Une pastille sans légende se devine ; la deviner de travers coûte
               plus cher que la ligne qui l'explique. */}
-          <p className="mb-1 flex items-center gap-1.5 text-xs text-slate-400">
+          <p className="mb-1 flex items-center gap-1.5 text-xs text-slate-500">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
             s&apos;est déjà connecté à Bolt
           </p>
@@ -422,7 +443,7 @@ export default async function AgentsPage({
                         </span>
                       ) : null}
                     </p>
-                    <p className="truncate text-xs text-slate-400">
+                    <p className="truncate text-xs text-slate-500">
                       {[mentionCompte(a.login), a.service ?? a.direction, a.email]
                         .filter(Boolean)
                         .join(" · ")}
@@ -446,7 +467,7 @@ export default async function AgentsPage({
           </ul>
           <Pagination
             base="/agents"
-            params={{ q, f, service, activite, creneau }}
+            params={{ q, f, service, activite, creneau, saison: saisonParam }}
             page={page}
             pages={pages}
             total={total}

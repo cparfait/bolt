@@ -105,7 +105,7 @@ export function AnnulationGroupee({ seances }: { seances: SeanceAnnulable[] }) {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{s.activite}</span>
                   {s.lieu && (
-                    <span className="block truncate text-xs text-slate-400">{s.lieu}</span>
+                    <span className="block truncate text-xs text-slate-500">{s.lieu}</span>
                   )}
                 </span>
                 <span className="shrink-0 text-xs tabular-nums text-slate-500">

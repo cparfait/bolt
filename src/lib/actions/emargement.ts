@@ -13,13 +13,16 @@ import {
   verifierPin,
 } from "@/lib/coach-access";
 import { rateLimit } from "@/lib/rate-limit";
-import { aujourdhui, jourUtc } from "@/lib/dates";
+import { aujourdhui } from "@/lib/dates";
 import {
+  dateDeFormulaire,
   enregistrerPresence,
+  peutEtrePointe,
   reprendreAbsencesAnnoncees,
   saisieOuverte,
 } from "@/lib/emargement";
-import { participeALaSeance } from "@/lib/inscriptions";
+import { participeALaSeance, perimetreCapacite } from "@/lib/inscriptions";
+import { serviceDuReferentiel, servicesProposes } from "@/lib/services";
 import { notifierSeanceRetablie, notifierSeancesAnnulees } from "@/lib/notifications";
 import { clientIp } from "@/lib/net";
 import { composerNomAffiche } from "@/lib/constants";
@@ -85,6 +88,20 @@ export async function quitterAction(formData: FormData): Promise<void> {
   redirect(`/emargement/${token}`);
 }
 
+/**
+ * Longueur maximale d'un motif d'annulation. Le champ la borne à l'écran ; la
+ * borne est reprise ici parce qu'un motif part tel quel dans les courriels aux
+ * inscrits, et qu'un formulaire se rejoue sans l'écran.
+ */
+const MOTIF_MAX = 200;
+
+/** Refus commun aux gestes qui exigent la fenêtre de saisie (`saisieOuverte`). */
+function messageHorsFenetre(date: Date): string {
+  return date > aujourdhui()
+    ? "Cette séance n'a pas encore eu lieu : revenez le jour même."
+    : "La fenêtre de saisie de cette séance est passée : contactez le service des sports.";
+}
+
 /** Vérifie que la séance relève bien de l'animateur porteur du jeton. */
 async function seanceDuCoach(token: string, seanceId: string) {
   const coach = await coachAutorise(token);
@@ -112,26 +129,8 @@ export async function pointerEmargement(
   if (!ETATS.includes(etat as EtatPresence)) return;
 
   // La feuille publique ne crée pas de ligne pour n'importe quel compte de la
-  // collectivité : il faut être inscrit au créneau, figurer déjà sur la feuille,
-  // **ou** avoir été annoncé sur cette séance par le service des sports. Sans le
-  // deuxième cas, un participant ajouté à la volée était pointé présent à sa
-  // création puis impossible à corriger ; sans le troisième, un agent attendu
-  // pour une séance unique apparaissait sur la feuille sans pouvoir être pointé.
-  const [inscrit, dejaSurLaFeuille, attendu] = await Promise.all([
-    prisma.inscription.findFirst({
-      where: { creneauId: seance.creneauId, userId, statut: "VALIDEE" },
-      select: { id: true },
-    }),
-    prisma.presence.findUnique({
-      where: { seanceId_userId: { seanceId, userId } },
-      select: { id: true },
-    }),
-    prisma.participationPonctuelle.findUnique({
-      where: { seanceId_userId: { seanceId, userId } },
-      select: { id: true },
-    }),
-  ]);
-  if (!inscrit && !dejaSurLaFeuille && !attendu) return;
+  // collectivité : voir `peutEtrePointe`, règle commune avec le back-office.
+  if (!(await peutEtrePointe(seance, userId))) return;
 
   await enregistrerPresence(seanceId, userId, etat as EtatPresence, `coach:${coach.id}`);
   revalidatePath(`/emargement/${token}/${seanceId}`);
@@ -147,6 +146,12 @@ export async function cloturerEmargement(
   if (!ctx) return erreur("Séance introuvable.");
   const { coach, seance } = ctx;
   if (seance.clotureeAt) return succes("Feuille déjà transmise.");
+  if (seance.statut === "ANNULEE") return erreur("Cette séance est annulée.");
+  // Même fenêtre que le pointage : l'écran ne propose le bouton qu'à
+  // l'intérieur, mais l'action s'appelle sans l'écran. Transmettre une feuille
+  // avant la séance la figeait vide ; après la fenêtre, c'est au service des
+  // sports de corriger.
+  if (!saisieOuverte(seance.date)) return erreur(messageHorsFenetre(seance.date));
 
   // Avant de figer : ceux qui avaient prévenu et que l'animateur n'a pas
   // pointés passent absents. Prévenir ne doit pas revenir à se faire oublier
@@ -189,12 +194,23 @@ export async function annulerSeanceEmargement(
   if (!ctx) return erreur("Séance introuvable.");
   const { coach, seance } = ctx;
   if (seance.clotureeAt) return erreur("Feuille déjà transmise.");
+  if (seance.statut === "ANNULEE") return erreur("Cette séance est déjà annulée.");
+  // « N'a pas eu lieu » est un constat : il se pose dans la fenêtre de saisie,
+  // pas avant (la séance à venir s'annule par `annulerSeanceAVenir`, qui
+  // prévient les inscrits) ni après. Et pas sur une séance déjà émargée : elle
+  // porte des présences qu'une annulation ferait sortir des statistiques.
+  if (!saisieOuverte(seance.date)) return erreur(messageHorsFenetre(seance.date));
+  if (seance.statut === "FAITE") {
+    return erreur(
+      "Une séance déjà émargée ne peut plus être annulée d'ici : contactez le service des sports.",
+    );
+  }
 
   await prisma.seance.update({
     where: { id: seanceId },
     data: {
       statut: "ANNULEE",
-      motifAnnulation: motif,
+      motifAnnulation: motif.slice(0, MOTIF_MAX),
       clotureeAt: new Date(),
       clotureePar: `${coach.prenom} ${coach.nom}`,
     },
@@ -267,6 +283,13 @@ export async function listerServicesEmargement(
   const ctx = await seanceDuCoach(token, seanceId);
   if (!ctx) return [];
 
+  // Le référentiel d'abord : c'est contre lui que la création vérifie le
+  // service (`ajouterParticipantEmargement`), et proposer autre chose
+  // reviendrait à offrir des choix qui seront refusés. Le relevé des services
+  // rencontrés ne sert que tant que le référentiel n'est pas rempli.
+  const referentiel = await servicesProposes();
+  if (referentiel.length > 0) return referentiel;
+
   const [comptes, annuaire] = await Promise.all([
     prisma.user.findMany({
       where: { active: true, service: { not: null } },
@@ -323,13 +346,7 @@ export async function ajouterParticipantEmargement(
   if (seance.statut === "ANNULEE") return erreur("Cette séance est annulée.");
   // Même fenêtre que le pointage : ajouter quelqu'un, c'est le pointer présent,
   // et une présence ne se constate pas sur une séance qui n'a pas eu lieu.
-  if (!saisieOuverte(seance.date)) {
-    return erreur(
-      seance.date > aujourdhui()
-        ? "Cette séance n'a pas encore eu lieu : ajoutez le participant le jour même."
-        : "La fenêtre de saisie de cette séance est passée : contactez le service des sports.",
-    );
-  }
+  if (!saisieOuverte(seance.date)) return erreur(messageHorsFenetre(seance.date));
 
   let agent;
   if (userId) {
@@ -344,10 +361,20 @@ export async function ajouterParticipantEmargement(
         "Trop de participants créés d'affilée. Réessayez plus tard, ou signalez-les au service des sports.",
       );
     }
-    agent = await creerParticipantHorsAnnuaire({
-      nom: nomLibre,
-      service: String(formData.get("service") ?? "").trim() || null,
-    });
+    // Même contrôle que `creerAgentHorsAnnuaire` et `deposerDemandeAction` :
+    // le service est vérifié contre le référentiel, et c'est son orthographe
+    // qui est enregistrée — la valeur d'un `<select>` se falsifie comme celle
+    // d'un champ libre, et « dsi » recréerait la ligne parasite que la liste
+    // fermée existe pour éviter. Référentiel vide, la saisie reste libre.
+    const saisiService = String(formData.get("service") ?? "").trim().slice(0, 120);
+    let service: string | null = saisiService || null;
+    if (saisiService && (await servicesProposes()).length > 0) {
+      service = await serviceDuReferentiel(saisiService);
+      if (!service) {
+        return erreur("Choisissez le service dans la liste, ou laissez-le vide.");
+      }
+    }
+    agent = await creerParticipantHorsAnnuaire({ nom: nomLibre, service });
     await audit("AGENT_HORS_ANNUAIRE_CREE", {
       acteur: `${coach.prenom} ${coach.nom}`,
       cible: nomLibre,
@@ -399,14 +426,15 @@ export async function ajouterParticipantEmargement(
   // et une feuille qui refuse de l'enregistrer produit une fréquentation
   // fausse. On l'informe du dépassement — et le service des sports le lit au
   // journal — mais l'ajout passe.
-  const [surLaFeuille, creneau] = await Promise.all([
+  // La capacité de référence est celle du périmètre (`perimetreCapacite`) : en
+  // capacité mutualisée, c'est l'activité qui dimensionne le groupe, et
+  // comparer à la capacité du créneau — souvent laissée à zéro ou à une valeur
+  // sans rapport — signalait des dépassements imaginaires ou en taisait de vrais.
+  const [surLaFeuille, perimetre] = await Promise.all([
     prisma.presence.count({ where: { seanceId, etat: "PRESENT" } }),
-    prisma.creneau.findUnique({
-      where: { id: seance.creneauId },
-      select: { capacite: true },
-    }),
+    perimetreCapacite(seance.creneauId),
   ]);
-  const capacite = creneau?.capacite ?? 0;
+  const capacite = perimetre?.capacite ?? 0;
   const depassement =
     capacite > 0 && surLaFeuille > capacite
       ? ` Attention : ${surLaFeuille} présents pour ${capacite} places prévues.`
@@ -490,6 +518,9 @@ export async function annulerSeanceAVenir(
   const motif = String(formData.get("motif") ?? "").trim();
   const jusqua = String(formData.get("jusqua") ?? "").trim();
   if (!motif) return erreur("Indiquez pourquoi la séance n'aura pas lieu.");
+  if (motif.length > MOTIF_MAX) {
+    return erreur(`Le motif est limité à ${MOTIF_MAX} caractères : il part tel quel aux inscrits.`);
+  }
 
   const ctx = await seanceDuCoach(token, seanceId);
   if (!ctx) return erreur("Séance introuvable.");
@@ -501,7 +532,8 @@ export async function annulerSeanceAVenir(
 
   // Le lot ne dépasse jamais le créneau de la séance ouverte : un empêchement
   // porte sur un rendez-vous hebdomadaire, pas sur toute l'activité.
-  const fin = jusqua ? jourUtc(jusqua) : seance.date;
+  const fin = jusqua ? dateDeFormulaire(jusqua) : seance.date;
+  if (!fin) return erreur("Date de reprise illisible : choisissez-la dans le calendrier.");
   if (fin < seance.date) return erreur("La date de reprise doit suivre cette séance.");
 
   const seances = await prisma.seance.findMany({

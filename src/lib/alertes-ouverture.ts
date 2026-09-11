@@ -2,7 +2,7 @@ import { prisma } from "./db";
 import { adresseDeContact } from "./comptes";
 import { nomPourSalutation } from "./constants";
 import { JOUR_LABELS } from "./dates";
-import { envoyerMail } from "./mail";
+import { ouvrirMessagerie } from "./mail";
 import { getGeneralSettings, urlEspaceAgent } from "./settings";
 import { audit } from "./audit";
 
@@ -45,6 +45,11 @@ export type ResultatNotificationOuverture = { destinataires: number; envoyes: nu
  *
  * Best-effort, comme les autres notifications : une messagerie muette ne
  * doit pas empêcher le service de rouvrir un créneau.
+ *
+ * Cadencé (`ouvrirMessagerie`, src/lib/mail.ts) : un créneau attendu à la
+ * rentrée compte des dizaines d'alertes, et une boucle sans cadence dépassait
+ * le plafond de Microsoft 365 — les alertes refusées restaient posées, et
+ * repartaient à la réouverture suivante, des mois plus tard.
  */
 export async function notifierOuverture(creneauId: string): Promise<ResultatNotificationOuverture> {
   const alertes = await prisma.alerteOuverture.findMany({
@@ -61,29 +66,34 @@ export async function notifierOuverture(creneauId: string): Promise<ResultatNoti
   let envoyes = 0;
   const servies: string[] = [];
 
-  for (const a of alertes) {
-    const adresse = a.user.active ? adresseDeContact(a.user) : null;
-    if (!adresse) {
-      // Compte parti ou sans adresse : l'alerte ne servira jamais.
-      servies.push(a.id);
-      continue;
+  const messagerie = await ouvrirMessagerie();
+  try {
+    for (const a of alertes) {
+      const adresse = a.user.active ? adresseDeContact(a.user) : null;
+      if (!adresse) {
+        // Compte parti ou sans adresse : l'alerte ne servira jamais.
+        servies.push(a.id);
+        continue;
+      }
+      const c = a.creneau;
+      const envoi = await messagerie.envoyer(
+        adresse,
+        `Les inscriptions à ${c.activite.nom} sont ouvertes`,
+        [
+          `Bonjour ${nomPourSalutation(a.user.displayName)},`,
+          `Vous aviez demandé à être prévenu : les inscriptions au créneau de ${c.activite.nom} (**${JOUR_LABELS[c.jour].toLowerCase()} ${c.heureDebut}–${c.heureFin}**${c.lieu ? `, ${c.lieu}` : ""}) viennent d'ouvrir.`,
+          `Les places se prennent dans l'ordre des demandes : si le créneau vous intéresse toujours, inscrivez-vous sans attendre.`,
+          `[Voir le créneau](${catalogue})`,
+          g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
+        ].join("\n\n"),
+      );
+      if (envoi.ok) {
+        envoyes += 1;
+        servies.push(a.id);
+      }
     }
-    const c = a.creneau;
-    const envoi = await envoyerMail(
-      adresse,
-      `Les inscriptions à ${c.activite.nom} sont ouvertes`,
-      [
-        `Bonjour ${nomPourSalutation(a.user.displayName)},`,
-        `Vous aviez demandé à être prévenu : les inscriptions au créneau de ${c.activite.nom} (**${JOUR_LABELS[c.jour].toLowerCase()} ${c.heureDebut}–${c.heureFin}**${c.lieu ? `, ${c.lieu}` : ""}) viennent d'ouvrir.`,
-        `Les places se prennent dans l'ordre des demandes : si le créneau vous intéresse toujours, inscrivez-vous sans attendre.`,
-        `[Voir le créneau](${catalogue})`,
-        g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
-      ].join("\n\n"),
-    );
-    if (envoi.ok) {
-      envoyes += 1;
-      servies.push(a.id);
-    }
+  } finally {
+    messagerie.fermer();
   }
 
   if (servies.length > 0) {

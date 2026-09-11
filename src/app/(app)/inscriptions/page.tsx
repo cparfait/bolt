@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Lock } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
-import { saisonCourante } from "@/lib/saison";
+import { saisonDeTravail, saisonsProposees } from "@/lib/saison";
+import { AvertissementPreparation, SelecteurSaison } from "@/components/selecteur-saison";
 import { fmtDate, fmtHorodatage } from "@/lib/dates";
 import { JOUR_LABELS } from "@/lib/dates";
 import {
@@ -50,12 +51,16 @@ type Vue = keyof typeof VUES;
 export default async function InscriptionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ activite?: string; vue?: string }>;
+  searchParams: Promise<{ activite?: string; vue?: string; saison?: string }>;
 }) {
   await requireUser("GESTIONNAIRE");
-  const { activite: selection, vue: vueParam } = await searchParams;
+  const { activite: selection, vue: vueParam, saison: saisonParam } = await searchParams;
   const vue = vueParam && vueParam in VUES ? (vueParam as Vue) : undefined;
-  const saison = await saisonCourante();
+  // La saison choisie dans l'adresse, sinon la courante — comme sur les
+  // activités : pendant la préparation de la rentrée, les demandes arrivent
+  // sur les deux saisons, et il faut pouvoir arbitrer l'une comme l'autre.
+  const saison = await saisonDeTravail(saisonParam);
+  const saisons = await saisonsProposees();
 
   if (!saison) {
     return (
@@ -151,6 +156,7 @@ export default async function InscriptionsPage({
   // l'aller comme le retour, sans bouton « annuler » à trouver ailleurs.
   const lien = (v?: Vue) => {
     const q = new URLSearchParams();
+    if (saisonParam) q.set("saison", saisonParam);
     if (selection) q.set("activite", selection);
     if (v && v !== vue) q.set("vue", v);
     const suffixe = q.toString();
@@ -177,14 +183,22 @@ export default async function InscriptionsPage({
 
   return (
     <>
-      <PageHeader title="Inscriptions" subtitle={`Saison ${saison.nom}`} />
+      <PageHeader title="Inscriptions" subtitle={`Saison ${saison.nom}`}>
+        <SelecteurSaison
+          saisons={saisons}
+          selection={saison.id}
+          base="/inscriptions"
+          params={{ activite: selection, vue }}
+        />
+      </PageHeader>
+      <AvertissementPreparation saison={saison} />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat
           label="Demandes à traiter"
           value={demandes.length}
           accent={
-            demandes.length > 0 ? "text-amber-600 bg-amber-50" : "text-slate-400 bg-slate-50"
+            demandes.length > 0 ? "text-amber-600 bg-amber-50" : "text-slate-500 bg-slate-50"
           }
           hint="voir la file"
           href="#a-decider"
@@ -218,7 +232,7 @@ export default async function InscriptionsPage({
       <div id="a-decider" className="scroll-mt-6" />
       <Card title="Demandes en attente de décision" className="mb-6">
         {demandes.length === 0 ? (
-          <p className="text-sm text-slate-400">Aucune demande à traiter.</p>
+          <p className="text-sm text-slate-500">Aucune demande à traiter.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
             {demandes.map((d) => (
@@ -230,7 +244,7 @@ export default async function InscriptionsPage({
                   >
                     {d.user.displayName}
                   </Link>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     {d.creneau.activite.nom} · {JOUR_LABELS[d.creneau.jour]}{" "}
                     {d.creneau.heureDebut} · demandé le {fmtDate(d.demandeAt)}
                     {d.user.service ? ` · ${d.user.service}` : ""}
@@ -279,7 +293,7 @@ export default async function InscriptionsPage({
         base="/inscriptions"
         selection={selection}
         activites={palette}
-        params={{ vue }}
+        params={{ vue, saison: saisonParam }}
       />
 
       {vue && (
@@ -345,7 +359,7 @@ export default async function InscriptionsPage({
                         </Badge>
                       )}
                     </h3>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-500">
                       {c.lieu ?? "lieu non précisé"}
                       {c.ouvertInscription && " · inscriptions ouvertes"}
                       {groupe && " · groupe partagé avec les autres créneaux"}
@@ -443,7 +457,7 @@ export default async function InscriptionsPage({
                             href={`/agents/${i.userId}`}
                             className="min-w-0 hover:text-brand-600"
                           >
-                            <span className="mr-2 tabular-nums text-slate-400">
+                            <span className="mr-2 tabular-nums text-slate-500">
                               {i.rang}.
                             </span>
                             {i.user.displayName}

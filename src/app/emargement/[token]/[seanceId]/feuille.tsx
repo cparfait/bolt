@@ -134,7 +134,7 @@ export function Feuille({
                 <div className="min-w-0">
                   <p className="font-semibold leading-tight">{l.nom}</p>
                   {(l.service || l.direction) && (
-                    <p className="truncate text-xs text-slate-400">
+                    <p className="truncate text-xs text-slate-500">
                       {l.service ?? l.direction}
                     </p>
                   )}
@@ -200,7 +200,7 @@ export function Feuille({
             <p className="font-semibold tabular-nums">
               {presents} présent{presents > 1 ? "s" : ""} / {lignes.length}
             </p>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               {verrouillee
                 ? "Feuille transmise"
                 : restants.length === 0

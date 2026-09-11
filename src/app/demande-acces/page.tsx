@@ -55,7 +55,7 @@ export default async function DemandeAccesPage() {
 
         <DemandeAccesForm services={services} />
 
-        <p className="mt-6 flex items-start gap-2 text-xs text-slate-400">
+        <p className="mt-6 flex items-start gap-2 text-xs text-slate-500">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           Vos coordonnées ne servent qu&apos;à traiter cette demande et à gérer
           votre participation aux activités.

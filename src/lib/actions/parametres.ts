@@ -21,6 +21,7 @@ import { attribuerLien, lienEmargement } from "@/lib/coach-access";
 import { envoyerMail } from "@/lib/mail";
 import { exemplesMail } from "@/lib/mail-exemples";
 import {
+  domaineDesAgents,
   getGeneralSettings,
   getLdapSettings,
   getSmtpSettings,
@@ -312,6 +313,16 @@ export async function enregistrerGeneral(
   if (cfg.demandeAccesActive && !cfg.lienMagiqueActif) {
     return erreur(
       "Le formulaire de demande d'accès nécessite la connexion des agents par lien e-mail.",
+    );
+  }
+  // Sans domaine, `estAdresseDeLaCollectivite` répond faux pour tout le monde,
+  // et l'écran d'accès propose le formulaire de demande à toute adresse
+  // inconnue — y compris celles du domaine de la ville, ce qui permet de
+  // vérifier une à une qui y travaille. Le domaine se déduit de l'adresse de
+  // contact quand il n'est pas saisi : l'un ou l'autre suffit.
+  if (cfg.demandeAccesActive && !domaineDesAgents(cfg)) {
+    return erreur(
+      "Le formulaire de demande d'accès nécessite de connaître le domaine de messagerie des agents : renseignez-le, ou indiquez l'adresse de contact du service.",
     );
   }
   if (cfg.rappelsActifs && !smtpConfigure) {

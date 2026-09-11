@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 import { PrismaClient } from "@prisma/client";
 import { reprendreCreneaux } from "../../src/lib/saison";
+import { genererSeancesCreneau } from "../../src/lib/seances";
 
 /**
  * Reprise de la grille d'une saison sur la suivante.
@@ -50,6 +51,8 @@ before(async () => {
 beforeEach(async () => {
   // Ordre imposé par les clés étrangères.
   await prisma.presence.deleteMany();
+  await prisma.absenceAnnoncee.deleteMany();
+  await prisma.participationPonctuelle.deleteMany();
   await prisma.inscription.deleteMany();
   await prisma.seance.deleteMany();
   await prisma.creneau.deleteMany();
@@ -246,5 +249,76 @@ describe("reprise des créneaux d'une saison", () => {
     const bilan = await reprendreCreneaux(source.id, cible.id);
     assert.deepEqual(bilan, { repris: 0, ecartes: 0 });
     assert.equal(await prisma.creneau.count({ where: { saisonId: cible.id } }), 0);
+  });
+});
+
+/**
+ * Régénération du calendrier après un changement de bornes ou de jour : ce
+ * qui est retiré, ce qui est gardé, et ce que le compte rendu doit dire.
+ */
+describe("régénération des séances d'un créneau", () => {
+  async function creneauDuLundi(saisonId: string) {
+    const a = await activite();
+    return prisma.creneau.create({
+      data: {
+        saisonId,
+        activiteId: a.id,
+        jour: "LUNDI",
+        heureDebut: "12:15",
+        heureFin: "13:15",
+      },
+    });
+  }
+
+  it("retire une séance annulée devenue hors calendrier, mais garde une séance émargée", async () => {
+    const s = await saison("2026-2027");
+    const c = await creneauDuLundi(s.id);
+    await genererSeancesCreneau(c.id);
+
+    // Le créneau passe au mardi : les lundis sortent du calendrier.
+    const lundis = await prisma.seance.findMany({ where: { creneauId: c.id }, take: 2 });
+    await prisma.seance.update({
+      where: { id: lundis[0].id },
+      data: { statut: "ANNULEE", motifAnnulation: "Gymnase fermé" },
+    });
+    const agent = await prisma.user.create({
+      data: { login: `agent-${cle()}`, displayName: "Agent" },
+    });
+    await prisma.presence.create({
+      data: { seanceId: lundis[1].id, userId: agent.id, etat: "PRESENT" },
+    });
+    await prisma.creneau.update({ where: { id: c.id }, data: { jour: "MARDI" } });
+
+    await genererSeancesCreneau(c.id);
+
+    // L'annulée est partie : son motif portait sur une date qui n'existe plus.
+    assert.equal(await prisma.seance.count({ where: { id: lundis[0].id } }), 0);
+    // L'émargée reste : on ne détruit jamais une présence constatée.
+    assert.equal(await prisma.seance.count({ where: { id: lundis[1].id } }), 1);
+  });
+
+  it("compte les absences annoncées et les participations ponctuelles emportées", async () => {
+    const s = await saison("2026-2027");
+    const c = await creneauDuLundi(s.id);
+    await genererSeancesCreneau(c.id);
+    const [premiere, seconde] = await prisma.seance.findMany({
+      where: { creneauId: c.id },
+      orderBy: { date: "asc" },
+      take: 2,
+    });
+    const agent = await prisma.user.create({
+      data: { login: `agent-${cle()}`, displayName: "Agent" },
+    });
+    await prisma.absenceAnnoncee.create({ data: { seanceId: premiere.id, userId: agent.id } });
+    await prisma.participationPonctuelle.create({
+      data: { seanceId: seconde.id, userId: agent.id },
+    });
+    await prisma.creneau.update({ where: { id: c.id }, data: { jour: "JEUDI" } });
+
+    const bilan = await genererSeancesCreneau(c.id);
+
+    assert.equal(bilan.absencesRetirees, 1);
+    assert.equal(bilan.participationsRetirees, 1);
+    assert.ok(bilan.supprimees >= 2);
   });
 });

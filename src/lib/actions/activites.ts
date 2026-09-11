@@ -8,9 +8,9 @@ import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import type { Jour } from "@prisma/client";
 import { aujourdhui, fmtDate, jourUtc, normaliserHeure, JOUR_LABELS } from "@/lib/dates";
-import { genererSeancesCreneau } from "@/lib/seances";
-import { saisonCourante } from "@/lib/saison";
-import { promouvoirTantQuePossible } from "@/lib/inscriptions";
+import { decrirePertesGeneration, genererSeancesCreneau } from "@/lib/seances";
+import { saisonDeTravail, saisonOuverte } from "@/lib/saison";
+import { promouvoirTantQuePossible, renumeroterFile } from "@/lib/inscriptions";
 import { decrireNotificationOuverture, notifierOuverture } from "@/lib/alertes-ouverture";
 import { notifierChangementCreneau } from "@/lib/notifications";
 import { erreur, succes, type ActionState } from "./types";
@@ -66,31 +66,53 @@ export async function enregistrerActivite(
   };
 
   let creee: string | null = null;
+  // Ce que la bascule de capacité a laissé à signaler : un groupe qui compte
+  // déjà plus d'inscrits que de places.
+  let surEffectif = "";
   try {
     if (id) {
       await prisma.activite.update({ where: { id }, data });
-      // L'effectif du groupe est recopié sur les créneaux de la saison en
-      // cours : c'est lui qui borne désormais chaque séance, et les taux de
-      // remplissage se calculent créneau par créneau. Les saisons passées
-      // gardent leurs capacités d'époque, sans quoi leur historique changerait.
-      // Saison courante, comme partout : « active » seule laissait les
-      // créneaux d'une saison pas encore activée avec leur ancien effectif.
-      const courante = await saisonCourante();
-      if (capacitePartagee && capacite && courante) {
+      // L'effectif du groupe est recopié sur les créneaux de la saison
+      // AFFICHÉE — celle que le formulaire porte —, pas sur la courante : en
+      // préparant la rentrée, le service modifie l'activité depuis la saison
+      // suivante, et c'est là que ses créneaux doivent suivre. Les autres
+      // saisons gardent leurs capacités d'époque, sans quoi leur historique
+      // changerait. Repli sur la courante si le formulaire ne dit rien.
+      const saison = await saisonDeTravail(String(formData.get("saisonId") ?? "") || undefined);
+      if (capacitePartagee && capacite && saison) {
         await prisma.creneau.updateMany({
-          where: { activiteId: id, saisonId: courante.id },
+          where: { activiteId: id, saisonId: saison.id },
           data: { capacite },
         });
       }
       await audit("ACTIVITE_MODIFIEE", { userId: user.id, cible: data.nom });
+      const creneaux = await prisma.creneau.findMany({
+        where: { activiteId: id, saisonId: saison?.id, archiveAt: null },
+        select: { id: true },
+        orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
+      });
       // Un groupe agrandi a des places à donner : la file n'attendait sinon
       // que le prochain désistement, une personne à la fois. Sans effet si
       // rien ne s'est libéré.
-      const premier = await prisma.creneau.findFirst({
-        where: { activiteId: id, saisonId: courante?.id, archiveAt: null },
-        select: { id: true },
-      });
-      if (premier) await promouvoirTantQuePossible(premier.id);
+      if (creneaux.length > 0) await promouvoirTantQuePossible(creneaux[0].id);
+      // Le périmètre de la file a changé : deux files par créneau deviennent
+      // une file commune, ou l'inverse. Les rangs de l'ancienne organisation
+      // — deux « n° 1 » dans la même file, ou une file à trous — ne veulent
+      // plus rien dire pour l'agent qui lit sa position.
+      for (const c of creneaux) await renumeroterFile(c.id);
+      // Deux créneaux de dix passés à un groupe de dix : les vingt inscrits
+      // restent inscrits, rien ne les retire. Le service doit le savoir tout
+      // de suite, pas en découvrant une jauge à 200 %.
+      if (capacitePartagee && capacite && creneaux.length > 0) {
+        const distincts = await prisma.inscription.findMany({
+          where: { statut: "VALIDEE", creneauId: { in: creneaux.map((c) => c.id) } },
+          select: { userId: true },
+          distinct: ["userId"],
+        });
+        if (distincts.length > capacite) {
+          surEffectif = ` Attention : ${distincts.length} agents inscrits pour ${capacite} places — le groupe est en sur-effectif, personne n'a été retiré.`;
+        }
+      }
     } else {
       const ordre = await prisma.activite.count();
       const row = await prisma.activite.create({ data: { ...data, ordre } });
@@ -113,7 +135,7 @@ export async function enregistrerActivite(
   if (creee && formData.get("redirigerVersFiche") === "1") {
     redirect(`/activites/${creee}`);
   }
-  return succes(`Activité « ${data.nom} » enregistrée.`);
+  return succes(`Activité « ${data.nom} » enregistrée.${surEffectif}`);
 }
 
 export async function basculerActivite(id: string): Promise<void> {
@@ -442,7 +464,12 @@ export async function enregistrerCreneau(
       .join(", ");
     calendrier = `${delta} — ${total} séance${s(total)} au calendrier`;
   }
-  return succes(`Créneau enregistré — ${calendrier}.${notification}${promotions}${ouverture}`);
+  // Un changement de jour retire les séances de l'ancien jour, et avec elles
+  // les absences annoncées et les participations ponctuelles qu'elles
+  // portaient : le service doit savoir qu'un engagement pris a disparu.
+  return succes(
+    `Créneau enregistré — ${calendrier}.${decrirePertesGeneration(gen)}${notification}${promotions}${ouverture}`,
+  );
 }
 
 /**
@@ -528,6 +555,11 @@ async function archiverCreneau(id: string, quand: Date = new Date()): Promise<nu
       motif: "Créneau retiré du planning",
     },
   });
+  // Les demandes d'alerte n'ont plus d'ouverture à attendre : un créneau
+  // retiré ne rouvre pas. Les laisser promettait un courriel qui ne
+  // partirait jamais — ou partirait à tort si le créneau était restauré et
+  // rouvert une saison plus tard.
+  await prisma.alerteOuverture.deleteMany({ where: { creneauId: id } });
   await prisma.creneau.update({
     where: { id },
     data: { archiveAt: quand, ouvertInscription: false },
@@ -563,25 +595,56 @@ export async function regenererCalendrier(creneauId: string): Promise<void> {
   revalidatePath("/seances");
 }
 
-/** Ouvre ou ferme les inscriptions sur un créneau ; à la réouverture, la file avance. */
-export async function basculerInscriptions(creneauId: string): Promise<void> {
+/**
+ * Ouvre ou ferme les inscriptions sur un créneau ; à la réouverture, la file
+ * avance et ceux qui attendaient l'ouverture sont prévenus.
+ *
+ * Renvoie un état de formulaire plutôt que rien : le résultat de l'envoi des
+ * alertes — « 3 agents prévenus », « aucun courriel n'a pu partir » — est la
+ * seule chose que le service ne peut pas vérifier à l'écran, et il se perdait.
+ */
+export async function basculerInscriptions(creneauId: string): Promise<ActionState> {
   const user = await requireUser("GESTIONNAIRE");
-  const creneau = await prisma.creneau.findUnique({ where: { id: creneauId } });
-  if (!creneau) return;
+  const creneau = await prisma.creneau.findUnique({
+    where: { id: creneauId },
+    include: { activite: { select: { actif: true, archiveAt: true } } },
+  });
+  if (!creneau) return erreur("Créneau introuvable.");
+  // Un créneau retiré du planning n'accepte plus personne : le rouvrir par
+  // cette porte enverrait des courriels d'ouverture vers un créneau que le
+  // catalogue ne montre pas.
+  if (creneau.archiveAt) return erreur("Ce créneau est retiré du planning : restaurez-le d'abord.");
   await prisma.creneau.update({
     where: { id: creneauId },
     data: { ouvertInscription: !creneau.ouvertInscription },
   });
+  let ouverture = "";
   if (!creneau.ouvertInscription) {
-    await promouvoirTantQuePossible(creneauId);
+    const promotions = await promouvoirTantQuePossible(creneauId);
     // Ceux qui avaient demandé à être prévenus le sont maintenant : c'est
-    // tout l'intérêt de l'alerte, et le seul moment où elle sert.
-    await notifierOuverture(creneauId);
+    // tout l'intérêt de l'alerte, et le seul moment où elle sert — à
+    // condition que l'agent puisse effectivement s'inscrire. Sur une
+    // activité arrêtée ou une saison que les agents ne voient pas (en
+    // préparation, ou passée), le courriel renverrait vers un créneau absent
+    // du catalogue : l'alerte reste posée jusqu'à une ouverture réelle.
+    const ouverte = await saisonOuverte();
+    const visible =
+      creneau.activite.actif && !creneau.activite.archiveAt && creneau.saisonId === ouverte?.id;
+    ouverture = visible
+      ? decrireNotificationOuverture(await notifierOuverture(creneauId))
+      : " Les agents qui attendent l'ouverture ne sont pas prévenus : ce créneau n'est pas dans le catalogue (activité arrêtée ou saison non activée).";
+    ouverture = promotions + ouverture;
   }
   await audit(creneau.ouvertInscription ? "CRENEAU_FERME" : "CRENEAU_OUVERT", {
     userId: user.id,
     cible: creneauId,
   });
-  revalidatePath("/activites");
-  revalidatePath("/mes-activites");
+  // Y compris la fiche de l'activité, d'où part le geste : comme pour
+  // `supprimerCreneau`, un chemin dynamique ne se rafraîchit pas autrement.
+  revalidatePath("/", "layout");
+  return succes(
+    creneau.ouvertInscription
+      ? "Inscriptions fermées sur ce créneau."
+      : `Inscriptions ouvertes.${ouverture}`,
+  );
 }

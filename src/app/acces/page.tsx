@@ -73,7 +73,7 @@ export default async function AccesPage({
             <p className="text-sm text-slate-600">
               La connexion par e-mail n&apos;est pas activée.
             </p>
-            <p className="mt-2 text-sm text-slate-400">
+            <p className="mt-2 text-sm text-slate-500">
               Connectez-vous depuis un poste de la collectivité avec votre
               identifiant Windows.
             </p>
@@ -81,7 +81,7 @@ export default async function AccesPage({
         )}
 
         {interne && (
-          <p className="mt-6 text-center text-xs text-slate-400">
+          <p className="mt-6 text-center text-xs text-slate-500">
             Depuis un poste de la collectivité, vous pouvez aussi utiliser{" "}
             <Link
               href="/connexion"
