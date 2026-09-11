@@ -53,17 +53,21 @@ export const INSCRIPTION_STATUT_COLORS: Record<InscriptionStatut, string> = {
   DESISTEE: "bg-slate-100 text-slate-500 ring-slate-500/20",
 };
 
+/**
+ * Ce qu'un animateur possède en plus de son code d'émargement.
+ *
+ * « Compte réseau » et non « Compte Active Directory » : le second nomme la
+ * technique, que seule la DSI lit couramment, là où le premier dit à quiconque
+ * ouvre la fiche ce dont il s'agit — le compte avec lequel on ouvre sa session
+ * le matin.
+ *
+ * LOCAL n'est plus proposé : les fiches qui en portent un sont d'anciennes
+ * fiches, et le badge sert à les repérer pour leur donner un compte réseau.
+ */
 export const COACH_ACCES_LABELS: Record<CoachAcces, string> = {
-  AD: "Compte Active Directory",
+  AD: "Compte réseau",
   LOCAL: "Identifiant local",
-  LIEN: "Lien sécurisé (sans compte)",
-};
-
-export const COACH_ACCES_AIDE: Record<CoachAcces, string> = {
-  AD: "L'animateur est agent de la collectivité : il se connecte avec son identifiant Windows habituel.",
-  LOCAL:
-    "Un identifiant et un mot de passe gérés dans l'application. À réserver aux animateurs qui accèdent depuis le réseau.",
-  LIEN: "Aucun compte : un lien personnel + un code à 6 chiffres, utilisable depuis n'importe où. Recommandé pour les prestataires extérieurs.",
+  LIEN: "Aucun compte",
 };
 
 /**

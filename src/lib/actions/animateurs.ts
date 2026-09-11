@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
+import type { CoachAcces } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
@@ -18,20 +18,24 @@ const coachSchema = z.object({
   email: z.string().trim().email("Adresse e-mail invalide.").or(z.literal("")),
   telephone: z.string().trim().optional(),
   organisme: z.string().trim().optional(),
-  // Facultatif : le formulaire des gestionnaires ne porte pas ce champ. Voir
-  // la résolution du mode dans `enregistrerAnimateur`.
-  acces: z.enum(["AD", "LOCAL", "LIEN"]).optional(),
   notes: z.string().trim().optional(),
 });
 
 /**
  * Crée ou met à jour un animateur.
  *
- * Selon le mode d'accès :
- *  • AD    — on rattache le compte de domaine correspondant (créé au besoin,
- *            il sera complété à sa première connexion LDAPS) ;
- *  • LOCAL — on crée/actualise un compte local avec mot de passe ;
- *  • LIEN  — aucun compte : le lien et le code sont attribués séparément.
+ * Tout animateur émarge par lien et code à six chiffres ; celui-ci s'attribue
+ * séparément, depuis la liste. Reste le compte réseau, facultatif : renseigné,
+ * il rattache le compte de domaine correspondant — créé au besoin, complété à
+ * sa première connexion LDAPS — et l'animateur pointe aussi depuis son poste.
+ * Vidé, il détache le compte.
+ *
+ * L'identifiant local a été retiré : il n'apportait rien que le compte de
+ * domaine ne fasse déjà pour un agent, ni que le code ne fasse pour un
+ * prestataire, et c'était un mot de passe de plus à gérer. On n'en crée plus.
+ * Une fiche qui en porte encore un le garde tant que personne ne lui donne de
+ * compte réseau : le supprimer d'autorité retirerait à quelqu'un sa façon
+ * d'entrer sans que personne l'ait demandé.
  */
 export async function enregistrerAnimateur(
   _prev: ActionState,
@@ -45,25 +49,23 @@ export async function enregistrerAnimateur(
     email: formData.get("email") ?? "",
     telephone: formData.get("telephone"),
     organisme: formData.get("organisme"),
-    acces: formData.get("acces"),
     notes: formData.get("notes"),
   });
   if (!parsed.success) return erreur(parsed.error.issues[0].message);
 
   const d = parsed.data;
   const login = String(formData.get("login") ?? "").trim().toLowerCase();
-  const motDePasse = String(formData.get("motDePasse") ?? "");
 
   /**
-   * Le mode d'accès est réservé à la DSI.
+   * Le compte réseau est réservé à la DSI.
    *
-   * Rattacher un animateur à un compte Active Directory ou lui ouvrir un
-   * identifiant local, c'est créer un accès au système d'information — pas un
-   * choix du service des sports, qui n'a de toute façon aucun moyen de vérifier
-   * qu'un sAMAccountName désigne bien la bonne personne. Un gestionnaire crée
-   * donc toujours un accès par lien, et sur une fiche existante le mode en
-   * place est conservé tel quel : le champ absent du formulaire ne doit pas
-   * pouvoir être réintroduit par une requête forgée.
+   * Rattacher un animateur à un compte de domaine, c'est ouvrir un accès au
+   * système d'information — pas un choix du service des sports, qui n'a de
+   * toute façon aucun moyen de vérifier qu'un identifiant Windows désigne bien
+   * la bonne personne. Un gestionnaire enregistre donc toujours un animateur
+   * sans compte, et sur une fiche existante le rattachement en place est
+   * conservé tel quel : le champ absent du formulaire ne doit pas pouvoir être
+   * réintroduit par une requête forgée.
    */
   const estAdmin = admin.role === "ADMIN";
   const coachExistant = id
@@ -72,18 +74,27 @@ export async function enregistrerAnimateur(
         select: { acces: true, userId: true },
       })
     : null;
-  const acces = estAdmin ? (d.acces ?? "LIEN") : (coachExistant?.acces ?? "LIEN");
+
+  // Le mode se déduit de la case : un identifiant saisi rattache, une case
+  // vidée détache. Seul survit à cette règle l'identifiant local d'une vieille
+  // fiche, tant qu'aucun compte réseau ne vient le remplacer.
+  const acces: CoachAcces = !estAdmin
+    ? (coachExistant?.acces ?? "LIEN")
+    : login
+      ? "AD"
+      : coachExistant?.acces === "LOCAL"
+        ? "LOCAL"
+        : "LIEN";
 
   // Le compte déjà rattaché est repris par défaut : un gestionnaire qui corrige
   // un numéro de téléphone sur une fiche AD ne doit pas la détacher au passage.
   let userId: string | null = coachExistant?.userId ?? null;
 
   if (estAdmin && acces === "AD") {
-    if (!login) return erreur("Renseignez l'identifiant Windows de l'animateur.");
     const existant = await prisma.user.findUnique({ where: { login } });
     if (existant?.isLocal) {
       return erreur(
-        `L'identifiant « ${login} » correspond à un compte local. Choisissez le mode « Identifiant local » ou un autre identifiant.`,
+        `« ${login} » est un identifiant local de l'application, pas un compte réseau. Saisissez l'identifiant Windows de l'animateur.`,
       );
     }
     const user =
@@ -97,41 +108,22 @@ export async function enregistrerAnimateur(
           isLocal: false,
         },
       }));
-    if (user.role !== "ADMIN") {
+    // Le rôle n'est jamais RETIRÉ par ce rattachement. Un agent devient COACH,
+    // mais l'administrateur et le gestionnaire gardent le leur : rattacher la
+    // responsable du service des sports, qui anime aussi un créneau, la ferait
+    // sinon tomber en COACH — et `roleApresConnexion` conserve COACH à la
+    // connexion suivante, donc l'appartenance au groupe ne la relèverait pas.
+    // Elle perdrait inscriptions, statistiques et paramétrage sans que rien ne
+    // le dise. Un rôle se change dans Paramètres → Utilisateurs, pas ici.
+    if (user.role !== "ADMIN" && user.role !== "GESTIONNAIRE") {
       await prisma.user.update({ where: { id: user.id }, data: { role: "COACH" } });
     }
     userId = user.id;
   }
 
-  if (estAdmin && acces === "LOCAL") {
-    if (!login) return erreur("Renseignez un identifiant local.");
-    const existant = await prisma.user.findUnique({ where: { login } });
-    if (existant && !existant.isLocal) {
-      return erreur(
-        `L'identifiant « ${login} » existe déjà comme compte Active Directory.`,
-      );
-    }
-    if (!existant && motDePasse.length < 8) {
-      return erreur("Le mot de passe doit comporter au moins 8 caractères.");
-    }
-    if (motDePasse && motDePasse.length < 8) {
-      return erreur("Le mot de passe doit comporter au moins 8 caractères.");
-    }
-    const data = {
-      displayName: `${d.prenom} ${d.nom}`,
-      email: d.email || null,
-      role: "COACH" as const,
-      isLocal: true,
-      active: true,
-      ...(motDePasse ? { passwordHash: await bcrypt.hash(motDePasse, 12) } : {}),
-    };
-    const user = existant
-      ? await prisma.user.update({ where: { id: existant.id }, data })
-      : await prisma.user.create({ data: { login, ...data } });
-    userId = user.id;
-  }
-
-  // Bascule vers le lien sécurisé : le compte rattaché n'a plus lieu d'être.
+  // « Aucun compte » : c'est le geste par lequel on détache un compte devenu
+  // sans objet — un animateur qui quitte la collectivité et poursuit comme
+  // prestataire. Son lien d'émargement, lui, n'est pas concerné.
   if (acces === "LIEN") userId = null;
 
   const champs = {
@@ -165,7 +157,7 @@ export async function enregistrerAnimateur(
   return succes(
     acces === "LIEN"
       ? `${d.prenom} ${d.nom} enregistré. Générez maintenant son lien d'émargement.`
-      : `${d.prenom} ${d.nom} enregistré.`,
+      : `${d.prenom} ${d.nom} enregistré. Son compte réseau lui permet de pointer depuis son poste ; générez aussi son lien s'il émarge depuis son téléphone.`,
   );
 }
 

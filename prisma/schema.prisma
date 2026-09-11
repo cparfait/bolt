@@ -92,11 +92,23 @@ model MagicToken {
 
 // ── Animateurs / éducateurs ────────────────────────────────────────────────
 
-// Trois modes d'accès, choisis par animateur :
-//  • AD    : l'animateur est un agent de la collectivité, connexion LDAPS ;
-//  • LOCAL : identifiant + mot de passe gérés dans Bolt ;
-//  • LIEN  : lien à jeton + code PIN, sans compte — pour les prestataires
-//            externes qui ne sont pas sur le réseau (accès depuis Internet).
+// Compte applicatif rattaché à l'animateur :
+//  • AD    : compte réseau, l'animateur est un agent de la collectivité et se
+//            connecte en LDAPS ;
+//  • LIEN  : aucun compte — le cas des prestataires externes ;
+//  • LOCAL : ancien identifiant + mot de passe gérés dans Bolt. Plus proposé :
+//            il n'apportait rien que le compte réseau ne fasse pour un agent,
+//            ni que le code ne fasse pour un prestataire, et c'était un mot de
+//            passe de plus à gérer. La valeur reste pour les fiches qui en
+//            portent encore un, qu'on remplace en leur donnant un compte
+//            réseau.
+//
+// Ce champ ne décrit QUE le compte. Le lien à jeton + code PIN est un second
+// chemin, indépendant, ouvert quel que soit ce mode : un animateur agent de la
+// collectivité pointe depuis son poste avec son identifiant Windows, et depuis
+// son téléphone au gymnase avec son code. Les deux chemins gardent leurs
+// garanties propres — le lien ne fait jamais saisir un mot de passe de domaine,
+// et le compte n'est joignable que du réseau interne.
 enum CoachAcces {
   AD
   LOCAL

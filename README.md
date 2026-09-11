@@ -49,16 +49,43 @@ proxy applicatif `src/proxy.ts` (`INTERNAL_CIDRS`), qui refuse tout ce qui n'est
 pas `/emargement/*` ni `/courriel/*` aux requêtes venues d'une IP hors des
 plages internes.
 
-### Accès des animateurs — trois modes au choix
+### Accès des animateurs — deux chemins, cumulables
 
-Configurable **par animateur**, selon sa situation :
+**Le lien sécurisé**, d'abord, et pour tous. Jeton aléatoire de 32 octets + code
+PIN à 6 chiffres stocké haché (bcrypt). Verrouillage 15 minutes après 5 essais,
+persisté en base. Expiration facultative, révocation immédiate, chaque accès
+journalisé avec IP. C'est le seul chemin publié sur Internet, et le seul dont
+dispose un prestataire extérieur.
 
-- **Lien sécurisé (sans compte)** — recommandé pour les prestataires. Jeton
-  aléatoire de 32 octets + code PIN à 6 chiffres stocké haché (bcrypt).
-  Verrouillage 15 minutes après 5 essais, persisté en base. Expiration
-  facultative, révocation immédiate, chaque accès journalisé avec IP.
-- **Compte Active Directory** — pour un animateur agent de la collectivité.
-- **Identifiant local** — géré dans Bolt, indépendant de l'annuaire.
+**Le compte réseau**, ensuite, si l'animateur en a un. Une seule case sur sa
+fiche, réservée à la DSI : son identifiant Windows. Renseignée, elle rattache le
+compte de domaine et l'animateur se connecte comme n'importe quel agent ; vidée,
+elle le détache. Rien à trancher, rien à cocher — le service des sports ne voit
+même pas cette case, et n'a de toute façon aucun moyen de vérifier qu'un
+identifiant désigne bien la bonne personne.
+
+*L'identifiant local des versions précédentes n'est plus proposé : il
+n'apportait rien que le compte réseau ne fasse pour un agent, ni que le code ne
+fasse pour un prestataire, et c'était un mot de passe de plus à gérer. Les fiches
+qui en portent un le gardent, avec un rappel de le remplacer.*
+
+**Les deux se cumulent, et c'est le but.** L'éducateur sportif employé par la
+ville pointe depuis son poste au bureau, et depuis son téléphone au gymnase, où
+il n'y a ni poste ni réseau interne. Lui demander de choisir reviendrait à lui
+retirer l'un des deux.
+
+Le cumul n'élargit rien, parce que les deux chemins restent ce qu'ils sont :
+
+- le compte ne franchit pas `requireUser`, qui refuse toute requête venue
+  d'Internet — il ne sert que depuis le réseau ou le VPN ;
+- valider le code n'ouvre **pas** de session applicative : il pose un `coachId`
+  dans le cookie, jamais un `userId` (`verifierPin`, `src/lib/coach-access.ts`),
+  et rien de ce qui exige un compte ne le lit ;
+- aucune vérification du chemin par lien ne consulte le mode de compte : elle ne
+  dépend que du jeton, du code et de l'animateur actif. Un lien qui fuite donne
+  la feuille d'émargement, jamais l'identité Active Directory — qui n'est ni
+  stockée ici, ni saisissable depuis l'extérieur ;
+- désactiver l'animateur ferme les deux d'un seul geste.
 
 ### Agents sans poste sur le réseau (option)
 

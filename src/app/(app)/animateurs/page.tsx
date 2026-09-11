@@ -127,8 +127,13 @@ export default async function AnimateursPage() {
 
             // Un accès en règle n'a rien à demander : le pavé reste replié. Il
             // s'ouvre de lui-même dès qu'il y a quelque chose à faire.
+            //
+            // « Pas encore de lien » n'est une anomalie que pour l'animateur
+            // sans compte, à qui il ne reste aucune autre porte. Celui qui a un
+            // compte du domaine pointe déjà depuis son poste : son code est un
+            // confort pour le gymnase, pas un manque à signaler.
             const accesAttentionRequise = Boolean(
-              !lienActif || expire || verrouille,
+              (!lienActif && c.acces === "LIEN") || expire || verrouille,
             );
 
             return (
@@ -139,10 +144,10 @@ export default async function AnimateursPage() {
                       <h3 className="font-semibold">
                         {c.prenom} {c.nom}
                       </h3>
-                      {/* Le lien sécurisé est le cas ordinaire — le signaler
-                          sur chaque fiche n'apprend rien. Restent badgés les
-                          deux modes qui, eux, sortent de l'ordinaire : un
-                          compte du domaine ou un identifiant local. */}
+                      {/* Tout le monde a son code : le signaler sur chaque
+                          fiche n'apprend rien. Reste badgé ce qui s'y ajoute —
+                          un compte réseau, ou l'identifiant local d'une fiche
+                          qu'il reste à reprendre. */}
                       {c.acces !== "LIEN" && (
                         <Badge>{COACH_ACCES_LABELS[c.acces]}</Badge>
                       )}
@@ -217,8 +222,12 @@ export default async function AnimateursPage() {
                   </p>
                 )}
 
-                {c.acces === "LIEN" && (
-                  <details open={accesAttentionRequise} className="mt-4">
+                {/* Ouvert à tous les animateurs, quel que soit leur compte :
+                    celui qui a un identifiant Windows pointe depuis son poste,
+                    mais il est au gymnase quand la séance a lieu. Le code lui
+                    donne la feuille sur son téléphone sans jamais lui faire
+                    saisir son mot de passe de domaine hors du réseau. */}
+                <details open={accesAttentionRequise} className="mt-4">
                     <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                       <KeyRound className="h-4 w-4 shrink-0 text-slate-400" />
                       <span className="font-medium text-slate-700">
@@ -268,8 +277,7 @@ export default async function AnimateursPage() {
                         finSaison={finSaison}
                       />
                     </div>
-                  </details>
-                )}
+                </details>
 
                 <details className="mt-4">
                   <summary className="cursor-pointer text-sm font-medium text-brand-600">

@@ -93,7 +93,9 @@ export async function attribuerLien(
   await prisma.coach.update({
     where: { id: coachId },
     data: {
-      acces: "LIEN",
+      // `acces` n'est pas touché : il décrit le compte rattaché, et générer un
+      // code n'en retire aucun. Le forcer à LIEN détachait l'animateur agent de
+      // la collectivité du compte par lequel il pointe depuis son poste.
       token,
       pinHash: await bcrypt.hash(pin, 12),
       tokenCreatedAt: new Date(),

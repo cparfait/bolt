@@ -1,12 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import type { CoachAcces } from "@prisma/client";
 import { enregistrerAnimateur } from "@/lib/actions/animateurs";
 import type { ActionState } from "@/lib/actions/types";
 import { Alert, Field, Input, Textarea, btnPrimary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
-import { COACH_ACCES_AIDE, COACH_ACCES_LABELS } from "@/lib/constants";
 
 export type AnimateurInitial = {
   id: string;
@@ -20,17 +19,24 @@ export type AnimateurInitial = {
   login: string | null;
 };
 
-const MODES: CoachAcces[] = ["LIEN", "AD", "LOCAL"];
-
 /**
  * Fiche animateur.
  *
- * Le mode d'accès n'apparaît que pour la DSI : rattacher un animateur à un
- * compte Active Directory ou lui ouvrir un identifiant local relève de la
- * gestion des accès au système d'information, pas du service des sports. Pour
- * tous les autres, un animateur créé ici reçoit un lien sécurisé, et le mode
- * d'une fiche existante reste ce qu'il est. Le masquage n'est que du confort :
- * c'est `enregistrerAnimateur` qui refuse le changement.
+ * Une seule case pour l'accès, et elle n'apparaît que pour la DSI : rattacher
+ * un animateur à un compte de domaine ouvre un accès au système d'information,
+ * ce qui ne relève pas du service des sports — il n'a d'ailleurs aucun moyen de
+ * vérifier qu'un identifiant Windows désigne bien la bonne personne. Pour tous
+ * les autres, le champ est absent et le rattachement d'une fiche existante
+ * reste ce qu'il est. Le masquage n'est que du confort : c'est
+ * `enregistrerAnimateur` qui refuse le changement.
+ *
+ * Une case, et pas un choix de mode, parce qu'il n'y a plus rien à trancher.
+ * Le lien et le code à six chiffres sont acquis à tout le monde ; le compte
+ * réseau ne fait qu'ajouter une seconde porte, celle du poste de bureau, à
+ * l'animateur agent de la collectivité. Renseignée, elle rattache ; vidée, elle
+ * détache. Demander « quel mode d'accès ? » à chaque création posait une
+ * question dont la réponse était presque toujours « aucun », dans un
+ * vocabulaire que seule la DSI lit couramment.
  */
 export function AnimateurForm({
   initial,
@@ -43,7 +49,6 @@ export function AnimateurForm({
     enregistrerAnimateur,
     null,
   );
-  const [acces, setAcces] = useState<CoachAcces>(initial?.acces ?? "LIEN");
 
   return (
     <form action={action} className="space-y-4">
@@ -73,61 +78,26 @@ export function AnimateurForm({
       </Field>
 
       {estAdmin && (
-        <Field label="Mode d'accès" required>
-          <div className="space-y-2">
-            {MODES.map((m) => (
-              <label
-                key={m}
-                className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
-                  acces === m
-                    ? "border-brand-300 bg-brand-50/50"
-                    : "border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="acces"
-                  value={m}
-                  checked={acces === m}
-                  onChange={() => setAcces(m)}
-                  className="mt-0.5 h-4 w-4"
-                />
-                <span>
-                  <span className="block text-sm font-medium">
-                    {COACH_ACCES_LABELS[m]}
-                  </span>
-                  <span className="block text-xs text-slate-500">
-                    {COACH_ACCES_AIDE[m]}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </div>
+        <Field
+          label="Compte réseau"
+          hint="Identifiant Windows de l'animateur, s'il est agent de la collectivité : il pourra alors pointer depuis un poste du réseau, en plus de son code. À laisser vide pour un prestataire extérieur."
+        >
+          <Input
+            name="login"
+            defaultValue={initial?.acces === "AD" ? (initial.login ?? "") : ""}
+            autoComplete="off"
+            placeholder="prenom.nom"
+          />
         </Field>
       )}
 
-      {estAdmin && acces !== "LIEN" && (
-        <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4 sm:grid-cols-2">
-          <Field
-            label={acces === "AD" ? "Identifiant Windows" : "Identifiant local"}
-            required
-            hint={
-              acces === "AD"
-                ? "sAMAccountName de l'animateur dans l'annuaire."
-                : "Identifiant créé dans l'application, indépendant de l'annuaire."
-            }
-          >
-            <Input name="login" defaultValue={initial?.login ?? ""} autoComplete="off" />
-          </Field>
-          {acces === "LOCAL" && (
-            <Field
-              label="Mot de passe"
-              hint={initial ? "Laisser vide pour ne pas le changer." : "8 caractères minimum."}
-            >
-              <Input name="motDePasse" type="password" autoComplete="new-password" />
-            </Field>
-          )}
-        </div>
+      {estAdmin && initial?.acces === "LOCAL" && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Cet animateur se connecte encore avec un identifiant local, hérité d&apos;une
+          version précédente de l&apos;application. Renseignez son compte réseau pour le
+          remplacer&nbsp;; tant que la case reste vide, son identifiant actuel continue
+          de fonctionner.
+        </p>
       )}
 
       <Field label="Notes internes">

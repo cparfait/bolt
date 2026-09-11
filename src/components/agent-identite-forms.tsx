@@ -100,7 +100,7 @@ export function RattacherAdForm({ userId }: { userId: string }) {
       <Alert state={state} />
       <input type="hidden" name="userId" value={userId} />
       <ChampAgent
-        label="Compte Active Directory"
+        label="Compte de l'annuaire"
         source="ad"
         hint="Cherchez la personne par son nom ou son identifiant Windows. Ses inscriptions, ses présences et ses absences suivront sur ce compte."
       />
