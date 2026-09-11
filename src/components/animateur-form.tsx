@@ -6,6 +6,8 @@ import { enregistrerAnimateur } from "@/lib/actions/animateurs";
 import type { ActionState } from "@/lib/actions/types";
 import { Alert, Field, Input, Textarea, btnPrimary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
+import { ChampAgent } from "@/components/champ-agent";
+import type { Candidat } from "@/lib/comptes";
 
 export type AnimateurInitial = {
   id: string;
@@ -30,6 +32,12 @@ export type AnimateurInitial = {
  * reste ce qu'il est. Le masquage n'est que du confort : c'est
  * `enregistrerAnimateur` qui refuse le changement.
  *
+ * Et une recherche, pas une saisie libre. Un identifiant tapé de mémoire crée
+ * un compte à la première faute de frappe, et rien ne dit que celui qu'on a
+ * écrit désigne la bonne personne : `jmartin` peut être Julie ou Jean. La
+ * recherche montre le nom, le service et l'adresse avant de choisir, et ne
+ * propose que des comptes qui existent.
+ *
  * Une case, et pas un choix de mode, parce qu'il n'y a plus rien à trancher.
  * Le lien et le code à six chiffres sont acquis à tout le monde ; le compte
  * réseau ne fait qu'ajouter une seconde porte, celle du poste de bureau, à
@@ -49,6 +57,22 @@ export function AnimateurForm({
     enregistrerAnimateur,
     null,
   );
+
+  // Le compte déjà rattaché, présenté comme un résultat de recherche : la fiche
+  // s'ouvre sur ce qu'elle porte, et enregistrer sans toucher à ce champ ne
+  // détache rien. Le nom de l'animateur suffit à l'afficher — l'annuaire n'a
+  // pas à être interrogé pour redire ce qu'on sait déjà.
+  const compteActuel: Candidat | null =
+    initial?.acces === "AD" && initial.login
+      ? {
+          login: initial.login,
+          nom: `${initial.prenom} ${initial.nom}`,
+          email: initial.email,
+          service: null,
+          direction: null,
+          source: "compte",
+        }
+      : null;
 
   return (
     <form action={action} className="space-y-4">
@@ -78,17 +102,14 @@ export function AnimateurForm({
       </Field>
 
       {estAdmin && (
-        <Field
+        <ChampAgent
           label="Compte réseau"
-          hint="Identifiant Windows de l'animateur, s'il est agent de la collectivité : il pourra alors pointer depuis un poste du réseau, en plus de son code. À laisser vide pour un prestataire extérieur."
-        >
-          <Input
-            name="login"
-            defaultValue={initial?.acces === "AD" ? (initial.login ?? "") : ""}
-            autoComplete="off"
-            placeholder="prenom.nom"
-          />
-        </Field>
+          source="ad"
+          required={false}
+          initial={compteActuel}
+          hint="Cherchez l'animateur dans l'annuaire, par son nom ou son identifiant Windows. Rattaché, il pourra pointer depuis un poste du réseau, en plus de son code."
+          noteVide="À laisser vide pour un prestataire extérieur : il émarge avec son lien et son code."
+        />
       )}
 
       {estAdmin && initial?.acces === "LOCAL" && (

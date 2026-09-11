@@ -31,14 +31,26 @@ export function ChampAgent({
   // « ad » écarte les participants hors annuaire, qui ne sont pas des cibles
   // de rattachement valables.
   source = "annuaire",
+  // Presque partout, choisir quelqu'un EST le geste : inscrire, rattacher,
+  // ajouter à une feuille. Le compte réseau d'un animateur fait exception — il
+  // s'ajoute à un code que tout le monde a déjà, et le prestataire n'en a pas.
+  required = true,
+  // Sélection de départ, pour un champ qui modifie un rattachement existant :
+  // sans elle, enregistrer une fiche sans toucher à ce champ détacherait le
+  // compte, puisque rien ne distingue « pas encore choisi » de « plus aucun ».
+  initial = null,
+  noteVide = "Sélectionnez d'abord un agent.",
 }: {
   label?: string;
   hint?: string;
   source?: "annuaire" | "connus" | "ad";
+  required?: boolean;
+  initial?: Candidat | null;
+  noteVide?: string;
 }) {
   const [terme, setTerme] = useState("");
   const [resultats, setResultats] = useState<Candidat[]>([]);
-  const [choisi, setChoisi] = useState<Candidat | null>(null);
+  const [choisi, setChoisi] = useState<Candidat | null>(initial);
   const [cherche, demarrer] = useTransition();
 
   // Anti-rebond : on n'interroge l'annuaire qu'une fois la frappe stabilisée.
@@ -65,7 +77,7 @@ export function ChampAgent({
 
   return (
     <>
-      <Field label={label} required hint={hint}>
+      <Field label={label} required={required} hint={hint}>
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
@@ -163,9 +175,7 @@ export function ChampAgent({
       )}
 
       <input type="hidden" name="login" value={choisi?.login ?? ""} />
-      {!choisi && (
-        <p className="text-xs text-slate-500">Sélectionnez d&apos;abord un agent.</p>
-      )}
+      {!choisi && <p className="text-xs text-slate-500">{noteVide}</p>}
     </>
   );
 }
