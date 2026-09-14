@@ -109,8 +109,16 @@ export async function synchroniserAnnuaire(
     });
   }
 
-  // Rattachement hiérarchique des comptes Bolt déjà connus : les statistiques
-  // par direction restent justes même sans reconnexion.
+  // Identité et rattachement hiérarchique des comptes Bolt déjà connus : le nom
+  // affiché et les statistiques par direction restent justes même sans
+  // reconnexion.
+  //
+  // Le nom compte autant que le service. Il n'était repris qu'à la connexion
+  // LDAPS (src/lib/auth.ts) : un nom et un prénom inversés dans l'AD, corrigés
+  // puis synchronisés, restaient affichés à l'envers sur les listes
+  // d'émargement et les inscriptions jusqu'à ce que la personne se reconnecte —
+  // et un agent inscrit par le service des sports, qui ne se connecte jamais,
+  // gardait indéfiniment son nom erroné.
   //
   // On ne réécrit que ce qui a bougé. La boucle précédente faisait déjà un
   // aller-retour par compte d'annuaire ; en ajouter un second systématique
@@ -124,9 +132,12 @@ export async function synchroniserAnnuaire(
         select: {
           id: true,
           login: true,
+          displayName: true,
           direction: true,
           service: true,
           serviceForce: true,
+          isLocal: true,
+          anonymiseAt: true,
         },
       })
     ).map((u) => [u.login.toLowerCase(), u]),
@@ -150,11 +161,20 @@ export async function synchroniserAnnuaire(
     const service = u.serviceForce
       ? undefined
       : (resoudreService(c.service, regles, referentiel) ?? undefined);
+    // Le nom ne se reprend que pour un compte réellement adossé à l'annuaire,
+    // et jamais pour une identité effacée : `anonymiserCompte` serait défait
+    // dès la nuit suivante, et le droit à l'effacement avec lui.
+    const displayName =
+      adosseALAnnuaire(u) && !u.anonymiseAt ? (c.displayName ?? undefined) : undefined;
     const inchange =
       (direction === undefined || direction === u.direction) &&
-      (service === undefined || service === u.service);
+      (service === undefined || service === u.service) &&
+      (displayName === undefined || displayName === u.displayName);
     if (inchange) continue;
-    await prisma.user.update({ where: { id: u.id }, data: { direction, service } });
+    await prisma.user.update({
+      where: { id: u.id },
+      data: { direction, service, displayName },
+    });
   }
 
   // ── Population témoin et garde-fou ────────────────────────────────────────
