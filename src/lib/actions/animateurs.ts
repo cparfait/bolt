@@ -192,7 +192,7 @@ export async function enregistrerAnimateur(
 
   revalidatePath("/animateurs");
   return {
-    success: `${d.prenom} ${d.nom} enregistré, son accès d'émargement est prêt.`,
+    success: `${d.prenom} ${d.nom} enregistré. Son lien et son code sont à transmettre depuis sa fiche, ci-dessous.`,
     acces: {
       coachId: coach.id,
       nom: `${d.prenom} ${d.nom}`,

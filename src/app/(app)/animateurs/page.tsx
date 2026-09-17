@@ -17,6 +17,7 @@ import {
 import { Panneau } from "@/components/panneau";
 import { BoutonAction } from "@/components/bouton-action";
 import { AnimateurForm } from "@/components/animateur-form";
+import { AccesATransmettre, AccesCreeProvider } from "@/components/acces-cree";
 import { LienForm } from "@/components/lien-form";
 import { COACH_ACCES_LABELS } from "@/lib/constants";
 import { fmtDate, fmtHorodatage, isoDate } from "@/lib/dates";
@@ -77,7 +78,7 @@ export default async function AnimateursPage() {
   });
 
   return (
-    <>
+    <AccesCreeProvider>
       <PageHeader
         title="Animateurs"
         subtitle="Éducateurs et coachs — trois modes d'accès selon leur situation"
@@ -119,9 +120,13 @@ export default async function AnimateursPage() {
                       ton: "text-amber-600",
                     }
                   : {
-                      texte: c.lastAccessAt
-                        ? `actif · dernier accès ${fmtHorodatage(c.lastAccessAt)}`
-                        : "actif · jamais utilisé",
+                      texte:
+                        (c.lastAccessAt
+                          ? `actif · dernier accès ${fmtHorodatage(c.lastAccessAt)}`
+                          : "actif · jamais utilisé") +
+                        // Le code noté par le service ne vaut plus : à lire
+                        // sans ouvrir le pavé, avant de le redonner à quelqu'un.
+                        (c.pinChangedAt ? " · code changé par l'animateur" : ""),
                       ton: "text-slate-500",
                     };
 
@@ -137,7 +142,7 @@ export default async function AnimateursPage() {
             );
 
             return (
-              <Card key={c.id} className={c.actif ? "" : "opacity-60"}>
+              <Card key={c.id} id={`animateur-${c.id}`} className={c.actif ? "" : "opacity-60"}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -199,6 +204,10 @@ export default async function AnimateursPage() {
                   </div>
                 </div>
 
+                {/* L'accès qui vient d'être créé, s'il s'agit de cette fiche :
+                    le lien et le code se lisent sous le nom qu'ils concernent. */}
+                <AccesATransmettre coachId={c.id} />
+
                 {c.creneaux.length > 0 ? (
                   <ul className="mt-4 space-y-1.5">
                     {grouperParActivite(c.creneaux).map((g) => (
@@ -254,6 +263,14 @@ export default async function AnimateursPage() {
                                 ? `Dernier accès : ${fmtHorodatage(c.lastAccessAt)}${c.lastAccessIp ? ` depuis ${c.lastAccessIp}` : ""}`
                                 : "Jamais utilisé"}
                             </li>
+                            {c.pinChangedAt && (
+                              <li className="text-amber-700">
+                                Code remplacé par l&apos;animateur le{" "}
+                                {fmtHorodatage(c.pinChangedAt)} : celui noté à la
+                                création ne fonctionne plus. Régénérer le lien en
+                                donne un nouveau.
+                              </li>
+                            )}
                             {verrouille && (
                               <li className="flex items-center gap-1.5 text-red-600">
                                 <Ban className="h-3.5 w-3.5" />
@@ -307,6 +324,6 @@ export default async function AnimateursPage() {
           })}
         </div>
       )}
-    </>
+    </AccesCreeProvider>
   );
 }

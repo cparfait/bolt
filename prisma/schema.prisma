@@ -140,6 +140,11 @@ model Coach {
   lastAccessIp  String?
   pinFailedCount Int      @default(0)
   pinLockedUntil DateTime?
+  /// L'animateur a remplacé le code reçu par un code à lui (voir `changerPin`).
+  /// Le service doit le savoir : le code qu'il a noté à la création ne vaut
+  /// plus, et un « je n'arrive plus à me connecter » se comprend autrement.
+  /// Remis à zéro à chaque nouveau lien.
+  pinChangedAt   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

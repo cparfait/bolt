@@ -5,6 +5,7 @@ import { prisma } from "./db";
 import { getSession } from "./session";
 import { audit } from "./audit";
 import { rateLimit, resetRateLimit } from "./rate-limit";
+import { equipeCourante } from "./settings";
 
 /**
  * Accès distant des animateurs — le point sensible de l'application.
@@ -102,6 +103,7 @@ export async function attribuerLien(
       tokenExpiresAt: expiresAt,
       pinFailedCount: 0,
       pinLockedUntil: null,
+      pinChangedAt: null,
       lastAccessAt: null,
       lastAccessIp: null,
     },
@@ -217,7 +219,7 @@ export async function verifierPin(
     return { ok: false, message: "Lien invalide." };
   }
   if (coach.tokenExpiresAt && coach.tokenExpiresAt < new Date()) {
-    return { ok: false, message: "Ce lien a expiré. Contactez le service des sports." };
+    return { ok: false, message: `Ce lien a expiré. Contactez ${(await equipeCourante()).equipe}.` };
   }
 
   const maintenant = new Date();
@@ -329,7 +331,12 @@ export async function changerPin(
 
   await prisma.coach.update({
     where: { id: coachId },
-    data: { pinHash: await bcrypt.hash(nouveauPropre, 12), pinFailedCount: 0, pinLockedUntil: null },
+    data: {
+      pinHash: await bcrypt.hash(nouveauPropre, 12),
+      pinFailedCount: 0,
+      pinLockedUntil: null,
+      pinChangedAt: new Date(),
+    },
   });
   await audit("EMARGEMENT_PIN_CHANGE", {
     acteur: `${coach.prenom} ${coach.nom}`,
