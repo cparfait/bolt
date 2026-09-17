@@ -176,7 +176,12 @@ export default async function InscriptionsPage({
     ...new Map(
       creneaux.map((c) => [
         c.activiteId,
-        { id: c.activiteId, nom: c.activite.nom, couleur: c.activite.couleur, actif: true },
+        {
+          id: c.activiteId,
+          nom: c.activite.nom,
+          couleur: c.activite.couleur,
+          actif: c.activite.actif,
+        },
       ]),
     ).values(),
   ];
@@ -333,7 +338,10 @@ export default async function InscriptionsPage({
                  le pavé blanc qui cassait la couleur au milieu du bloc. */
               <Card
                 key={c.id}
-                className="border-l-4"
+                /* Estompée comme sur la page Activités : une activité
+                   désactivée n'est plus proposée aux agents, ses inscrits
+                   restent, et le service doit le voir sans ouvrir la fiche. */
+                className={`border-l-4 ${c.activite.actif ? "" : "opacity-60"}`}
                 style={{
                   borderLeftColor: c.activite.couleur,
                   backgroundColor: `${c.activite.couleur}0f`,
@@ -352,6 +360,9 @@ export default async function InscriptionsPage({
                           qui explique pourquoi une demande ne peut pas être
                           honorée ici. Un badge à hauteur du titre la donne
                           d'un coup d'œil, comme sur la page Activités. */}
+                      {/* Même badge que la liste et la fiche de l'activité :
+                          un état doit se lire pareil d'un écran à l'autre. */}
+                      {!c.activite.actif && <Badge>Activité désactivée</Badge>}
                       {!c.ouvertInscription && (
                         <Badge color="bg-amber-100 text-amber-800 ring-amber-500/20">
                           <Lock className="h-3 w-3" aria-hidden="true" />
