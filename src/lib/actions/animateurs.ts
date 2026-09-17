@@ -6,11 +6,30 @@ import type { CoachAcces } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
+import bcrypt from "bcryptjs";
 import { attribuerLien, lienEmargement, revoquerLien } from "@/lib/coach-access";
 import { corpsLienAnimateur, envoyerMail } from "@/lib/mail";
 import { getGeneralSettings } from "@/lib/settings";
-import { jourUtc } from "@/lib/dates";
+import { saisonCourante } from "@/lib/saison";
+import { fmtDate, jourUtc } from "@/lib/dates";
 import { erreur, succes, type ActionState } from "./types";
+
+/**
+ * Ce que la création d'un animateur rend à l'écran : le message habituel, et
+ * l'accès qui vient d'être créé avec lui. Le code n'est lisible qu'à cet
+ * instant — il est stocké haché —, le formulaire doit donc le montrer tout de
+ * suite plutôt que de renvoyer vers un second geste.
+ */
+export type AccesCree = {
+  coachId: string;
+  nom: string;
+  email: string | null;
+  lien: string;
+  pin: string;
+  /** Échéance du lien, déjà mise en forme, ou null sans échéance. */
+  expiration: string | null;
+};
+export type AnimateurState = { error?: string; success?: string; acces?: AccesCree } | null;
 
 const coachSchema = z.object({
   nom: z.string().trim().min(2, "Nom requis."),
@@ -38,9 +57,9 @@ const coachSchema = z.object({
  * d'entrer sans que personne l'ait demandé.
  */
 export async function enregistrerAnimateur(
-  _prev: ActionState,
+  _prev: AnimateurState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<AnimateurState> {
   const admin = await requireUser("GESTIONNAIRE");
   const id = String(formData.get("id") ?? "");
   const parsed = coachSchema.safeParse({
@@ -144,21 +163,85 @@ export async function enregistrerAnimateur(
       cible: `${d.prenom} ${d.nom}`,
       details: acces,
     });
-  } else {
-    await prisma.coach.create({ data: champs });
-    await audit("ANIMATEUR_CREE", {
-      userId: admin.id,
-      cible: `${d.prenom} ${d.nom}`,
-      details: acces,
-    });
+    revalidatePath("/animateurs");
+    return succes(`${d.prenom} ${d.nom} enregistré.`);
   }
 
+  const coach = await prisma.coach.create({ data: champs });
+  await audit("ANIMATEUR_CREE", {
+    userId: admin.id,
+    cible: `${d.prenom} ${d.nom}`,
+    details: acces,
+  });
+
+  // L'accès est créé dans la foulée. Tout animateur émarge par lien et code :
+  // les créer dans un second temps, depuis la liste, faisait exactement ce que
+  // l'on redoutait — des animateurs enregistrés sans accès, qui arrivaient au
+  // gymnase sans pouvoir pointer. Même échéance par défaut que le formulaire
+  // de génération : la fin de la saison en cours, si elle n'est pas passée.
+  const saison = await saisonCourante();
+  const expiration = saison && saison.fin > new Date() ? saison.fin : null;
+  const { token, pin } = await attribuerLien(coach.id, expiration);
+  const g = await getGeneralSettings();
+  const lien = lienEmargement(token, g.pointageUrl || g.appUrl);
+  await audit("ANIMATEUR_LIEN_GENERE", {
+    userId: admin.id,
+    cible: `${d.prenom} ${d.nom}`,
+    details: expiration ? `à la création, expire le ${fmtDate(expiration)}` : "à la création, sans expiration",
+  });
+
   revalidatePath("/animateurs");
-  return succes(
-    acces === "LIEN"
-      ? `${d.prenom} ${d.nom} enregistré. Générez maintenant son lien d'émargement.`
-      : `${d.prenom} ${d.nom} enregistré. Son compte réseau lui permet de pointer depuis son poste ; générez aussi son lien s'il émarge depuis son téléphone.`,
+  return {
+    success: `${d.prenom} ${d.nom} enregistré, son accès d'émargement est prêt.`,
+    acces: {
+      coachId: coach.id,
+      nom: `${d.prenom} ${d.nom}`,
+      email: coach.email,
+      lien,
+      pin,
+      expiration: expiration ? fmtDate(expiration) : null,
+    },
+  };
+}
+
+/**
+ * Envoie à l'animateur l'accès que sa création vient d'afficher.
+ *
+ * Le code arrive du formulaire, parce qu'il n'existe nulle part ailleurs en
+ * clair : il est stocké haché dès sa génération. Il n'est pas cru sur parole
+ * pour autant — il est confronté au haché, et le lien se reconstruit depuis le
+ * jeton en base plutôt que d'être repris du formulaire. Une requête forgée ne
+ * peut donc faire partir ni un faux code, ni une adresse étrangère : seul le
+ * vrai accès de cet animateur part, à l'adresse de sa fiche.
+ */
+export async function envoyerAccesAnimateur(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireUser("GESTIONNAIRE");
+  const id = String(formData.get("id") ?? "");
+  const pin = String(formData.get("pin") ?? "").trim();
+  const coach = await prisma.coach.findUnique({ where: { id } });
+  if (!coach) return erreur("Animateur introuvable.");
+  if (!coach.email) return erreur("Cet animateur n'a pas d'adresse e-mail.");
+  if (!coach.token || !coach.pinHash) {
+    return erreur("Cet animateur n'a plus d'accès : régénérez son lien depuis sa fiche.");
+  }
+  if (!/^\d{6}$/.test(pin) || !(await bcrypt.compare(pin, coach.pinHash))) {
+    return erreur("Ce code ne correspond plus à l'accès en place : régénérez le lien depuis sa fiche.");
+  }
+
+  const g = await getGeneralSettings();
+  const lien = lienEmargement(coach.token, g.pointageUrl || g.appUrl);
+  const res = await envoyerMail(
+    coach.email,
+    "Votre accès à la feuille de présence",
+    await corpsLienAnimateur(coach.prenom, lien, pin, coach.tokenExpiresAt),
   );
+  if (!res.ok) {
+    return erreur(`L'envoi a échoué : ${res.message} Transmettez le lien et le code par un autre moyen.`);
+  }
+  return succes(`Message envoyé à ${coach.email}.`);
 }
 
 export async function basculerAnimateur(id: string): Promise<void> {

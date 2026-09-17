@@ -1,12 +1,19 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { AlertTriangle, Mail, Plus } from "lucide-react";
 import type { CoachAcces } from "@prisma/client";
-import { enregistrerAnimateur } from "@/lib/actions/animateurs";
+import {
+  enregistrerAnimateur,
+  envoyerAccesAnimateur,
+  type AccesCree,
+  type AnimateurState,
+} from "@/lib/actions/animateurs";
 import type { ActionState } from "@/lib/actions/types";
-import { Alert, Field, Input, Textarea, btnPrimary } from "@/components/ui";
+import { Alert, Field, Input, Textarea, btnPrimary, btnSecondary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { ChampAgent } from "@/components/champ-agent";
+import { ValeurCopiable } from "@/components/lien-form";
 import type { Candidat } from "@/lib/comptes";
 
 export type AnimateurInitial = {
@@ -46,17 +53,34 @@ export type AnimateurInitial = {
  * question dont la réponse était presque toujours « aucun », dans un
  * vocabulaire que seule la DSI lit couramment.
  */
-export function AnimateurForm({
+export function AnimateurForm(props: { initial?: AnimateurInitial; estAdmin?: boolean }) {
+  // Remonter le formulaire à neuf pour « ajouter un autre » : `useActionState`
+  // ne se remet pas à zéro, et l'accès affiché ne doit pas rester sous les
+  // champs du suivant — on le prendrait pour le sien.
+  const [cle, setCle] = useState(0);
+  return <FormulaireAnimateur key={cle} {...props} surAutre={() => setCle((c) => c + 1)} />;
+}
+
+function FormulaireAnimateur({
   initial,
   estAdmin = false,
+  surAutre,
 }: {
   initial?: AnimateurInitial;
   estAdmin?: boolean;
+  surAutre: () => void;
 }) {
-  const [state, action] = useActionState<ActionState, FormData>(
+  const [state, action] = useActionState<AnimateurState, FormData>(
     enregistrerAnimateur,
     null,
   );
+
+  // Créé : les champs disparaissent, ne reste que ce qu'il faut lire et
+  // transmettre. Le formulaire entier sous un accès à recopier noyait le code
+  // au milieu de champs vides, et c'est la seule fois où il est lisible.
+  if (state?.acces) {
+    return <AccesCreeBloc acces={state.acces} message={state.success} surAutre={surAutre} />;
+  }
 
   // Le compte déjà rattaché, présenté comme un résultat de recherche : la fiche
   // s'ouvre sur ce qu'elle porte, et enregistrer sans toucher à ce champ ne
@@ -129,5 +153,78 @@ export function AnimateurForm({
         {initial ? "Enregistrer" : "Créer l'animateur"}
       </SubmitButton>
     </form>
+  );
+}
+
+/**
+ * L'accès qui vient d'être créé, à transmettre.
+ *
+ * Le lien et le code s'affichent quoi qu'il arrive — le code est stocké haché,
+ * c'est la seule occasion de le lire — et l'envoi par e-mail est proposé, pas
+ * fait d'office : c'est une décision à part, et l'adresse de la fiche peut
+ * être celle d'un secrétariat.
+ */
+function AccesCreeBloc({
+  acces,
+  message,
+  surAutre,
+}: {
+  acces: AccesCree;
+  message?: string;
+  surAutre: () => void;
+}) {
+  const [envoi, envoyer] = useActionState<ActionState, FormData>(envoyerAccesAnimateur, null);
+
+  return (
+    <div className="space-y-4">
+      {message && <Alert state={{ success: message }} />}
+
+      <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+          À transmettre à {acces.nom}
+        </p>
+
+        <ValeurCopiable etiquette="Lien" valeur={acces.lien} />
+        <ValeurCopiable etiquette="Code à 6 chiffres" valeur={acces.pin} large />
+
+        <p className="text-xs text-emerald-800">
+          Notez le code maintenant : il est stocké chiffré et ne pourra plus être
+          réaffiché, seulement régénéré depuis la fiche.
+          {acces.expiration
+            ? ` L'accès est valable jusqu'au ${acces.expiration}, fin de la saison.`
+            : " L'accès n'a pas d'échéance."}
+        </p>
+
+        {envoi?.success ? (
+          <p className="flex items-start gap-2 rounded-lg bg-white/70 px-3 py-2 text-xs text-emerald-800">
+            <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{envoi.success}</span>
+          </p>
+        ) : acces.email ? (
+          <form action={envoyer} className="space-y-2">
+            <input type="hidden" name="id" value={acces.coachId} />
+            <input type="hidden" name="pin" value={acces.pin} />
+            {envoi?.error && (
+              <p className="flex items-start gap-2 rounded-lg bg-amber-100 px-3 py-2 text-xs text-amber-900">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{envoi.error}</span>
+              </p>
+            )}
+            <SubmitButton className={btnSecondary} pendingLabel="Envoi…">
+              <Mail className="h-4 w-4" /> Envoyer par e-mail à {acces.email}
+            </SubmitButton>
+          </form>
+        ) : (
+          <p className="text-xs text-slate-600">
+            Aucune adresse e-mail sur la fiche : transmettez le lien et le code
+            par un autre moyen.
+          </p>
+        )}
+      </div>
+
+      <button type="button" onClick={surAutre} className={btnPrimary}>
+        <Plus className="h-4 w-4" /> Ajouter un autre animateur
+      </button>
+    </div>
   );
 }

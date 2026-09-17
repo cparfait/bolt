@@ -137,7 +137,7 @@ export function LienForm({
  * back-office est parfois atteint en http par l'adresse IP du serveur. Sans
  * repli, le bouton ne faisait alors rigoureusement rien, sans le dire.
  */
-function ValeurCopiable({
+export function ValeurCopiable({
   etiquette,
   valeur,
   large,
