@@ -31,7 +31,7 @@ export default async function ParametresUtilisateurs() {
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           Le groupe Active Directory{" "}
           <span className="font-semibold">{ldap.gestionnaireGroup}</span> fait autorité
-          sur le rôle « Service des sports » : une promotion manuelle sera écrasée à la
+          sur le rôle « Gestionnaire QVT » : une promotion manuelle sera écrasée à la
           prochaine connexion de l&apos;agent. Les rôles Administrateur et Animateur ne
           sont pas concernés.
         </div>

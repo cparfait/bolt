@@ -8,7 +8,7 @@ import type {
 
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Administrateur",
-  GESTIONNAIRE: "Service des sports",
+  GESTIONNAIRE: "Gestionnaire QVT",
   COACH: "Animateur",
   AGENT: "Agent",
 };
