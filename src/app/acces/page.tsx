@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { currentUser } from "@/lib/session";
-import { getGeneralSettings } from "@/lib/settings";
+import { getGeneralSettings, tournures } from "@/lib/settings";
 import { servicesProposes } from "@/lib/services";
 import { LIEN_VALIDITE_LIBELLE } from "@/lib/constants";
 import { clientIp, estInterne } from "@/lib/net";
@@ -67,7 +67,7 @@ export default async function AccesPage({
         )}
 
         {g.lienMagiqueActif ? (
-          <DemandeLienForm services={services} />
+          <DemandeLienForm services={services} equipe={tournures(g)} />
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
             <p className="text-sm text-slate-600">

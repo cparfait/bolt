@@ -116,7 +116,7 @@ export function AjouterParticipantForm({
           <span className="block text-xs text-slate-500">
             {gestionnaire
               ? "Il apparaîtra sur les feuilles suivantes. Créneau complet : placé en liste d'attente."
-              : "Le service des sports recevra la demande et décidera."}
+              : "Un gestionnaire recevra la demande et décidera."}
           </span>
         </span>
       </label>

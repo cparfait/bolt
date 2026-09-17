@@ -3,7 +3,7 @@ import { adresseDeContact } from "./comptes";
 import { nomPourSalutation } from "./constants";
 import { JOUR_LABELS } from "./dates";
 import { ouvrirMessagerie } from "./mail";
-import { getGeneralSettings, urlEspaceAgent } from "./settings";
+import { getGeneralSettings, urlEspaceAgent, signatureCourriel } from "./settings";
 import { audit } from "./audit";
 
 /**
@@ -84,7 +84,7 @@ export async function notifierOuverture(creneauId: string): Promise<ResultatNoti
           `Vous aviez demandé à être prévenu : les inscriptions au créneau de ${c.activite.nom} (**${JOUR_LABELS[c.jour].toLowerCase()} ${c.heureDebut}–${c.heureFin}**${c.lieu ? `, ${c.lieu}` : ""}) viennent d'ouvrir.`,
           `Les places se prennent dans l'ordre des demandes : si le créneau vous intéresse toujours, inscrivez-vous sans attendre.`,
           `[Voir le créneau](${catalogue})`,
-          g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
+          signatureCourriel(g),
         ].join("\n\n"),
       );
       if (envoi.ok) {

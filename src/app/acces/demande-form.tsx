@@ -7,6 +7,7 @@ import { LIEN_VALIDITE_LIBELLE } from "@/lib/constants";
 import { Alert, Field, Input, btnPrimary } from "@/components/ui";
 import { SubmitButton } from "@/components/submit-button";
 import { DemandeAccesForm } from "@/app/demande-acces/formulaire";
+import type { Equipe } from "@/lib/settings";
 
 /**
  * Entrée unique de l'espace agent : une adresse, et le serveur aiguille.
@@ -21,7 +22,14 @@ import { DemandeAccesForm } from "@/app/demande-acces/formulaire";
  * une adresse que n'importe qui vient de taper ferait de cet écran un moyen de
  * faire écrire la collectivité à des tiers.
  */
-export function DemandeLienForm({ services = [] }: { services?: string[] }) {
+export function DemandeLienForm({
+  services = [],
+  equipe,
+}: {
+  services?: string[];
+  /** Nom de l'équipe aux positions d'une phrase (voir `tournures`, src/lib/settings.ts). */
+  equipe: Equipe;
+}) {
   const [state, action] = useActionState<AccesState, FormData>(
     demanderLienAction,
     null,
@@ -36,6 +44,7 @@ export function DemandeLienForm({ services = [] }: { services?: string[] }) {
       <DemandeAccesForm
         email={state.email ?? ""}
         services={services}
+        equipe={equipe}
         intro={
           <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
             <p className="text-sm font-semibold text-slate-700">
@@ -43,7 +52,7 @@ export function DemandeLienForm({ services = [] }: { services?: string[] }) {
             </p>
             <p className="mt-1 text-sm text-slate-500">
               Cette adresse n&apos;est pas enregistrée. Dites-nous qui vous êtes :
-              le service des sports validera votre demande et vous recevrez un
+              {equipe.equipe} validera votre demande et vous recevrez un
               message dès que votre accès sera ouvert.
             </p>
           </div>

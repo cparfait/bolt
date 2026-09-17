@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 import { adresseDeContact } from "./comptes";
 import { ouvrirMessagerie } from "./mail";
-import { getGeneralSettings } from "./settings";
+import { getGeneralSettings, signatureCourriel } from "./settings";
 import { fmtDate, fmtDateLongue, JOUR_LABELS } from "./dates";
 import { nomPourSalutation } from "./constants";
 import { audit } from "./audit";
@@ -92,9 +92,7 @@ export async function notifierSeanceRetablie(
           `Bonjour ${nomPourSalutation(u.displayName)},`,
           `Bonne nouvelle : la séance de ${seance.creneau.activite.nom} du **${fmtDateLongue(seance.date)}, ${seance.creneau.heureDebut}–${seance.creneau.heureFin}**${seance.creneau.lieu ? ` (**${seance.creneau.lieu}**)` : ""}, aura finalement bien lieu.`,
           `Elle avait été annulée : vous pouvez la réinscrire à votre agenda.`,
-          g.contactEmail
-            ? `Le service des sports — ${g.contactEmail}`
-            : `Le service des sports`,
+          signatureCourriel(g),
         ].join("\n\n"),
       );
       if (res.ok) envoyes += 1;
@@ -198,9 +196,7 @@ export async function notifierSeancesAnnulees(
           agent.lignes.join("\n"),
           `Motif : ${motif}`,
           `Votre inscription reste valable et les autres séances sont maintenues : il n'y a rien à faire de votre part.`,
-          g.contactEmail
-            ? `Le service des sports — ${g.contactEmail}`
-            : `Le service des sports`,
+          signatureCourriel(g),
         ].join("\n\n"),
       );
       if (res.ok) envoyes += 1;
@@ -291,9 +287,7 @@ export async function notifierChangementCreneau(
           `Votre créneau de ${creneau.activite.nom} — **${JOUR_LABELS[creneau.jour].toLowerCase()} ${creneau.heureDebut}** a été modifié.`,
           ...blocs,
           `Votre inscription reste valable : rien à faire de votre part. Consultez le détail dans l'application à tout moment.`,
-          g.contactEmail
-            ? `Le service des sports — ${g.contactEmail}`
-            : `Le service des sports`,
+          signatureCourriel(g),
         ].join("\n\n"),
       );
       if (res.ok) envoyes += 1;

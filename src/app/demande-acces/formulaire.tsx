@@ -1,5 +1,6 @@
 "use client";
 
+import type { Equipe } from "@/lib/settings";
 import { useActionState, type ReactNode } from "react";
 import { deposerDemandeAction } from "@/lib/actions/demandes";
 import { Alert, Field, Input, Select, Textarea, btnPrimary } from "@/components/ui";
@@ -10,6 +11,7 @@ export function DemandeAccesForm({
   email = "",
   intro,
   services = [],
+  equipe,
 }: {
   email?: string;
   // Rendu au-dessus du formulaire, et seulement tant qu'il est affiché : une
@@ -22,6 +24,8 @@ export function DemandeAccesForm({
    * une impasse.
    */
   services?: string[];
+  /** Nom de l'équipe aux positions d'une phrase (voir `tournures`, src/lib/settings.ts). */
+  equipe: Equipe;
 }) {
   const [state, action] = useActionState<ActionState, FormData>(
     deposerDemandeAction,
@@ -37,8 +41,8 @@ export function DemandeAccesForm({
         <p className="text-sm font-semibold text-emerald-800">Demande transmise</p>
         <p className="mt-1 text-sm text-emerald-700">{state.success}</p>
         <p className="mt-2 text-sm text-emerald-700">
-          Vous pourrez vous inscrire aux activités dès que le service des sports
-          aura validé votre accès.
+          Vous pourrez vous inscrire aux activités dès que {equipe.equipe} aura
+          validé votre accès.
         </p>
       </div>
     );
@@ -85,7 +89,7 @@ export function DemandeAccesForm({
 
       <Field
         label="Votre adresse e-mail"
-        hint="C'est à cette adresse que le service des sports vous répondra, et par elle que vous vous connecterez ensuite."
+        hint={`C'est à cette adresse que ${equipe.equipe} vous répondra, et par elle que vous vous connecterez ensuite.`}
         required
       >
         <Input
@@ -141,7 +145,7 @@ export function DemandeAccesForm({
       </SubmitButton>
 
       <p className="text-xs text-slate-500">
-        Aucun compte n&apos;est créé à cette étape. Le service des sports examine
+        Aucun compte n&apos;est créé à cette étape. {equipe.enTete} examine
         votre demande, et vous recevrez un message dès qu&apos;il l&apos;aura
         validée. Vous pourrez alors consulter les activités et vous y inscrire.
       </p>

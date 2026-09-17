@@ -16,7 +16,7 @@ import {
 } from "@/lib/demandes";
 import { composerNomAffiche } from "@/lib/constants";
 import { requireUser } from "@/lib/session";
-import { getGeneralSettings } from "@/lib/settings";
+import { getGeneralSettings, tournures, type Equipe } from "@/lib/settings";
 import { serviceDuReferentiel, servicesProposes } from "@/lib/services";
 import { erreur, succes, type ActionState } from "./types";
 
@@ -60,8 +60,8 @@ const PAR_IP_INTERNE = 20;
 // titulaire d'un compte, demande déjà déposée. Ce formulaire est publié sur
 // Internet ; en dire plus permettrait de vérifier qui travaille dans la
 // collectivité, ce que `envoyerLienConnexion` se garde déjà de faire.
-const ACCUSE =
-  "Votre demande a bien été transmise au service des sports. Vous recevrez un message dès qu'elle aura été examinée.";
+const accuse = (e: Equipe) =>
+  `Votre demande a bien été transmise ${e.a}. Vous recevrez un message dès qu'elle aura été examinée.`;
 
 const HORS_RESEAU =
   "Cette page n'est accessible que depuis le réseau de la collectivité ou via le VPN.";
@@ -99,7 +99,7 @@ export async function deposerDemandeAction(
   // contourner.
   if (String(formData.get("organisme_") ?? "").trim() !== "") {
     await audit("DEMANDE_ACCES_LEURRE");
-    return succes(ACCUSE);
+    return succes(accuse(tournures(g)));
   }
 
   const prenomSaisi = String(formData.get("prenom") ?? "").trim();
@@ -158,7 +158,7 @@ export async function deposerDemandeAction(
   }
 
   await deposerDemande({ nom, email, service, message, ip });
-  return succes(ACCUSE);
+  return succes(accuse(tournures(g)));
 }
 
 export async function validerDemandeAction(

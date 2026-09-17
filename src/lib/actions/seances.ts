@@ -16,6 +16,7 @@ import { inscrireDirectement } from "@/lib/inscriptions";
 import { notifierSeanceRetablie, notifierSeancesAnnulees } from "@/lib/notifications";
 import { assurerCompteAgent } from "@/lib/comptes-annuaire";
 import { erreur, succes, type ActionState } from "./types";
+import { equipeCourante } from "@/lib/settings";
 
 const ETATS: EtatPresence[] = ["PRESENT", "ABSENT"];
 
@@ -376,5 +377,5 @@ async function inscrireAuCreneau(
   if (res.statut === "LISTE_ATTENTE") {
     return ` Créneau complet : placé en liste d'attente (n°${res.rang}).`;
   }
-  return ` Demande d'inscription transmise au service des sports.`;
+  return ` Demande d'inscription transmise ${(await equipeCourante()).a}.`;
 }

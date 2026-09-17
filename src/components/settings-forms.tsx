@@ -392,8 +392,21 @@ export function GeneralForm({
         <Field label="Nom de la collectivité" required>
           <Input name="orgName" defaultValue={cfg.orgName} required />
         </Field>
-        <Field label="Contact du service des sports" hint="Affiché aux agents et aux animateurs.">
+        <Field
+          label="Adresse de contact"
+          hint="Affichée aux agents et aux animateurs, et en signature des courriels."
+        >
           <Input name="contactEmail" type="email" defaultValue={cfg.contactEmail} />
+        </Field>
+        <Field
+          label="Signature des courriels"
+          hint="Dernière ligne de chaque courriel envoyé aux agents et aux animateurs, suivie de l'adresse de contact. Vide : « L'équipe Qualité de Vie au Travail »."
+        >
+          <Input
+            name="signatureMail"
+            defaultValue={cfg.signatureMail}
+            placeholder="L'équipe Qualité de Vie au Travail"
+          />
         </Field>
       </div>
       <Field

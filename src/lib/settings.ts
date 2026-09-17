@@ -73,7 +73,15 @@ export type GeneralSettings = {
   logoVille: string;
   /** Logo de l'opération en cours. Vide : rien ne s'affiche à cette place. */
   logo: string;
-  contactEmail: string; // adresse du service des sports, affichée aux agents
+  contactEmail: string; // adresse de l'équipe, affichée aux agents et en signature
+  /**
+   * Signature des courriels envoyés aux agents et aux animateurs — la dernière
+   * ligne, suivie de l'adresse de contact. Un réglage et non une constante :
+   * l'équipe qui porte l'application change de nom au gré des organigrammes
+   * (« service des sports », « équipe Qualité de Vie au Travail »), et chaque
+   * renommage ne doit pas demander une livraison.
+   */
+  signatureMail: string;
   /**
    * Créneaux qu'un agent peut occuper en même temps sur la saison. 0 = illimité.
    *
@@ -188,6 +196,7 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   logoVille: "",
   logo: "",
   contactEmail: "",
+  signatureMail: "L'équipe Qualité de Vie au Travail",
   maxInscriptionsParAgent: 1,
   maxListeAttenteParAgent: 1,
   validationRequise: true,
@@ -304,6 +313,57 @@ export async function getGeneralSettings(): Promise<GeneralSettings> {
     g.rappelJoursAvant = Math.max(0, Math.min(7, Math.round(stored.rappelHeuresAvant / 24)));
   }
   return g;
+}
+
+/**
+ * La signature d'un courriel : le nom de l'équipe, puis l'adresse de contact
+ * si elle est renseignée. Un réglage vidé retombe sur la valeur par défaut :
+ * un courriel sans signature se lit comme un message automatique anonyme.
+ */
+export function signatureCourriel(g: Pick<GeneralSettings, "signatureMail" | "contactEmail">): string {
+  const equipe = g.signatureMail.trim() || DEFAULT_GENERAL.signatureMail;
+  return g.contactEmail ? `${equipe} — ${g.contactEmail}` : equipe;
+}
+
+/**
+ * Le nom de l'équipe aux quatre positions qu'une phrase lui donne.
+ *
+ * Le réglage est écrit en tête de phrase (« L'équipe Qualité de Vie au
+ * Travail », « Le service des sports »). Les textes le citent aussi en milieu
+ * de phrase, et après « à » ou « de », où le français contracte l'article :
+ * « au service des sports » mais « à l'équipe… ». Déduire ces formes ici, une
+ * fois, évite à chaque écran de refaire la grammaire — et de la rater.
+ */
+export type Equipe = {
+  /** « L'équipe Qualité de Vie au Travail » — en tête de phrase. */
+  enTete: string;
+  /** « l'équipe Qualité de Vie au Travail » — en milieu de phrase. */
+  equipe: string;
+  /** « à l'équipe… », « au service des sports ». */
+  a: string;
+  /** « de l'équipe… », « du service des sports ». */
+  de: string;
+};
+
+export function tournures(g: Pick<GeneralSettings, "signatureMail">): Equipe {
+  const nom = g.signatureMail.trim() || DEFAULT_GENERAL.signatureMail;
+  const equipe = nom.charAt(0).toLowerCase() + nom.slice(1);
+  const enTete = nom.charAt(0).toUpperCase() + nom.slice(1);
+  if (equipe.startsWith("le ")) {
+    return { enTete, equipe, a: `au ${equipe.slice(3)}`, de: `du ${equipe.slice(3)}` };
+  }
+  if (equipe.startsWith("les ")) {
+    return { enTete, equipe, a: `aux ${equipe.slice(4)}`, de: `des ${equipe.slice(4)}` };
+  }
+  if (/^[aeiouyàâäéèêëîïôöùûüh]/i.test(equipe)) {
+    return { enTete, equipe, a: `à ${equipe}`, de: `d'${equipe}` };
+  }
+  return { enTete, equipe, a: `à ${equipe}`, de: `de ${equipe}` };
+}
+
+/** Les tournures d'après les réglages en base, pour qui ne les a pas déjà. */
+export async function equipeCourante(): Promise<Equipe> {
+  return tournures(await getGeneralSettings());
 }
 
 /** Ce qu'on peut lire en base : les réglages du jour, et ceux d'hier. */

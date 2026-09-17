@@ -86,7 +86,7 @@ export default async function SeanceDetail({
             confirmation={
               gestionnaire
                 ? "Clôturer la feuille ? L'animateur ne pourra plus la modifier."
-                : "Clôturer la feuille ? Vous ne pourrez plus la modifier ; seul le service des sports pourra la rouvrir."
+                : "Clôturer la feuille ? Vous ne pourrez plus la modifier ; seul un gestionnaire pourra la rouvrir."
             }
           >
             <Lock className="h-4 w-4" /> Clôturer

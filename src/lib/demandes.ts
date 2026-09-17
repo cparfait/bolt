@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import { FREQUENCES_AVIS, type FrequenceAvis } from "./frequences";
-import { getGeneralSettings, getSetting, setSetting, urlEspaceAgent } from "./settings";
+import { getGeneralSettings, getSetting, setSetting, urlEspaceAgent, tournures } from "./settings";
 import { adresseDeContact, creerParticipantHorsAnnuaire } from "./comptes";
 import { nomPourSalutation } from "./constants";
 import { aujourdhui, heureEntiereCourante, isoDate, jourSemaineCourant } from "./dates";
@@ -310,10 +310,10 @@ async function annoncerAcces(userId: string): Promise<void> {
     `Votre accès à ${g.appName} est ouvert`,
     [
       `Bonjour ${nomPourSalutation(user.displayName)},`,
-      `Le service des sports a validé votre demande : vous pouvez désormais consulter les activités et vous y inscrire.`,
+      `${tournures(g).enTete} a validé votre demande : vous pouvez désormais consulter les activités et vous y inscrire.`,
       `Pour vous connecter, indiquez cette adresse e-mail : vous recevrez un lien. Aucun mot de passe ne vous sera demandé.`,
       base ? `[Accéder aux activités](${base}/acces)` : null,
-      g.contactEmail ? `Une question ? Écrivez au service des sports : ${g.contactEmail}` : null,
+      g.contactEmail ? `Une question ? Écrivez-nous : ${g.contactEmail}` : null,
     ]
       .filter(Boolean)
       .join("\n\n"),

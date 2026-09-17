@@ -3,7 +3,7 @@ import { CalendarCheck, CalendarDays, CalendarOff, Check, Info, Lock, MapPin, Us
 import { prisma } from "@/lib/db";
 import { requireAgent } from "@/lib/session";
 import { saisonOuverte } from "@/lib/saison";
-import { getGeneralSettings } from "@/lib/settings";
+import { getGeneralSettings, tournures } from "@/lib/settings";
 import { aujourdhui, ajouterJours, fmtDateLongue, JOUR_LABELS, JOURS } from "@/lib/dates";
 import {
   Badge,
@@ -61,8 +61,8 @@ export default async function MesActivitesPage({
           title="Aucune saison n'est ouverte pour l'instant"
           hint={
             g.contactEmail
-              ? `Le service des sports ouvre les inscriptions en début de saison. Pour toute question : ${g.contactEmail}`
-              : "Le service des sports ouvre les inscriptions en début de saison."
+              ? `${tournures(g).enTete} ouvre les inscriptions en début de saison. Pour toute question : ${g.contactEmail}`
+              : `${tournures(g).enTete} ouvre les inscriptions en début de saison.`
           }
         />
       </>

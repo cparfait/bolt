@@ -8,6 +8,7 @@ import { adresseDeContact } from "@/lib/comptes";
 import { basculerAlerte } from "@/lib/alertes-ouverture";
 import { saisonOuverte } from "@/lib/saison";
 import { erreur, succes, type ActionState } from "./types";
+import { equipeCourante } from "@/lib/settings";
 
 /**
  * L'agent demande — ou retire — une alerte d'ouverture sur un créneau fermé.
@@ -43,7 +44,7 @@ export async function basculerAlerteOuvertureAction(
   }
   if (!adresseDeContact(user)) {
     return erreur(
-      "Aucune adresse de courriel n'est enregistrée pour vous : demandez au service des sports de l'ajouter sur votre fiche.",
+      `Aucune adresse de courriel n'est enregistrée pour vous : demandez ${(await equipeCourante()).a} de l'ajouter sur votre fiche.`,
     );
   }
 

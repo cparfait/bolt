@@ -23,7 +23,7 @@ import {
 import { adresseDeContact } from "@/lib/comptes";
 import { nomPourSalutation } from "@/lib/constants";
 import { envoyerMail, ouvrirMessagerie } from "@/lib/mail";
-import { getGeneralSettings } from "@/lib/settings";
+import { getGeneralSettings, signatureCourriel, equipeCourante } from "@/lib/settings";
 import { assurerCompteAgent } from "@/lib/comptes-annuaire";
 import { erreur, succes, type ActionState } from "./types";
 
@@ -215,13 +215,14 @@ export async function deciderInscription(
     if (inscription.statut === "VALIDEE") {
       const adresse = adresseDeContact(inscription.user);
       if (adresse) {
+        const e = await equipeCourante();
         await envoyerMail(
           adresse,
-          `Votre place en ${inscription.creneau.activite.nom}`,
+          `Votre place — ${inscription.creneau.activite.nom}`,
           [
             `Bonjour ${nomPourSalutation(inscription.user.displayName)},`,
-            `Le service des sports a dû replacer votre inscription à ${inscription.creneau.activite.nom} (**${inscription.creneau.jour.toLowerCase()} ${inscription.creneau.heureDebut}**) en liste d'attente. Vous serez prévenu dès qu'une place se libère.`,
-            `Pour toute question, contactez le service des sports.`,
+            `${e.enTete} a dû replacer votre inscription à ${inscription.creneau.activite.nom} (**${inscription.creneau.jour.toLowerCase()} ${inscription.creneau.heureDebut}**) en liste d'attente. Vous serez prévenu dès qu'une place se libère.`,
+            `Pour toute question, contactez ${e.equipe}.`,
           ].join("\n\n"),
         );
       }
@@ -380,7 +381,7 @@ export async function relancerDecrocheurs(
             `Bonjour,`,
             `Nous avons remarqué que vous n'avez pas participé à vos dernières séances. Si vos disponibilités ont changé, vous pouvez vous désinscrire depuis l'application : cela libérera votre place pour un collègue en liste d'attente.`,
             `Et si c'est un simple contretemps, nous serons ravis de vous revoir à la prochaine séance !`,
-            g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
+            signatureCourriel(g),
           ].join("\n\n"),
       );
       if (res.ok) envoyes += 1;

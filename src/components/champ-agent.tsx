@@ -119,7 +119,7 @@ export function ChampAgent({
             ) : affiches.length === 0 ? (
               <p className="px-4 py-3 text-sm text-slate-500">
                 {source === "connus"
-                  ? "Aucun agent trouvé parmi ceux déjà connus de l'application. Le service des sports peut le chercher dans l'annuaire."
+                  ? "Aucun agent trouvé parmi ceux déjà connus de l'application. Un gestionnaire peut le chercher dans l'annuaire."
                   : source === "ad"
                     ? "Aucun compte Active Directory à ce nom. Son compte n'est peut-être pas encore créé, ou l'annuaire demande une synchronisation."
                     : "Aucun agent trouvé. Vérifiez l'orthographe, ou synchronisez l'annuaire depuis les paramètres."}

@@ -1,7 +1,7 @@
 import { ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getGeneralSettings } from "@/lib/settings";
+import { getGeneralSettings, tournures } from "@/lib/settings";
 import { servicesProposes } from "@/lib/services";
 import { Logos, TitreConnexion } from "@/components/ui";
 import { DemandeAccesForm } from "./formulaire";
@@ -53,7 +53,7 @@ export default async function DemandeAccesPage() {
           </p>
         </div>
 
-        <DemandeAccesForm services={services} />
+        <DemandeAccesForm equipe={tournures(g)} services={services} />
 
         <p className="mt-6 flex items-start gap-2 text-xs text-slate-500">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />

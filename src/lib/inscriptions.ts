@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { InscriptionStatut } from "@prisma/client";
 import { prisma } from "./db";
-import { getGeneralSettings, type GeneralSettings } from "./settings";
+import { getGeneralSettings, type GeneralSettings, signatureCourriel, tournures, equipeCourante } from "./settings";
 import { audit } from "./audit";
 import { isoDate } from "./dates";
 import { adresseDeContact } from "./comptes";
@@ -337,7 +337,7 @@ export async function accuserReception(
           objet: `Demande d'inscription reçue — ${nom}`,
           corps: [
             `Votre demande d'inscription à ${nom} (${quand}) est bien enregistrée.`,
-            `Le service des sports l'examine : vous recevrez un message dès qu'une décision sera prise. Vous n'avez rien d'autre à faire d'ici là.`,
+            `${tournures(g).enTete} l'examine : vous recevrez un message dès qu'une décision sera prise. Vous n'avez rien d'autre à faire d'ici là.`,
           ],
         },
         LISTE_ATTENTE: {
@@ -352,14 +352,14 @@ export async function accuserReception(
         VALIDEE: {
           objet: `Vous êtes inscrit — ${nom}`,
           corps: [
-            `Le service des sports vous a inscrit à ${nom} : ${quand}.`,
+            `${tournures(g).enTete} vous a inscrit à ${nom} : ${quand}.`,
             seDesinscrire,
           ],
         },
         LISTE_ATTENTE: {
           objet: `Liste d'attente — ${nom}`,
           corps: [
-            `Le service des sports a enregistré votre inscription à ${nom} (${quand}), mais le créneau est complet : vous êtes en liste d'attente${rang ? `, en position ${rang}` : ""}.`,
+            `${tournures(g).enTete} a enregistré votre inscription à ${nom} (${quand}), mais le créneau est complet : vous êtes en liste d'attente${rang ? `, en position ${rang}` : ""}.`,
             `Vous serez prévenu dès qu'une place se libère.`,
           ],
         },
@@ -379,9 +379,7 @@ export async function accuserReception(
       [
         `Bonjour ${nomPourSalutation(user.displayName)},`,
         ...contenu.corps,
-        g.contactEmail
-          ? `Le service des sports — ${g.contactEmail}`
-          : `Le service des sports`,
+        signatureCourriel(g),
       ].join("\n\n"),
     );
   } catch {
@@ -602,7 +600,7 @@ export async function demanderInscription(
 
   const messages: Record<InscriptionStatut, string> = {
     VALIDEE: `Inscription confirmée pour ${creneau.activite.nom}.`,
-    EN_ATTENTE: `Demande envoyée au service des sports pour ${creneau.activite.nom}.`,
+    EN_ATTENTE: `Demande envoyée ${(await equipeCourante()).a} pour ${creneau.activite.nom}.`,
     LISTE_ATTENTE: `Créneau complet : vous êtes en liste d'attente (position ${decision.rang}).`,
     REFUSEE: "",
     DESISTEE: "",
@@ -821,9 +819,7 @@ export async function promouvoirEtPrevenir(
         base
           ? `[Je ne veux plus cette place](${lienPlace(promu, base)})`
           : null,
-        g.contactEmail
-          ? `Le service des sports — ${g.contactEmail}`
-          : `Le service des sports`,
+        signatureCourriel(g),
       ]
         .filter(Boolean)
         .join("\n\n"),

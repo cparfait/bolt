@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Dumbbell, Lock } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { resoudreLien } from "@/lib/coach-access";
-import { getIdentiteApp } from "@/lib/settings";
+import { getIdentiteApp, equipeCourante } from "@/lib/settings";
 import { feuilleDeSeance, saisieOuverte } from "@/lib/emargement";
 import { aujourdhui, fmtDateLongue, fmtHeure, fmtHorodatage, isoDate } from "@/lib/dates";
 import { AjouterParticipantMobile } from "@/components/ajouter-participant-mobile";
@@ -23,6 +23,7 @@ export default async function FeuillePage({
 }) {
   const { token, seanceId } = await params;
   const { nom: appName } = await getIdentiteApp();
+  const e = await equipeCourante();
   const lien = await resoudreLien(token);
   // Toute session non ouverte repasse par l'accueil (jeton invalide, PIN à
   // ressaisir, accès révoqué) : la feuille n'est jamais servie sans PIN.
@@ -152,8 +153,8 @@ export default async function FeuillePage({
             <div className="text-sm text-emerald-800">
               <p className="font-semibold">Feuille transmise</p>
               <p className="text-emerald-700">
-                Le {fmtHorodatage(seance.clotureeAt)}. Pour la corriger, contactez le
-                service des sports.
+                Le {fmtHorodatage(seance.clotureeAt)}. Pour la corriger, contactez{" "}
+                {e.equipe}.
               </p>
             </div>
           </div>
@@ -164,8 +165,8 @@ export default async function FeuillePage({
           !saisieOuverte(seance.date) &&
           !avantPointage && (
             <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-500">
-              Cette séance est trop ancienne pour être saisie ici. Le service des sports
-              peut encore la compléter.
+              Cette séance est trop ancienne pour être saisie ici. {e.enTete} peut
+              encore la compléter.
             </div>
           )}
 
@@ -185,7 +186,7 @@ export default async function FeuillePage({
               <p className="mt-1 text-sm text-slate-500">
                 {!verrouillee && !avantPointage
                   ? "Quelqu'un est venu quand même ? Ajoutez-le ci-dessus : il sera pointé présent."
-                  : "Le service des sports doit d'abord valider des inscriptions."}
+                  : `${e.enTete} doit d'abord valider des inscriptions.`}
               </p>
             </div>
           </>

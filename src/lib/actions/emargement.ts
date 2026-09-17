@@ -32,6 +32,7 @@ import {
   type CandidatFeuille,
 } from "@/lib/comptes";
 import { erreur, succes, type ActionState } from "./types";
+import { equipeCourante } from "@/lib/settings";
 
 /**
  * Actions de la feuille d'émargement publique.
@@ -96,10 +97,10 @@ export async function quitterAction(formData: FormData): Promise<void> {
 const MOTIF_MAX = 200;
 
 /** Refus commun aux gestes qui exigent la fenêtre de saisie (`saisieOuverte`). */
-function messageHorsFenetre(date: Date): string {
+async function messageHorsFenetre(date: Date): Promise<string> {
   return date > aujourdhui()
     ? "Cette séance n'a pas encore eu lieu : revenez le jour même."
-    : "La fenêtre de saisie de cette séance est passée : contactez le service des sports.";
+    : `La fenêtre de saisie de cette séance est passée : contactez ${(await equipeCourante()).equipe}.`;
 }
 
 /** Vérifie que la séance relève bien de l'animateur porteur du jeton. */
@@ -151,7 +152,7 @@ export async function cloturerEmargement(
   // l'intérieur, mais l'action s'appelle sans l'écran. Transmettre une feuille
   // avant la séance la figeait vide ; après la fenêtre, c'est au service des
   // sports de corriger.
-  if (!saisieOuverte(seance.date)) return erreur(messageHorsFenetre(seance.date));
+  if (!saisieOuverte(seance.date)) return erreur(await messageHorsFenetre(seance.date));
 
   // Avant de figer : ceux qui avaient prévenu et que l'animateur n'a pas
   // pointés passent absents. Prévenir ne doit pas revenir à se faire oublier
@@ -199,10 +200,10 @@ export async function annulerSeanceEmargement(
   // pas avant (la séance à venir s'annule par `annulerSeanceAVenir`, qui
   // prévient les inscrits) ni après. Et pas sur une séance déjà émargée : elle
   // porte des présences qu'une annulation ferait sortir des statistiques.
-  if (!saisieOuverte(seance.date)) return erreur(messageHorsFenetre(seance.date));
+  if (!saisieOuverte(seance.date)) return erreur(await messageHorsFenetre(seance.date));
   if (seance.statut === "FAITE") {
     return erreur(
-      "Une séance déjà émargée ne peut plus être annulée d'ici : contactez le service des sports.",
+      `Une séance déjà émargée ne peut plus être annulée d'ici : contactez ${(await equipeCourante()).equipe}.`,
     );
   }
 
@@ -346,7 +347,7 @@ export async function ajouterParticipantEmargement(
   if (seance.statut === "ANNULEE") return erreur("Cette séance est annulée.");
   // Même fenêtre que le pointage : ajouter quelqu'un, c'est le pointer présent,
   // et une présence ne se constate pas sur une séance qui n'a pas eu lieu.
-  if (!saisieOuverte(seance.date)) return erreur(messageHorsFenetre(seance.date));
+  if (!saisieOuverte(seance.date)) return erreur(await messageHorsFenetre(seance.date));
 
   let agent;
   if (userId) {
@@ -358,7 +359,7 @@ export async function ajouterParticipantEmargement(
     // comptes, sans gêner l'usage réel — quelques invités par séance au plus.
     if (!rateLimit(`hors-annuaire:${coach.id}`, 5, 3600).ok) {
       return erreur(
-        "Trop de participants créés d'affilée. Réessayez plus tard, ou signalez-les au service des sports.",
+        `Trop de participants créés d'affilée. Réessayez plus tard, ou signalez-les ${(await equipeCourante()).a}.`,
       );
     }
     // Même contrôle que `creerAgentHorsAnnuaire` et `deposerDemandeAction` :
@@ -418,7 +419,7 @@ export async function ajouterParticipantEmargement(
         cible: agent.displayName,
         details: "EN_ATTENTE",
       });
-      suite = " Demande d'inscription transmise au service des sports.";
+      suite = ` Demande d'inscription transmise ${(await equipeCourante()).a}.`;
     }
   }
 
@@ -475,7 +476,7 @@ export async function retablirSeanceAVenir(
   const { coach, seance } = ctx;
   if (seance.statut !== "ANNULEE") return erreur("Cette séance n'est pas annulée.");
   if (seance.date < aujourdhui()) {
-    return erreur("Séance passée : le service des sports peut encore la rétablir.");
+    return erreur(`Séance passée : ${(await equipeCourante()).equipe} peut encore la rétablir.`);
   }
 
   await prisma.seance.update({
@@ -569,7 +570,7 @@ export async function annulerSeanceAVenir(
     res.envoyes > 0
       ? `${quoi}. ${res.envoyes} inscrit${res.envoyes > 1 ? "s" : ""} prévenu${res.envoyes > 1 ? "s" : ""}.`
       : res.destinataires > 0
-        ? `${quoi}, mais aucun inscrit n'a pu être prévenu par courriel. Signalez-le au service des sports.`
+        ? `${quoi}, mais aucun inscrit n'a pu être prévenu par courriel. Signalez-le ${(await equipeCourante()).a}.`
         : `${quoi}. Aucun inscrit à prévenir.`,
   );
 }

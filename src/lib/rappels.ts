@@ -7,6 +7,7 @@ import {
   getSetting,
   setSetting,
   type GeneralSettings,
+  signatureCourriel,
 } from "./settings";
 import {
   ajouterJours,
@@ -245,7 +246,7 @@ async function campagne(): Promise<ResultatRappels> {
             // faisait, l'animateur attendait, et la place restait perdue.
             `Un empêchement ? Signalez-le d'un clic : votre place profitera à un collègue en liste d'attente, et l'animateur ne vous attendra pas.`,
             base ? `[Je ne pourrai pas venir](${lienAbsence(s.id, u.id, base)})` : null,
-            g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
+            signatureCourriel(g),
           ]
             .filter(Boolean)
             .join("\n\n"),

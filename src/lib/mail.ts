@@ -6,6 +6,7 @@ import {
   urlEspaceAgent,
   type GeneralSettings,
   type SmtpSettings,
+  signatureCourriel,
 } from "./settings";
 
 export type MailResult = {
@@ -581,9 +582,7 @@ export async function corpsLienAnimateur(
   }
   lignes.push(
     `Ce lien est strictement personnel : ne le transmettez pas.`,
-    g.contactEmail
-      ? `Une question ? Écrivez à ${g.contactEmail}.`
-      : `Une question ? Contactez le service des sports.`,
+    g.contactEmail ? `Une question ? Écrivez à ${g.contactEmail}.` : signatureCourriel(g),
   );
   return lignes.join("\n\n");
 }

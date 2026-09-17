@@ -30,6 +30,7 @@ import {
   setSmtpSettings,
   type LdapSettings,
   type SmtpSettings,
+  DEFAULT_GENERAL,
 } from "@/lib/settings";
 import {
   enregistrerTextesLegaux,
@@ -281,6 +282,7 @@ export async function enregistrerGeneral(
     logoVille,
     logo,
     contactEmail: texte(formData, "contactEmail"),
+    signatureMail: texte(formData, "signatureMail") || DEFAULT_GENERAL.signatureMail,
     maxInscriptionsParAgent: Math.max(0, Number(texte(formData, "maxInscriptionsParAgent")) || 0),
     maxListeAttenteParAgent: Math.max(0, Number(texte(formData, "maxListeAttenteParAgent")) || 0),
     // 0 = aucune purge. Le champ vide vaut donc « on ne purge pas », pas

@@ -64,7 +64,7 @@ export default async function SeancesPage({
           <PageHeader title="Planning" />
           <EmptyState
             title="Aucun créneau ne vous est rattaché"
-            hint="Le service des sports doit vous associer à un créneau."
+            hint="Un gestionnaire doit vous associer à un créneau."
           />
         </>
       );

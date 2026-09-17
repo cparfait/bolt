@@ -73,7 +73,7 @@ export async function declarerAbsencePourAgent(
     userId: acteur.id,
     cibleId: userId,
     cible: `${agent.displayName} — ${seance.creneau.activite.nom} ${seance.date.toISOString().slice(0, 10)}`,
-    details: motif || "saisie par le service des sports",
+    details: motif || "saisie par un gestionnaire",
   });
 
   revalidatePath(`/agents/${userId}`);

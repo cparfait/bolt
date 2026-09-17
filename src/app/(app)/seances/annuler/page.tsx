@@ -57,7 +57,7 @@ export default async function AnnulerSeancesPage({
           <PageHeader title="Annuler des séances" />
           <EmptyState
             title="Aucun créneau ne vous est rattaché"
-            hint="Le service des sports doit vous associer à un créneau."
+            hint="Un gestionnaire doit vous associer à un créneau."
           />
         </>
       );

@@ -98,7 +98,7 @@ export function ReinitialisationForm({
             <li>Référentiel des services et regroupements</li>
             <li>Déclarations et mentions d&apos;information</li>
             <li>Miroir de l&apos;annuaire</li>
-            <li>Comptes administrateurs et service des sports</li>
+            <li>Comptes administrateurs et gestionnaires</li>
           </ul>
         </div>
       </div>

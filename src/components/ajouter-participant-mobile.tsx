@@ -196,8 +196,8 @@ function Selecteur({
       {horsAnnuaire && (
         <div className="space-y-2.5 rounded-xl border border-brand-200 bg-white p-3.5">
           <p className="text-sm text-slate-600">
-            Cette personne sera créée comme participant hors annuaire — le
-            service des sports pourra compléter sa fiche.
+            Cette personne sera créée comme participant hors annuaire — un
+            gestionnaire pourra compléter sa fiche.
           </p>
           <div className="grid grid-cols-2 gap-2.5">
             <label className="block">
@@ -258,7 +258,7 @@ function Selecteur({
         <span>
           <span className="block font-medium">Proposer son inscription au créneau</span>
           <span className="block text-xs text-slate-500">
-            Le service des sports recevra la demande et décidera.
+            Un gestionnaire recevra la demande et décidera.
           </span>
         </span>
       </label>

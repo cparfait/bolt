@@ -8,7 +8,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { resoudreLien } from "@/lib/coach-access";
-import { getIdentiteApp } from "@/lib/settings";
+import { getIdentiteApp, equipeCourante } from "@/lib/settings";
 import { quitterAction } from "@/lib/actions/emargement";
 import {
   feuillesAttendues,
@@ -63,6 +63,7 @@ export default async function EmargementAccueil({
   const { token } = await params;
   const { transmise, annulee } = await searchParams;
   const { nom: appName } = await getIdentiteApp();
+  const e = await equipeCourante();
   const lien = await resoudreLien(token);
 
   if (lien.etat === "INCONNU") {
@@ -73,7 +74,7 @@ export default async function EmargementAccueil({
             <XCircle className="mx-auto h-10 w-10 text-slate-300" />
             <h1 className="mt-3 text-lg font-semibold">Lien invalide</h1>
             <p className="mt-2 text-sm text-slate-500">
-              Ce lien n&apos;est plus valide. Demandez-en un nouveau au service des sports.
+              Ce lien n&apos;est plus valide. Demandez-en un nouveau {e.a}.
             </p>
           </div>
         </Carte>
@@ -91,7 +92,7 @@ export default async function EmargementAccueil({
               {lien.etat === "EXPIRE" ? "Lien expiré" : "Accès suspendu"}
             </h1>
             <p className="mt-2 text-sm text-slate-500">
-              Contactez le service des sports pour obtenir un nouvel accès.
+              Contactez {e.equipe} pour obtenir un nouvel accès.
             </p>
           </div>
         </Carte>
@@ -151,14 +152,14 @@ export default async function EmargementAccueil({
           <div>
             <p className="text-sm font-semibold text-emerald-800">Feuille transmise</p>
             <p className="text-sm text-emerald-700">
-              Merci ! Le service des sports y a accès immédiatement.
+              Merci ! {e.enTete} y a accès immédiatement.
             </p>
           </div>
         </div>
       )}
       {annulee && (
         <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-sm text-amber-800">
-          Séance déclarée non tenue. Le service des sports en est informé.
+          Séance déclarée non tenue. L&apos;information est transmise {e.a}.
         </div>
       )}
 
@@ -192,7 +193,7 @@ export default async function EmargementAccueil({
           />
           <p className="-mt-3 mb-5 px-1 text-xs text-amber-600">
             Vous pouvez encore corriger ces feuilles pendant {JOURS_SAISIE_COACH} jours.
-            Au-delà, demandez au service des sports.
+            Au-delà, demandez {e.a}.
           </p>
         </>
       )}
