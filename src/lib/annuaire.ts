@@ -2,7 +2,12 @@ import { prisma } from "./db";
 import { ldapFetchAccounts } from "./ldap";
 import { getLdapSettings, getSetting, setSetting, type LdapSettings } from "./settings";
 import { adosseALAnnuaire, desactiverCompte } from "./departs";
-import { reglesDeRegroupement, resoudreService, servicesProposes } from "./services";
+import {
+  forcageADefaire,
+  reglesDeRegroupement,
+  resoudreService,
+  servicesProposes,
+} from "./services";
 import { audit } from "./audit";
 
 /**
@@ -87,6 +92,11 @@ export type ResultatSync = {
   promotions: string[];
   /** Vrai si le garde-fou a empêché d'interpréter les absences. */
   lectureIncomplete: boolean;
+  /**
+   * Agents dont le rattachement forcé à la main a été rendu à l'annuaire, le
+   * libellé y ayant changé.
+   */
+  servicesRepris: string[];
   message: string;
 };
 
@@ -99,6 +109,15 @@ export async function synchroniserAnnuaire(
   // synchroniser que de travailler sur une liste vide (voir ldap.ts).
   const comptes = await ldapFetchAccounts(cfg);
   const parLogin = new Map(comptes.map((c) => [c.samAccountName.toLowerCase(), c]));
+
+  // Le libellé de service que le miroir tenait AVANT cette lecture : c'est en
+  // le comparant au nouveau qu'on sait si l'annuaire a changé — et donc si un
+  // rattachement forcé à la main doit lui rendre la main (voir plus bas).
+  const libellesAvant = new Map(
+    (await prisma.adAccount.findMany({ select: { samAccountName: true, service: true } })).map(
+      (m) => [m.samAccountName.toLowerCase(), m.service],
+    ),
+  );
 
   for (const c of comptes) {
     const { samAccountName, ...reste } = c;
@@ -153,14 +172,24 @@ export async function synchroniserAnnuaire(
     servicesProposes(),
   ]);
 
+  const servicesRepris: string[] = [];
   for (const c of comptes) {
-    const u = connus.get(c.samAccountName.toLowerCase());
+    const login = c.samAccountName.toLowerCase();
+    const u = connus.get(login);
     if (!u) continue;
     const direction = c.direction ?? undefined;
     // Rattachement décidé à la main : une règle ne défait pas une décision.
-    const service = u.serviceForce
-      ? undefined
-      : (resoudreService(c.service, regles, referentiel) ?? undefined);
+    // Mais un CHANGEMENT dans l'annuaire, si : la décision avait été prise
+    // contre un libellé qui n'est plus (src/lib/services.ts, forcageADefaire).
+    // Sans fiche au miroir avant cette lecture, rien ne prouve un changement.
+    const forcageDefait =
+      u.serviceForce &&
+      libellesAvant.has(login) &&
+      forcageADefaire(libellesAvant.get(login), c.service);
+    const service =
+      u.serviceForce && !forcageDefait
+        ? undefined
+        : (resoudreService(c.service, regles, referentiel) ?? undefined);
     // Le nom ne se reprend que pour un compte réellement adossé à l'annuaire,
     // et jamais pour une identité effacée : `anonymiserCompte` serait défait
     // dès la nuit suivante, et le droit à l'effacement avec lui.
@@ -170,11 +199,23 @@ export async function synchroniserAnnuaire(
       (direction === undefined || direction === u.direction) &&
       (service === undefined || service === u.service) &&
       (displayName === undefined || displayName === u.displayName);
-    if (inchange) continue;
+    if (inchange && !forcageDefait) continue;
     await prisma.user.update({
       where: { id: u.id },
-      data: { direction, service, displayName },
+      data: { direction, service, displayName, ...(forcageDefait ? { serviceForce: false } : {}) },
     });
+    if (forcageDefait) {
+      servicesRepris.push(u.displayName);
+      await audit("AGENT_SERVICE_MODIFIE", {
+        acteur,
+        cibleId: u.id,
+        cible: u.displayName,
+        details:
+          `repris de l'annuaire à la synchronisation : ${service ?? "aucun"} ` +
+          `(forcé jusque-là à ${u.service ?? "aucun"}, le libellé de l'annuaire étant passé ` +
+          `de « ${libellesAvant.get(login) ?? ""} » à « ${c.service ?? ""} »)`,
+      });
+    }
   }
 
   // ── Population témoin et garde-fou ────────────────────────────────────────
@@ -236,6 +277,9 @@ export async function synchroniserAnnuaire(
       miroirNettoye > 0 ? `${miroirNettoye} ligne(s) de miroir supprimée(s)` : null,
       lectureIncomplete ? "LECTURE JUGÉE INCOMPLÈTE : absences non interprétées" : null,
       absents.length > 0 ? `absents de l'annuaire : ${absents.join(", ")}` : null,
+      servicesRepris.length > 0
+        ? `rattachement rendu à l'annuaire : ${servicesRepris.join(", ")}`
+        : null,
     ]
       .filter(Boolean)
       .join(", "),
@@ -249,6 +293,7 @@ export async function synchroniserAnnuaire(
     inscriptionsRetirees,
     promotions,
     lectureIncomplete,
+    servicesRepris,
     message: redigerMessage({
       comptesLus: comptes.length,
       miroirNettoye,
@@ -257,6 +302,7 @@ export async function synchroniserAnnuaire(
       inscriptionsRetirees,
       promotions,
       lectureIncomplete,
+      servicesRepris,
       temoins: actifs.length,
       retrouves: retrouves.length,
     }),
@@ -271,6 +317,7 @@ function redigerMessage(r: {
   inscriptionsRetirees: number;
   promotions: string[];
   lectureIncomplete: boolean;
+  servicesRepris: string[];
   temoins: number;
   retrouves: number;
 }): string {
@@ -310,6 +357,14 @@ function redigerMessage(r: {
 
   if (r.miroirNettoye > 0) {
     phrases.push(`${r.miroirNettoye} fiche(s) d'annuaire obsolète(s) retirée(s) du miroir.`);
+  }
+
+  if (r.servicesRepris.length > 0) {
+    const noms = r.servicesRepris.slice(0, 5).join(", ");
+    const reste = r.servicesRepris.length > 5 ? ` et ${r.servicesRepris.length - 5} autre(s)` : "";
+    phrases.push(
+      `Service changé dans l'annuaire, rattachement forcé à la main rendu à l'annuaire pour : ${noms}${reste}.`,
+    );
   }
 
   return phrases.join(" ");

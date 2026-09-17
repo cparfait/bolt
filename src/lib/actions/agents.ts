@@ -750,7 +750,9 @@ export async function anonymiserAgent(
  * trompe, ou retarde : une personne mutée en septembre y reste dans son ancien
  * service jusqu'à ce que la DSI passe. D'où `serviceForce` : la décision prise
  * ici tient jusqu'à ce qu'on la défasse, et la synchronisation ne la réécrit
- * pas dans la nuit.
+ * pas dans la nuit — sauf si le libellé change dans l'annuaire, signe que la
+ * DSI est passée : la décision n'a alors plus d'objet et le service se
+ * recalcule (src/lib/services.ts, `forcageADefaire`).
  *
  * Choisir « celui de l'annuaire » retire le forçage et recalcule aussitôt, pour
  * que l'écran montre le résultat sans attendre la prochaine synchronisation.

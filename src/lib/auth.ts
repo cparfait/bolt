@@ -4,7 +4,12 @@ import { prisma } from "./db";
 import { ldapAuthenticate, ldapFetchAccount } from "./ldap";
 import { getLdapSettings } from "./settings";
 import { audit } from "./audit";
-import { reglesDeRegroupement, resoudreService, servicesProposes } from "./services";
+import {
+  forcageADefaire,
+  reglesDeRegroupement,
+  resoudreService,
+  servicesProposes,
+} from "./services";
 
 /**
  * Crée le compte admin local de secours au premier démarrage, si aucun
@@ -212,10 +217,22 @@ export async function authenticate(
 
   // Rafraîchit le miroir annuaire pour cet agent. Best-effort : n'interrompt
   // jamais la connexion si l'AD est momentanément indisponible en lecture.
+  //
+  // Le libellé de service que le miroir tenait avant, s'il en avait une fiche :
+  // il dit si l'annuaire a changé depuis la dernière lecture, ce qui décide du
+  // sort d'un rattachement forcé à la main (plus bas). Il se lit ici, avant
+  // l'écriture, sans quoi la synchronisation de nuit ne verrait plus le
+  // changement — la connexion l'aurait déjà recopié.
+  let libelleAvant: string | null | undefined;
   try {
     const ad = await ldapFetchAccount(ldap, login);
     if (ad) {
       const { samAccountName, ...rest } = ad;
+      const avant = await prisma.adAccount.findUnique({
+        where: { samAccountName },
+        select: { service: true },
+      });
+      libelleAvant = avant ? avant.service : undefined;
       await prisma.adAccount.upsert({
         where: { samAccountName },
         update: { ...rest, syncedAt: new Date() },
@@ -237,17 +254,39 @@ export async function authenticate(
 
   if (existing) {
     if (!existing.active) return null;
+    // Un rattachement décidé à la main tient — sauf si l'annuaire a changé
+    // depuis, auquel cas la décision n'a plus d'objet (même règle qu'à la
+    // synchronisation, src/lib/annuaire.ts).
+    const forcageDefait =
+      existing.serviceForce &&
+      libelleAvant !== undefined &&
+      forcageADefaire(libelleAvant, info.service);
     const user = await prisma.user.update({
       where: { id: existing.id },
       data: {
         displayName: info.displayName,
         email: info.email ?? existing.email,
         direction: info.direction ?? existing.direction,
-        service: existing.serviceForce ? existing.service : (service ?? existing.service),
+        service:
+          existing.serviceForce && !forcageDefait
+            ? existing.service
+            : (service ?? existing.service),
+        ...(forcageDefait ? { serviceForce: false } : {}),
         role: roleApresConnexion(existing.role, info.gestionnaire, groupeConfigure),
         lastLoginAt: new Date(),
       },
     });
+    if (forcageDefait) {
+      await audit("AGENT_SERVICE_MODIFIE", {
+        userId: user.id,
+        cibleId: user.id,
+        cible: user.displayName,
+        details:
+          `repris de l'annuaire à la connexion : ${service ?? "aucun"} ` +
+          `(forcé jusque-là à ${existing.service ?? "aucun"}, le libellé de l'annuaire étant passé ` +
+          `de « ${libelleAvant ?? ""} » à « ${info.service ?? ""} »)`,
+      });
+    }
     await audit("CONNEXION", { userId: user.id });
     return user;
   }

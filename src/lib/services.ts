@@ -141,6 +141,32 @@ export function resoudreService(
   return prefixes[0] ?? source;
 }
 
+/**
+ * Un rattachement décidé à la main doit-il rendre la main à l'annuaire ?
+ *
+ * Le forçage (`User.serviceForce`) répond à un annuaire qui se trompe ou qui
+ * retarde : une personne mutée en septembre y reste dans son ancien service
+ * jusqu'à ce que la DSI passe. Quand le libellé brut change enfin dans
+ * l'annuaire, la décision prise contre l'ancien libellé n'a plus d'objet — la
+ * maintenir ferait l'inverse de ce qu'elle voulait, figer un service périmé
+ * alors que le vrai est connu. Le forçage se défait donc, et le service se
+ * recalcule comme pour n'importe qui.
+ *
+ * `ancien` est le libellé que le miroir tenait avant cette lecture, `nouveau`
+ * celui qu'elle rapporte. Un libellé vidé n'est pas un changement : un annuaire
+ * incomplet ne doit pas défaire une décision. La comparaison est celle du
+ * référentiel, souple sur la casse et les accents, pour qu'une simple
+ * retouche de graphie ne compte pas.
+ */
+export function forcageADefaire(
+  ancien: string | null | undefined,
+  nouveau: string | null | undefined,
+): boolean {
+  const apres = cleComparaison(nouveau);
+  if (!apres) return false;
+  return cleComparaison(ancien) !== apres;
+}
+
 /** Règles en vigueur, indexées par clé de comparaison de leur source. */
 export async function reglesDeRegroupement(): Promise<Map<string, string>> {
   const lignes = await prisma.regroupementService.findMany({

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { estUnDepart, lectureJugeeIncomplete } from "../src/lib/annuaire";
 import { adosseALAnnuaire } from "../src/lib/departs";
 import { estHorsAnnuaire } from "../src/lib/comptes";
+import { forcageADefaire } from "../src/lib/services";
 
 /**
  * Garde-fous de la prise en compte des départs.
@@ -116,5 +117,28 @@ describe("estHorsAnnuaire — qui peut recevoir une adresse de contact", () => {
   it("ne confond pas un préfixe approchant", () => {
     assert.equal(estHorsAnnuaire("noad.jean"), false);
     assert.equal(estHorsAnnuaire("no_admin"), false);
+  });
+});
+
+describe("forcageADefaire — un rattachement forcé rend la main quand l'annuaire change", () => {
+  it("tient tant que le libellé de l'annuaire ne bouge pas", () => {
+    assert.equal(forcageADefaire("Jeunesse", "Jeunesse"), false);
+  });
+
+  it("ignore une retouche de graphie", () => {
+    assert.equal(forcageADefaire("Services Techniques", "service technique"), false);
+  });
+
+  it("se défait quand le libellé change", () => {
+    assert.equal(forcageADefaire("Jeunesse", "Petite enfance"), true);
+  });
+
+  it("se défait quand un libellé apparaît là où il n'y en avait pas", () => {
+    assert.equal(forcageADefaire(null, "Jeunesse"), true);
+  });
+
+  it("ne se défait pas sur un libellé vidé : un annuaire incomplet ne décide rien", () => {
+    assert.equal(forcageADefaire("Jeunesse", null), false);
+    assert.equal(forcageADefaire("Jeunesse", "  "), false);
   });
 });
