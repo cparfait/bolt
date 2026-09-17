@@ -183,17 +183,19 @@ export default async function AnimateursPage() {
                       <Power className="h-4 w-4" />
                       {c.actif ? "Désactiver" : "Réactiver"}
                     </BoutonAction>
-                    {c.creneaux.length === 0 && (
-                      <BoutonAction
-                        action={supprimerAnimateur.bind(null, c.id)}
-                        confirmation={`Supprimer définitivement ${c.prenom} ${c.nom} ?`}
-                        className={btnSecondary}
-                        title={`Supprimer ${c.prenom} ${c.nom}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Supprimer {c.prenom} {c.nom}</span>
-                      </BoutonAction>
-                    )}
+                    <BoutonAction
+                      action={supprimerAnimateur.bind(null, c.id)}
+                      confirmation={
+                        c.creneaux.length === 0
+                          ? `Supprimer définitivement ${c.prenom} ${c.nom} ?`
+                          : `Supprimer définitivement ${c.prenom} ${c.nom} ? Ses ${c.creneaux.length} créneau(x) restent au planning, sans animateur ; les feuilles déjà saisies restent comptées.`
+                      }
+                      className={btnSecondary}
+                      title={`Supprimer ${c.prenom} ${c.nom}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Supprimer {c.prenom} {c.nom}</span>
+                    </BoutonAction>
                   </div>
                 </div>
 

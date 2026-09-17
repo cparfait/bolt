@@ -237,6 +237,44 @@ export async function supprimerActivite(id: string): Promise<void> {
   redirect("/activites");
 }
 
+/**
+ * Supprime pour de bon une activité déjà retirée, avec tout son historique.
+ *
+ * L'archivage protège les statistiques ; il ne suffit pas toujours. Une
+ * activité créée par erreur, un doublon, un essai de paramétrage sur une
+ * saison passée : les garder « retirés » indéfiniment encombre la liste sans
+ * rien protéger d'utile. Le geste se fait en deux temps — retirer, puis
+ * supprimer depuis la liste des activités retirées — et la confirmation dit ce
+ * qui part avec : créneaux, séances, inscriptions et présences, donc les
+ * chiffres de cette activité dans le bilan des saisons où elle a eu lieu.
+ *
+ * `Creneau.activite` est en Restrict : les créneaux se suppriment d'abord, et
+ * c'est leur cascade qui emporte séances, inscriptions et présences.
+ */
+export async function supprimerDefinitivementActivite(id: string): Promise<void> {
+  const user = await requireUser("GESTIONNAIRE");
+  const activite = await prisma.activite.findUnique({
+    where: { id },
+    include: { _count: { select: { creneaux: true } } },
+  });
+  // Seule une activité retirée se supprime : le premier geste est réversible,
+  // le second ne l'est pas, et il ne doit pas être atteignable d'un seul clic.
+  if (!activite?.archiveAt) return;
+
+  const seances = await prisma.seance.count({ where: { creneau: { activiteId: id } } });
+  const presences = await prisma.presence.count({
+    where: { seance: { creneau: { activiteId: id } } },
+  });
+  await prisma.creneau.deleteMany({ where: { activiteId: id } });
+  await prisma.activite.delete({ where: { id } });
+  await audit("ACTIVITE_SUPPRIMEE", {
+    userId: user.id,
+    cible: activite.nom,
+    details: `définitivement, avec ${activite._count.creneaux} créneau(x), ${seances} séance(s) et ${presences} présence(s)`,
+  });
+  revalidatePath("/", "layout");
+}
+
 /** Remet une activité archivée en service, avec ses créneaux. */
 export async function restaurerActivite(id: string): Promise<void> {
   const user = await requireUser("GESTIONNAIRE");

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, ChevronRight, Lock, Plus, RotateCcw, Users } from "lucide-react";
+import { Archive, ChevronRight, Lock, Plus, RotateCcw, Trash2, Users } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { saisonDeTravail } from "@/lib/saison";
@@ -10,6 +10,7 @@ import {
   EmptyState,
   Jauge,
   PageHeader,
+  btnDanger,
   btnPrimary,
   btnSecondary,
 } from "@/components/ui";
@@ -18,7 +19,7 @@ import type { Jour } from "@prisma/client";
 import { fmtDate, JOUR_LABELS, JOURS } from "@/lib/dates";
 import { effectifsParActivite } from "@/lib/inscriptions";
 import { pluriel } from "@/lib/constants";
-import { restaurerActivite } from "@/lib/actions/activites";
+import { restaurerActivite, supprimerDefinitivementActivite } from "@/lib/actions/activites";
 import { BoutonAction } from "@/components/bouton-action";
 
 /**
@@ -324,7 +325,8 @@ export default async function ActivitesPage({
           <p className="mb-3 text-sm text-slate-500">
             Elles ne sont plus proposées et n&apos;apparaissent plus au planning.
             Leur fréquentation reste comptée dans les statistiques des saisons
-            où elles ont eu lieu.
+            où elles ont eu lieu — sauf à les supprimer définitivement, ce qui
+            efface aussi leurs séances, inscriptions et présences.
           </p>
           <ul className="divide-y divide-slate-100">
             {archivees.map((a) => (
@@ -343,13 +345,22 @@ export default async function ActivitesPage({
                     retirée le {fmtDate(a.archiveAt)}
                   </span>
                 </span>
-                <BoutonAction
-                  action={restaurerActivite.bind(null, a.id)}
-                  confirmation={`Remettre « ${a.nom} » en service, avec ses créneaux ?`}
-                  className={btnSecondary}
-                >
-                  <RotateCcw className="h-3.5 w-3.5" /> Restaurer
-                </BoutonAction>
+                <span className="flex items-center gap-2">
+                  <BoutonAction
+                    action={restaurerActivite.bind(null, a.id)}
+                    confirmation={`Remettre « ${a.nom} » en service, avec ses créneaux ?`}
+                    className={btnSecondary}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" /> Restaurer
+                  </BoutonAction>
+                  <BoutonAction
+                    action={supprimerDefinitivementActivite.bind(null, a.id)}
+                    confirmation={`Supprimer définitivement « ${a.nom} » ? Ses créneaux, séances, inscriptions et présences sont effacés, et ses chiffres disparaissent des statistiques des saisons passées. Ce geste ne se défait pas.`}
+                    className={btnDanger}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Supprimer
+                  </BoutonAction>
+                </span>
               </li>
             ))}
           </ul>

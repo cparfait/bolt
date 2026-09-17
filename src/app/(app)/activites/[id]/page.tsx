@@ -217,7 +217,7 @@ export default async function ActiviteDetail({
           confirmation={
             activite._count.creneaux === 0
               ? `Supprimer définitivement l'activité « ${activite.nom} » ?`
-              : `Retirer l'activité « ${activite.nom} » et ses créneaux ? Les séances à venir sont annulées ; les présences déjà saisies restent comptées dans les statistiques, et l'activité se restaure depuis la liste.`
+              : `Retirer l'activité « ${activite.nom} » et ses créneaux ? Les séances à venir sont annulées ; les présences déjà saisies restent comptées dans les statistiques, et l'activité se restaure — ou se supprime définitivement — depuis la liste.`
           }
           className={btnDanger}
         >

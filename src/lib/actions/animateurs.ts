@@ -338,18 +338,37 @@ export async function revoquerLienAnimateur(id: string): Promise<void> {
   revalidatePath("/animateurs");
 }
 
+/**
+ * Supprime un animateur, rattaché à des créneaux ou non.
+ *
+ * Rien d'historique ne pend à la fiche : les feuilles d'émargement portent le
+ * nom de celui qui a pointé en toutes lettres (`saisiPar`), pas une clé vers
+ * elle, et les créneaux ne font que la citer. Ils restent au planning, sans
+ * animateur — à réattribuer. Le lien d'émargement disparaît avec la fiche.
+ *
+ * Le compte réseau éventuellement rattaché n'est pas touché, sauf son rôle :
+ * il était devenu COACH par le rattachement, il redevient AGENT. Un
+ * administrateur ou un gestionnaire garde le sien, comme au rattachement.
+ */
 export async function supprimerAnimateur(id: string): Promise<void> {
   const admin = await requireUser("GESTIONNAIRE");
   const coach = await prisma.coach.findUnique({
     where: { id },
-    include: { _count: { select: { creneaux: true } } },
+    include: { _count: { select: { creneaux: true } }, user: { select: { id: true, role: true } } },
   });
-  // Un animateur rattaché à un créneau garde l'historique : on le désactive.
-  if (!coach || coach._count.creneaux > 0) return;
+  if (!coach) return;
   await prisma.coach.delete({ where: { id } });
+  if (coach.user?.role === "COACH") {
+    await prisma.user.update({ where: { id: coach.user.id }, data: { role: "AGENT" } });
+  }
   await audit("ANIMATEUR_SUPPRIME", {
     userId: admin.id,
     cible: `${coach.prenom} ${coach.nom}`,
+    details:
+      coach._count.creneaux > 0
+        ? `${coach._count.creneaux} créneau(x) laissé(s) sans animateur`
+        : undefined,
   });
   revalidatePath("/animateurs");
+  revalidatePath("/activites");
 }
