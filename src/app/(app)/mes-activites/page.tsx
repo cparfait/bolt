@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAgent } from "@/lib/session";
 import { saisonOuverte } from "@/lib/saison";
 import { getGeneralSettings } from "@/lib/settings";
-import { aujourdhui, ajouterJours, fmtDateLongue, JOUR_LABELS } from "@/lib/dates";
+import { aujourdhui, ajouterJours, fmtDateLongue, JOUR_LABELS, JOURS } from "@/lib/dates";
 import {
   Badge,
   Card,
@@ -77,13 +77,20 @@ export default async function MesActivitesPage({
         fermeturesMaintenues: { select: { id: true } },
         _count: { select: { inscriptions: { where: { statut: "VALIDEE" } } } },
       },
+      // Jour puis heure : le regroupement par activité plus bas suit l'ordre
+      // de première apparition, donc une activité se place au jour et à
+      // l'heure de son premier créneau — comme on lit un planning. Le nom
+      // départage deux activités qui commencent au même moment, trié ici et
+      // non en base : la collation du conteneur PostgreSQL range majuscules et
+      // accents à sa façon (« Éveil » après « Zumba »).
       orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
     }).then((liste) =>
-      // Ordre alphabétique des activités, trié ici et non en base : la
-      // collation du conteneur PostgreSQL range les majuscules et les accents
-      // à sa façon (« Éveil » après « Zumba »), pas à celle d'un lecteur
-      // français. Le tri est stable : jour et heure restent ordonnés dedans.
-      liste.sort((a, b) => a.activite.nom.localeCompare(b.activite.nom, "fr")),
+      liste.sort(
+        (a, b) =>
+          JOURS.indexOf(a.jour) - JOURS.indexOf(b.jour) ||
+          a.heureDebut.localeCompare(b.heureDebut) ||
+          a.activite.nom.localeCompare(b.activite.nom, "fr"),
+      ),
     ),
     prisma.inscription.findMany({
       where: {

@@ -86,6 +86,14 @@ export const LIEN_VALIDITE_MINUTES = 60;
 export const LIEN_VALIDITE_LIBELLE = "1 heure";
 
 /** Palette proposée pour les activités (badges, graphiques). */
+/**
+ * Palette des activités. Seize teintes, toutes assez sombres pour porter du
+ * texte blanc et assez éloignées les unes des autres pour se distinguer sur
+ * un planning — huit ne suffisaient plus dès que la saison dépassait huit
+ * activités, et deux sports de la même couleur se confondent dans le
+ * calendrier. Le formulaire ne propose que celles qu'aucune activité en
+ * service n'utilise déjà (src/components/activite-form.tsx).
+ */
 export const COULEURS_ACTIVITE = [
   "#4f46e5", // indigo
   "#0891b2", // cyan
@@ -95,6 +103,14 @@ export const COULEURS_ACTIVITE = [
   "#7c3aed", // violet
   "#dc2626", // red
   "#0284c7", // sky
+  "#0d9488", // teal
+  "#ea580c", // orange
+  "#65a30d", // lime
+  "#c026d3", // fuchsia
+  "#2563eb", // blue
+  "#ca8a04", // yellow
+  "#9f1239", // rose
+  "#475569", // slate
 ] as const;
 
 /**

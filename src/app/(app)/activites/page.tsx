@@ -14,7 +14,8 @@ import {
   btnSecondary,
 } from "@/components/ui";
 import { FiltreActivites } from "@/components/filtre-activites";
-import { fmtDate, JOUR_LABELS } from "@/lib/dates";
+import type { Jour } from "@prisma/client";
+import { fmtDate, JOUR_LABELS, JOURS } from "@/lib/dates";
 import { effectifsParActivite } from "@/lib/inscriptions";
 import { pluriel } from "@/lib/constants";
 import { restaurerActivite } from "@/lib/actions/activites";
@@ -71,8 +72,9 @@ export default async function ActivitesPage({
   const [activites, archivees, nbFermetures, effectifs] = await Promise.all([
     prisma.activite.findMany({
       where: { archiveAt: null },
-      // Alphabétique : « ordre » n'est que le rang de création, qu'aucun écran
-      // ne permet de changer, et personne ne retrouve une activité à ce rang.
+      // Pré-tri seulement : l'ordre réel se fait plus bas, sur le premier
+      // créneau de la saison — « ordre » n'est que le rang de création,
+      // qu'aucun écran ne permet de changer.
       orderBy: [{ actif: "desc" }, { nom: "asc" }],
       include: {
         creneaux: {
@@ -101,6 +103,17 @@ export default async function ActivitesPage({
     prisma.fermeture.count({ where: { saisonId: saison.id } }),
     effectifsParActivite(saison.id),
   ]);
+
+  // Dans l'ordre de la semaine : une activité se place au jour et à l'heure de
+  // son premier créneau, comme on lit un planning. Les activités sans créneau
+  // cette saison viennent ensuite, puis les désactivées, par ordre alphabétique
+  // à égalité.
+  activites.sort(
+    (a, b) =>
+      Number(b.actif) - Number(a.actif) ||
+      rangDuPremierCreneau(a.creneaux) - rangDuPremierCreneau(b.creneaux) ||
+      a.nom.localeCompare(b.nom, "fr"),
+  );
 
   const affichees = selection ? activites.filter((a) => a.id === selection) : activites;
 
@@ -344,4 +357,16 @@ export default async function ActivitesPage({
       )}
     </>
   );
+}
+
+/**
+ * Rang d'une activité dans la semaine : celui de son premier créneau (jour
+ * puis heure), ou l'infini sans créneau. Les créneaux arrivent déjà triés par
+ * jour et heure.
+ */
+function rangDuPremierCreneau(creneaux: { jour: Jour; heureDebut: string }[]): number {
+  const premier = creneaux[0];
+  if (!premier) return Number.POSITIVE_INFINITY;
+  const [h, m] = premier.heureDebut.split(":").map(Number);
+  return JOURS.indexOf(premier.jour) * 24 * 60 + (h || 0) * 60 + (m || 0);
 }

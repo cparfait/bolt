@@ -21,8 +21,13 @@ export function ActiviteForm({
   initiale,
   redirigerVersFiche,
   saisonId,
+  couleursPrises = [],
 }: {
   initiale?: ActiviteInitiale;
+  // Couleurs des autres activités en service : elles ne sont pas proposées,
+  // pour que deux sports ne se confondent pas sur le planning. Celle de
+  // l'activité en cours d'édition reste toujours proposée.
+  couleursPrises?: string[];
   // Après création depuis la page dédiée, on enchaîne sur la fiche : une
   // activité sans créneau ne sert à rien.
   redirigerVersFiche?: boolean;
@@ -36,6 +41,17 @@ export function ActiviteForm({
     null,
   );
   const [partagee, setPartagee] = useState(initiale?.capacitePartagee ?? false);
+  const prises = new Set(couleursPrises.map((c) => c.toLowerCase()));
+  const libres = COULEURS_ACTIVITE.filter(
+    (c) => c === initiale?.couleur || !prises.has(c.toLowerCase()),
+  );
+  // Toute la palette est prise : on la propose entière plutôt que rien — un
+  // doublon vaut mieux qu'une activité qu'on ne peut pas créer. Une couleur
+  // hors palette, héritée d'une ancienne version, reste proposée : sans elle,
+  // aucune case ne serait cochée et le formulaire refuserait de partir.
+  const proposees: string[] = libres.length > 0 ? [...libres] : [...COULEURS_ACTIVITE];
+  if (initiale && !proposees.includes(initiale.couleur)) proposees.unshift(initiale.couleur);
+  const couleurParDefaut = initiale?.couleur ?? proposees[0];
   return (
     <form action={action} className="space-y-4">
       <Alert state={state} />
@@ -52,15 +68,22 @@ export function ActiviteForm({
           placeholder="Séance douce, tapis fournis, tous niveaux."
         />
       </Field>
-      <Field label="Couleur" hint="Utilisée pour les badges et les graphiques.">
+      <Field
+        label="Couleur"
+        hint={
+          libres.length > 0
+            ? "Utilisée pour les badges et les graphiques. Seules les couleurs qu'aucune autre activité n'utilise sont proposées."
+            : "Toutes les couleurs de la palette sont déjà utilisées : deux activités porteront la même."
+        }
+      >
         <div className="flex flex-wrap items-center gap-2">
-          {COULEURS_ACTIVITE.map((c) => (
+          {proposees.map((c) => (
             <label key={c} className="cursor-pointer">
               <input
                 type="radio"
                 name="couleur"
                 value={c}
-                defaultChecked={(initiale?.couleur ?? COULEURS_ACTIVITE[0]) === c}
+                defaultChecked={couleurParDefaut === c}
                 className="peer sr-only"
               />
               <span

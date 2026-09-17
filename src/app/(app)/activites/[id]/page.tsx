@@ -65,6 +65,14 @@ export default async function ActiviteDetail({
     include: { _count: { select: { creneaux: true } } },
   });
   if (!activite) notFound();
+  // Couleurs des autres activités en service : le formulaire ne les propose
+  // pas, pour que deux sports ne se confondent pas sur le planning.
+  const couleursPrises = (
+    await prisma.activite.findMany({
+      where: { archiveAt: null, id: { not: id } },
+      select: { couleur: true },
+    })
+  ).map((a) => a.couleur);
 
   // L'activité existe, mais aucune saison n'est en cours : ce n'est pas une
   // page introuvable, c'est une étape manquante — et une 404 envoyait chercher
@@ -223,6 +231,7 @@ export default async function ActiviteDetail({
       <Panneau titre="Fiche de l'activité" sousTitre="Nom, description, couleur">
         <ActiviteForm
           saisonId={saison.id}
+          couleursPrises={couleursPrises}
           initiale={{
             id: activite.id,
             nom: activite.nom,

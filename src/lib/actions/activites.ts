@@ -65,6 +65,28 @@ export async function enregistrerActivite(
     suiviPresence: formData.get("suiviPresence") === "on",
   };
 
+  // Une couleur par activité en service : le formulaire ne propose que les
+  // couleurs libres, et la vérification se rejoue ici — la valeur d'un bouton
+  // radio se falsifie aussi facilement que celle d'un champ libre. Une activité
+  // qui garde sa couleur n'est pas un doublon, même si la palette a été
+  // partagée avant cette règle.
+  const memeCouleur = await prisma.activite.findFirst({
+    where: {
+      archiveAt: null,
+      couleur: { equals: data.couleur, mode: "insensitive" },
+      ...(id ? { id: { not: id } } : {}),
+    },
+    select: { nom: true },
+  });
+  if (memeCouleur) {
+    const actuelle = id
+      ? await prisma.activite.findUnique({ where: { id }, select: { couleur: true } })
+      : null;
+    if (actuelle?.couleur.toLowerCase() !== data.couleur.toLowerCase()) {
+      return erreur(`Cette couleur est déjà celle de « ${memeCouleur.nom} » : choisissez-en une autre.`);
+    }
+  }
+
   let creee: string | null = null;
   // Ce que la bascule de capacité a laissé à signaler : un groupe qui compte
   // déjà plus d'inscrits que de places.
@@ -147,7 +169,15 @@ export async function basculerActivite(id: string): Promise<void> {
     userId: user.id,
     cible: activite.nom,
   });
+  // Une activité désactivée reste sous les yeux du service (liste et fiche,
+  // badge « Désactivée ») mais disparaît du catalogue des agents : ces pages
+  // aussi doivent se rafraîchir, sans quoi l'agent qui y revient dans la
+  // minute retrouve l'activité que le service vient de fermer.
   revalidatePath("/activites");
+  revalidatePath(`/activites/${id}`);
+  revalidatePath("/mes-activites");
+  revalidatePath("/inscriptions");
+  revalidatePath("/");
 }
 
 /**
