@@ -26,10 +26,15 @@ export const dynamic = "force-dynamic";
 function jetonValide(entete: string | null): boolean {
   const attendu = process.env.CRON_TOKEN ?? "";
   if (attendu.length < 16) return false;
-  const fourni = (entete ?? "").replace(/^Bearer\s+/i, "");
-  if (fourni.length !== attendu.length) return false;
+  const fourni = Buffer.from((entete ?? "").replace(/^Bearer\s+/i, ""));
+  const reference = Buffer.from(attendu);
+  // Longueurs comparées en OCTETS, et non en caractères : `timingSafeEqual`
+  // exige deux tampons de même taille et lève sinon. Un jeton de même longueur
+  // en caractères mais différent en octets (UTF-8 multi-octets) faisait donc
+  // répondre 500 là où un 401 est attendu.
+  if (fourni.length !== reference.length) return false;
   // Comparaison à temps constant : évite de révéler le jeton octet par octet.
-  return timingSafeEqual(Buffer.from(fourni), Buffer.from(attendu));
+  return timingSafeEqual(fourni, reference);
 }
 
 export async function GET(request: NextRequest) {

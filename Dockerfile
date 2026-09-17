@@ -1,12 +1,12 @@
 # ── Dépendances ────────────────────────────────────────────────────────────
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
 
 # ── Build ──────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -19,13 +19,13 @@ RUN npx prisma generate && npx next build
 # La CLI et toutes ses dépendances transitives (@prisma/config → effect, c12…),
 # installées seules : les copier une à une depuis node_modules casse à chaque
 # montée de version de Prisma.
-FROM node:22-alpine AS prisma-cli
+FROM node:24-alpine AS prisma-cli
 WORKDIR /cli
 COPY package-lock.json ./
 RUN npm install --no-save "prisma@$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")"
 
 # ── Image finale ───────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000 TZ=Europe/Paris
 
