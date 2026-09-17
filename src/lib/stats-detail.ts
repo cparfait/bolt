@@ -40,7 +40,8 @@ export type Coupe =
   | { type: "creneau"; valeur: string } // « MARDI-12 »
   | { type: "motif"; valeur: string }
   | { type: "attente"; valeur: string } // identifiant d'activité
-  | { type: "promotion"; valeur: string }; // « rendues » | « toutes »
+  | { type: "promotion"; valeur: string } // « rendues » | « toutes »
+  | { type: "multi"; valeur: string }; // « creneaux » : inscrits à plusieurs créneaux
 
 export const TYPES_COUPE = [
   "direction",
@@ -52,6 +53,7 @@ export const TYPES_COUPE = [
   "motif",
   "attente",
   "promotion",
+  "multi",
 ] as const;
 
 export type LigneAgentDetail = {
@@ -102,7 +104,31 @@ export type Detail = {
    * plutôt qu'en dur sous le tableau.
    */
   noteInscriptions?: string;
+  /** Titre du tableau des inscriptions, quand « Demandes » ne convient pas. */
+  titreInscriptions?: string;
 };
+
+/**
+ * Les agents qui tiennent une place sur au moins deux créneaux de la saison,
+ * avec ces inscriptions. Le quota (Paramètres → Général) autorise ou non le
+ * cumul ; qu'il l'autorise ou qu'il ait été contourné par une inscription
+ * directe, le service veut voir qui occupe plusieurs places quand la file
+ * d'attente s'allonge. Sert au bouton du tableau de bord et à la coupe.
+ */
+export async function inscriptionsMultiples(saisonId: string) {
+  const lignes = await prisma.inscription.findMany({
+    where: { statut: "VALIDEE", creneau: { saisonId, archiveAt: null } },
+    include: {
+      user: { select: { displayName: true, service: true, direction: true } },
+      creneau: { include: { activite: { select: { nom: true } } } },
+    },
+    orderBy: [{ creneau: { jour: "asc" } }, { creneau: { heureDebut: "asc" } }],
+  });
+  const parAgent = new Map<string, typeof lignes>();
+  for (const i of lignes) parAgent.set(i.userId, [...(parAgent.get(i.userId) ?? []), i]);
+  for (const [userId, liste] of parAgent) if (liste.length < 2) parAgent.delete(userId);
+  return parAgent;
+}
 
 /**
  * Assiduité agent par agent, sur le périmètre exact de `assiduite` : le calcul
@@ -291,6 +317,30 @@ export async function detail(f: Filtre, coupe: Coupe): Promise<Detail> {
         statut: i.statut,
         rang: i.rang,
         motif: i.motif,
+      })),
+    };
+  }
+
+  if (coupe.type === "multi") {
+    const parAgent = await inscriptionsMultiples(f.saisonId);
+    const lignes = [...parAgent.values()]
+      .sort((a, b) => a[0].user.displayName.localeCompare(b[0].user.displayName, "fr"))
+      .flat();
+    return {
+      ...VIDE,
+      titre: "Inscrits à plusieurs créneaux",
+      sousTitre: "Agents qui tiennent une place sur au moins deux créneaux cette saison",
+      titreInscriptions: "Inscriptions",
+      noteInscriptions: `${parAgent.size} ${pluriel(parAgent.size, "agent")} pour ${lignes.length} ${pluriel(lignes.length, "inscription")} validées.`,
+      inscriptions: lignes.map((i) => ({
+        id: i.id,
+        userId: i.userId,
+        nom: i.user.displayName,
+        situation: i.user.service ?? i.user.direction,
+        creneau: `${i.creneau.activite.nom} — ${JOUR_LABELS[i.creneau.jour]} ${i.creneau.heureDebut}–${i.creneau.heureFin}`,
+        statut: i.statut,
+        rang: i.rang,
+        motif: null,
       })),
     };
   }

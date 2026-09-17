@@ -177,7 +177,7 @@ export default async function DetailStatistiques({
       )}
 
       {d.inscriptions.length > 0 && (
-        <Card title={`Demandes (${d.inscriptions.length})`}>
+        <Card title={`${d.titreInscriptions ?? "Demandes"} (${d.inscriptions.length})`}>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">
               <thead>

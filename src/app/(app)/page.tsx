@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   Hourglass,
+  Layers,
   TrendingUp,
   UserX,
   Users,
@@ -12,8 +13,9 @@ import {
 import { prisma } from "@/lib/db";
 import { estGestionnaire, requireUser } from "@/lib/session";
 import { saisonCourante, saisonOuverte } from "@/lib/saison";
-import { getGeneralSettings } from "@/lib/settings";
+import { getGeneralSettings, tournures } from "@/lib/settings";
 import { decrocheurs, indicateurs, parActivite } from "@/lib/stats";
+import { inscriptionsMultiples } from "@/lib/stats-detail";
 import { JOURS_FEUILLES_MANQUANTES, feuillesAttendues } from "@/lib/emargement";
 import { prochainesSeancesDe } from "@/lib/absences";
 import { adressesDesLieux, itineraireDe } from "@/lib/lieux";
@@ -112,8 +114,8 @@ export default async function TableauDeBord({
             title="Aucune saison n'est ouverte pour l'instant"
             hint={
               g.contactEmail
-                ? `Le service des sports ouvre les inscriptions en début de saison. Pour toute question : ${g.contactEmail}`
-                : "Le service des sports ouvre les inscriptions en début de saison."
+                ? `${tournures(g).enTete} ouvre les inscriptions en début de saison. Pour toute question : ${g.contactEmail}`
+                : `${tournures(g).enTete} ouvre les inscriptions en début de saison.`
             }
           />
         </>
@@ -292,6 +294,7 @@ export default async function TableauDeBord({
     seancesPeriode,
     seancesSansEmargement,
     lachages,
+    multiCreneaux,
     nbJour,
     nbSemaine,
     nbMois,
@@ -326,6 +329,7 @@ export default async function TableauDeBord({
       select: { id: true, date: true, creneauId: true },
     }),
     decrocheurs(filtre, g.absencesAvantRelance),
+    inscriptionsMultiples(saison.id).then((m) => m.size),
     compteur("jour"),
     compteur("semaine"),
     compteur("mois"),
@@ -348,6 +352,15 @@ export default async function TableauDeBord({
         title={`Bonjour ${prenomDe(user.displayName)}`}
         subtitle={`Saison ${saison.nom} — ${fmtDate(saison.debut)} au ${fmtDate(saison.fin)}`}
       >
+        {/* Qui occupe plusieurs places : la question qui revient dès que la
+            file d'attente s'allonge, et qui n'avait pas de réponse sans
+            parcourir la page Inscriptions créneau par créneau. */}
+        <Link
+          href={`/statistiques/detail?saison=${saison.id}&type=multi&valeur=creneaux`}
+          className={btnSecondary}
+        >
+          <Layers className="h-4 w-4" /> Inscrits à plusieurs créneaux ({multiCreneaux})
+        </Link>
         <Link href="/statistiques" className={btnSecondary}>
           <TrendingUp className="h-4 w-4" /> Statistiques
         </Link>
