@@ -348,7 +348,8 @@ describe("agregerAssiduite — venus", () => {
     assert.equal(a.agents, 3);
     assert.equal(a.venus, 1);
     assert.equal(a.jamaisVenus, 1);
-    assert.equal(a.occasionnels, 1);
+    assert.equal(a.occasionnels, 0, "sans séance émargée, on n'est pas occasionnel");
+    assert.equal(a.sansSeance, 1);
     assert.equal(a.assidus, 1);
     assert.notEqual(a.agents - a.jamaisVenus, a.venus, "l'ancienne soustraction se trompait");
     assert.equal(a.tauxAssiduite, 50);

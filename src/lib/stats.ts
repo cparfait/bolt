@@ -950,6 +950,7 @@ export async function grilleJourHeure(f: Filtre, deja?: SeanceChargee[]): Promis
 export type Assiduite = {
   agents: number; // inscrits validés, distincts
   venus: number; // parmi eux, venus au moins une fois sur leurs créneaux
+  sansSeance: number; // aucune séance encore émargée sur leurs créneaux : pas classables
   jamaisVenus: number;
   occasionnels: number; // moins de 40 % des séances proposées
   reguliers: number; // 40 à 80 %
@@ -1013,15 +1014,17 @@ export function assiduiteParAgent(
   return agents;
 }
 
-export type Bande = "assidus" | "reguliers" | "occasionnels" | "jamais";
+export type Bande = "assidus" | "reguliers" | "occasionnels" | "jamais" | "sansSeance";
 
 /**
  * La bande d'assiduité d'un agent. Celui dont aucune séance n'a encore été
- * émargée est rangé avec les occasionnels plutôt qu'exclu du total — et
- * surtout pas parmi les « jamais venus », qui déclenche une relance.
+ * émargée n'est classé nulle part : en début de saison, tout le monde est dans
+ * ce cas, et l'écran annonçait 100 % d'occasionnels avant la première séance —
+ * une statistique qui n'a pas commencé doit être à zéro. Surtout pas parmi les
+ * « jamais venus » non plus, qui déclenche une relance.
  */
 export function bandeAssiduite(a: AssiduiteAgent): Bande {
-  if (a.proposees === 0) return "occasionnels";
+  if (a.proposees === 0) return "sansSeance";
   if (a.venues === 0) return "jamais";
   const part = a.venues / a.proposees;
   if (part >= 0.8) return "assidus";
@@ -1042,7 +1045,13 @@ export function agregerAssiduite(
   inscriptions: InscriptionPourAssiduite[],
 ): Assiduite {
   const parAgent = assiduiteParAgent(seances, inscriptions);
-  const bandes: Record<Bande, number> = { assidus: 0, reguliers: 0, occasionnels: 0, jamais: 0 };
+  const bandes: Record<Bande, number> = {
+    assidus: 0,
+    reguliers: 0,
+    occasionnels: 0,
+    jamais: 0,
+    sansSeance: 0,
+  };
   let totalVenues = 0;
   let totalProposees = 0;
   let venus = 0;
@@ -1055,6 +1064,7 @@ export function agregerAssiduite(
   return {
     agents: parAgent.size,
     venus,
+    sansSeance: bandes.sansSeance,
     jamaisVenus: bandes.jamais,
     occasionnels: bandes.occasionnels,
     reguliers: bandes.reguliers,

@@ -34,7 +34,7 @@ import {
 export type Coupe =
   | { type: "direction"; valeur: string }
   | { type: "service"; valeur: string }
-  | { type: "assiduite"; valeur: string } // assidus | reguliers | occasionnels | jamais
+  | { type: "assiduite"; valeur: string } // assidus | reguliers | occasionnels | jamais | sansSeance
   | { type: "mois"; valeur: string } // « 2026-09 »
   | { type: "activite"; valeur: string } // identifiant d'activité
   | { type: "creneau"; valeur: string } // « MARDI-12 »
@@ -176,11 +176,9 @@ function decrireSeance(s: SeanceChargee): LigneSeanceDetail {
 const BANDES: Record<string, [string, string]> = {
   assidus: ["Assidus", "80 % des séances proposées et plus"],
   reguliers: ["Réguliers", "de 40 à 80 % des séances proposées"],
-  occasionnels: [
-    "Occasionnels",
-    "moins de 40 %, ou aucune séance encore émargée sur leurs créneaux",
-  ],
+  occasionnels: ["Occasionnels", "moins de 40 % des séances proposées"],
   jamais: ["Jamais venus", "inscrits sans aucune présence"],
+  sansSeance: ["Pas encore classés", "aucune séance encore émargée sur leurs créneaux"],
 };
 
 const VIDE = { agents: [], seances: [], inscriptions: [] };

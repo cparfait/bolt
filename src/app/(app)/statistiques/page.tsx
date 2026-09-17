@@ -872,6 +872,9 @@ function RepartitionAssiduite({
   if (a.agents === 0) {
     return <p className="text-sm text-slate-500">Aucun inscrit sur ce périmètre.</p>;
   }
+  // Seuls les inscrits dont une séance a été émargée se classent : les parts se
+  // rapportent à eux, et tant qu'aucune séance n'a eu lieu tout reste à zéro.
+  const classes = a.agents - a.sansSeance;
   // Parts qui somment à 100 : arrondies une à une, elles affichaient 99 ou 101.
   const parts = repartirEnParts(groupes.map((g) => g.n));
 
@@ -884,7 +887,7 @@ function RepartitionAssiduite({
             <span
               key={g.libelle}
               title={`${g.libelle} — ${g.n}`}
-              style={{ width: `${(g.n / a.agents) * 100}%`, backgroundColor: g.couleur }}
+              style={{ width: `${(g.n / classes) * 100}%`, backgroundColor: g.couleur }}
             />
           ),
         )}
@@ -927,6 +930,20 @@ function RepartitionAssiduite({
           );
         })}
       </ul>
+      {a.sansSeance > 0 && (
+        <p className="mt-3 text-sm text-slate-500">
+          <Link
+            href={vers("assiduite", "sansSeance")}
+            className="underline decoration-slate-300 hover:text-slate-700"
+          >
+            {a.sansSeance} inscrit{a.sansSeance > 1 ? "s" : ""} pas encore classé
+            {a.sansSeance > 1 ? "s" : ""}
+          </Link>
+          {classes === 0
+            ? " : aucune séance émargée pour l'instant, les statistiques commenceront à la première feuille."
+            : " : aucune séance encore émargée sur leurs créneaux."}
+        </p>
+      )}
       <p className="mt-3 text-xs text-slate-500">
         Part des séances suivies parmi celles proposées sur ses créneaux, séances
         annulées et feuilles manquantes exclues.
