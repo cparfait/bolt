@@ -55,7 +55,7 @@ const LONGUEUR = 32;
  * ailleurs, et deux messages signés doivent rester distincts même si leurs
  * parties venaient à se ressembler.
  */
-type Usage = "absence" | "place";
+type Usage = "absence" | "place" | "desinscription";
 
 function signer(usage: Usage, parties: string[]): string {
   return createHmac("sha256", secretApplicatif())
@@ -124,6 +124,33 @@ function partiesPlace(inscription: InscriptionPromue): string[] {
   return [inscription.id, inscription.promuAt?.toISOString() ?? ""];
 }
 
+// ── « Je libère ma place » — avis après des absences répétées ───────────────
+
+/**
+ * L'inscription telle que le lien la désigne : son identifiant et le début du
+ * cycle en cours. Même raison que pour la place : l'identifiant survit à un
+ * désistement suivi d'une réinscription, et `demandeAt` est réécrit à chaque
+ * nouvelle demande — l'avis reçu au cycle précédent ne désinscrit pas du
+ * suivant.
+ */
+export type InscriptionCourante = { id: string; demandeAt: Date };
+
+export function signatureDesinscription(inscription: InscriptionCourante): string {
+  return signer("desinscription", partiesDesinscription(inscription));
+}
+
+/** Vérification contre l'inscription RECHARGÉE, jamais contre le formulaire. */
+export function desinscriptionAutorisee(
+  inscription: InscriptionCourante,
+  signature: string | undefined,
+): boolean {
+  return verifier("desinscription", partiesDesinscription(inscription), signature);
+}
+
+function partiesDesinscription(inscription: InscriptionCourante): string[] {
+  return [inscription.id, inscription.demandeAt.toISOString()];
+}
+
 // ── Adresses ────────────────────────────────────────────────────────────────
 
 /**
@@ -141,4 +168,8 @@ export function lienAbsence(seanceId: string, userId: string, base: string): str
 
 export function lienPlace(inscription: InscriptionPromue, base: string): string {
   return `${racine(base)}/courriel/place/${inscription.id}/${signaturePlace(inscription)}`;
+}
+
+export function lienDesinscription(inscription: InscriptionCourante, base: string): string {
+  return `${racine(base)}/courriel/desinscription/${inscription.id}/${signatureDesinscription(inscription)}`;
 }

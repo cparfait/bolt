@@ -66,6 +66,7 @@ model User {
   auditLogs    AuditLog[]
   magicTokens  MagicToken[]
   alertesOuverture AlerteOuverture[]
+  avisAbsences   AvisAbsences[]
 
   @@index([role])
   @@index([email])
@@ -385,6 +386,7 @@ model Seance {
   absences       AbsenceAnnoncee[]
   participations ParticipationPonctuelle[]
   rappels        RappelEnvoye[]
+  avisAbsences   AvisAbsences[]
 
   createdAt DateTime @default(now())
 
@@ -544,6 +546,7 @@ model Inscription {
   creneau   Creneau    @relation(fields: [creneauId], references: [id], onDelete: Cascade)
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   presences Presence[]
+  avisAbsences AvisAbsences[]
 
   @@unique([creneauId, userId])
   @@index([statut])
@@ -571,6 +574,31 @@ model AlerteOuverture {
 }
 
 // ── Paramétrage, annuaire miroir & journal ─────────────────────────────────
+
+/// Courriel « on ne vous voit plus » remis à un inscrit après une série
+/// d'absences consécutives (Paramètres → Général, « absences avant relance »).
+///
+/// Une ligne par série : `seanceId` est la séance la plus récente de la série
+/// qui a déclenché l'avis. Tant qu'elle fait partie de la série courante —
+/// l'agent n'est pas revenu depuis —, aucun second avis ne part ; s'il revient
+/// puis décroche à nouveau, la nouvelle série a droit au sien.
+/// Voir src/lib/avis-absences.ts.
+model AvisAbsences {
+  id            String   @id @default(cuid())
+  inscriptionId String
+  userId        String
+  seanceId      String
+  absences      Int // longueur de la série au moment de l'envoi
+  envoyeAt      DateTime @default(now())
+  erreur        String? // destinataire refusé par la messagerie : non retenté
+
+  inscription Inscription @relation(fields: [inscriptionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seance      Seance      @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+
+  @@index([inscriptionId])
+  @@index([userId])
+}
 
 model Setting {
   key       String   @id // « ldap », « smtp », « general »

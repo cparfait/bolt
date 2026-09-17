@@ -102,6 +102,16 @@ export type GeneralSettings = {
   maxListeAttenteParAgent: number;
   validationRequise: boolean; // true : le service arbitre chaque demande
   absencesAvantRelance: number; // seuil de détection des décrocheurs
+  /**
+   * Courriel automatique à l'agent qui atteint ce seuil d'absences
+   * consécutives : on lui dit qu'on ne le voit plus, et on lui propose de
+   * libérer sa place d'un clic. Le service voit la même liste sur les
+   * statistiques et pouvait déjà relancer à la main ; l'automatisme fait
+   * partir le message le jour où le seuil est atteint, sans attendre que
+   * quelqu'un consulte la page. Nécessite le SMTP. Voir
+   * src/lib/avis-absences.ts.
+   */
+  avisAbsencesActif: boolean;
   // Connexion par lien envoyé sur l'adresse professionnelle, pour les agents
   // qui ne disposent pas d'un poste sur le réseau. Nécessite le SMTP configuré
   // et un miroir d'annuaire synchronisé : seules les adresses connues de l'AD
@@ -182,6 +192,7 @@ export const DEFAULT_GENERAL: GeneralSettings = {
   maxListeAttenteParAgent: 1,
   validationRequise: true,
   absencesAvantRelance: 3,
+  avisAbsencesActif: false,
   lienMagiqueActif: false,
   demandeAccesActive: false,
   frequenceAvisDemandes: "QUATRE_JOUR",

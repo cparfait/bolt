@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { aujourdhui } from "@/lib/dates";
-import { absenceAutorisee, placeAutorisee } from "@/lib/liens-courriel";
+import {
+  absenceAutorisee,
+  desinscriptionAutorisee,
+  placeAutorisee,
+} from "@/lib/liens-courriel";
 import { promouvoirTantQuePossible } from "@/lib/inscriptions";
 import { erreur, succes, type ActionState } from "./types";
 
@@ -141,6 +145,58 @@ export async function rendreSaPlaceParLien(
   // La place repart immédiatement : c'est la seule raison d'être du bouton.
   // En chaîne, pas un seul : en capacité mutualisée, le promu peut déjà
   // détenir une place et n'en consommer aucune — le suivant attendrait pour rien.
+  await promouvoirTantQuePossible(inscription.creneauId);
+
+  revalidatePath("/inscriptions");
+  revalidatePath("/mes-activites");
+  revalidatePath("/");
+  return succes(inscription.creneau.activite.nom);
+}
+
+/**
+ * L'agent libère sa place depuis l'avis reçu après des absences répétées
+ * (src/lib/avis-absences.ts).
+ *
+ * Même geste que « je laisse ma place », depuis un autre courriel : la
+ * signature vaut pour le cycle d'inscription en cours (voir
+ * `signatureDesinscription`), et l'inscription doit encore tenir une place.
+ */
+export async function seDesinscrireParLien(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const inscriptionId = String(formData.get("inscriptionId") ?? "");
+  const signature = String(formData.get("signature") ?? "");
+
+  const inscription = await prisma.inscription.findUnique({
+    where: { id: inscriptionId },
+    include: { creneau: { include: { activite: true } } },
+  });
+  if (!inscription) return erreur(REFUS);
+  if (!desinscriptionAutorisee(inscription, signature)) return erreur(REFUS);
+  if (inscription.statut !== "VALIDEE") {
+    return erreur("Cette inscription n'est plus active : il n'y a pas de place à libérer.");
+  }
+
+  await prisma.inscription.update({
+    where: { id: inscriptionId },
+    data: {
+      statut: "DESISTEE",
+      rang: null,
+      decisionAt: new Date(),
+      decidePar: "agent",
+      motif: "place libérée après des absences répétées",
+    },
+  });
+
+  await audit("INSCRIPTION_DESISTEE", {
+    userId: inscription.userId,
+    cibleId: inscription.userId,
+    cible: inscription.creneau.activite.nom,
+    details: "place libérée depuis le courriel d'absences répétées",
+  });
+
+  // La place repart immédiatement, en chaîne (voir `rendreSaPlaceParLien`).
   await promouvoirTantQuePossible(inscription.creneauId);
 
   revalidatePath("/inscriptions");

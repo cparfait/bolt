@@ -149,6 +149,22 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       ].join("\n\n"),
     },
     {
+      cle: "absences-repetees",
+      titre: "Absences répétées",
+      quand:
+        "L'agent a manqué plusieurs séances de suite (seuil « absences avant relance ») ; une fois par série, si le réglage est activé.",
+      destinataire: "l'agent",
+      objet: "On ne vous voit plus en Aquagym",
+      corps: [
+        `Bonjour ${PRENOM},`,
+        `Vous avez manqué les 3 dernières séances de Aquagym (**mardi 12:15–13:00**, Piscine municipale), la dernière mardi 6 octobre.`,
+        `Si c'est un contretemps passager, à bientôt : votre place vous attend. Pensez à prévenir d'une absence depuis l'application ou depuis le rappel de séance, pour que l'animateur ne vous attende pas.`,
+        `Si vos disponibilités ont changé, libérez votre place d'un clic : elle profitera à un collègue en liste d'attente, et vous pourrez vous réinscrire plus tard.`,
+        `[Je libère ma place](${base}/courriel/desinscription/exemple/exemple)`,
+        signature,
+      ].join("\n\n"),
+    },
+    {
       cle: "seance-annulee",
       titre: "Séance annulée",
       quand: "Le service annule une ou plusieurs séances.",

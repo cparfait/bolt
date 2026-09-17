@@ -2,6 +2,7 @@ import { declencherRappelsSiBesoin } from "./rappels";
 import { declencherPurgeSiBesoin } from "./purge";
 import { declencherSyncSiBesoin } from "./annuaire";
 import { declencherAvisDemandesSiBesoin } from "./demandes";
+import { declencherAvisAbsencesSiBesoin } from "./avis-absences";
 import { siPersonneDAutre } from "./verrou";
 
 /**
@@ -75,6 +76,7 @@ export async function executerTaches(origine: "ordonnanceur" | "cron"): Promise<
     declencherPurgeSiBesoin,
     () => declencherSyncSiBesoin(origine),
     declencherAvisDemandesSiBesoin,
+    declencherAvisAbsencesSiBesoin,
   ]) {
     try {
       await tache();

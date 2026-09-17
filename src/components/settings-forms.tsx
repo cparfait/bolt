@@ -625,6 +625,31 @@ export function GeneralForm({
         </div>
       </fieldset>
 
+      {/* Le même seuil que la liste « agents qui ne viennent plus » des
+          statistiques : l'automatisme envoie ce que le service relançait à la
+          main, le jour où le seuil est atteint et non au prochain bilan. */}
+      <fieldset className="rounded-xl border border-slate-200 p-3 text-sm">
+        <legend className="sr-only">Courriel après absences répétées</legend>
+        <label className="flex items-start gap-2.5">
+          <input
+            type="checkbox"
+            name="avisAbsencesActif"
+            defaultChecked={cfg.avisAbsencesActif}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300"
+          />
+          <span className="flex-1">
+            <span className="block font-medium">Courriel après absences répétées</span>
+            <span className="block text-xs text-slate-500">
+              Envoyé à l&apos;agent qui manque {cfg.absencesAvantRelance} séances
+              de suite (le seuil « absences avant relance » ci-dessus) : il est
+              prévenu, et peut libérer sa place d&apos;un clic pour un collègue
+              en liste d&apos;attente. Un seul message par série d&apos;absences,
+              aux heures de bureau.
+            </span>
+          </span>
+        </label>
+      </fieldset>
+
       <SubmitButton className={btnPrimary}>
         <Save className="h-4 w-4" /> Enregistrer
       </SubmitButton>

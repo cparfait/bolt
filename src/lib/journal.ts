@@ -50,6 +50,7 @@ const LIBELLES: Record<string, string> = {
   INSCRIPTION_DEPUIS_SEANCE: "Inscrit depuis une feuille d'émargement",
   ABSENCE_ANNONCEE: "Absence annoncée",
   ABSENCE_ANNULEE: "Absence retirée",
+  AVIS_ABSENCES_ENVOYE: "Prévenu de ses absences répétées",
   COMPTE_DESACTIVE: "Accès fermé",
   COMPTE_ACTIVE: "Accès rouvert",
   COMPTE_ANONYMISE: "Identité supprimée",

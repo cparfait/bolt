@@ -244,7 +244,8 @@ export async function purgerInscriptions(
   const absences = await prisma.absenceAnnoncee.deleteMany({ where: parSeance });
   const participations = await prisma.participationPonctuelle.deleteMany({ where: parSeance });
   const rappels = await prisma.rappelEnvoye.deleteMany({ where: parSeance });
-  const autres = absences.count + participations.count + rappels.count;
+  const avis = await prisma.avisAbsences.deleteMany({ where: parSeance });
+  const autres = absences.count + participations.count + rappels.count + avis.count;
 
   await audit("PURGE_INSCRIPTIONS", {
     details: `${inscriptions.count} inscription(s), ${presences.count} présence(s) et ${autres} absence(s) annoncée(s), participation(s) ou rappel(s) antérieurs au ${seuil.toLocaleDateString("fr-FR")}, par ${auteur}`,

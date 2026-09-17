@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   absenceAutorisee,
+  desinscriptionAutorisee,
   lienAbsence,
+  lienDesinscription,
   lienPlace,
   placeAutorisee,
   signatureAbsence,
+  signatureDesinscription,
   signaturePlace,
 } from "../src/lib/liens-courriel";
 
@@ -81,6 +84,36 @@ describe("signature d'un lien de place", () => {
     const inscription = { id: SEANCE, promuAt: PROMUE.promuAt };
     assert.notEqual(signaturePlace(inscription), signatureAbsence(SEANCE, ""));
     assert.equal(placeAutorisee(inscription, signatureAbsence(SEANCE, "")), false);
+  });
+});
+
+describe("signature d'un lien de désinscription après absences", () => {
+  const COURANTE = { id: "inscription-1", demandeAt: new Date("2026-09-08T10:00:00Z") };
+
+  it("accepte l'inscription qu'elle désigne, et elle seule", () => {
+    const s = signatureDesinscription(COURANTE);
+    assert.equal(desinscriptionAutorisee(COURANTE, s), true);
+    assert.equal(desinscriptionAutorisee({ ...COURANTE, id: "inscription-2" }, s), false);
+  });
+
+  it("ne vaut que pour le cycle d'inscription en cours", () => {
+    // L'inscription est réutilisée à la réinscription, et `demandeAt` réécrit :
+    // l'avis reçu avant un désistement ne doit pas désinscrire du cycle suivant.
+    const s = signatureDesinscription(COURANTE);
+    const reinscrite = { ...COURANTE, demandeAt: new Date("2027-01-12T09:00:00Z") };
+    assert.equal(desinscriptionAutorisee(reinscrite, s), false);
+  });
+
+  it("ne se confond pas avec un lien de place", () => {
+    const s = signaturePlace({ id: COURANTE.id, promuAt: COURANTE.demandeAt });
+    assert.equal(desinscriptionAutorisee(COURANTE, s), false);
+  });
+
+  it("colle la signature au bout du chemin", () => {
+    assert.equal(
+      lienDesinscription(COURANTE, "https://sport.exemple.fr/"),
+      `https://sport.exemple.fr/courriel/desinscription/inscription-1/${signatureDesinscription(COURANTE)}`,
+    );
   });
 });
 

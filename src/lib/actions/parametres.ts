@@ -288,6 +288,7 @@ export async function enregistrerGeneral(
     conservationMois: Math.max(0, Number(texte(formData, "conservationMois")) || 0),
     validationRequise: formData.get("validationRequise") === "on",
     absencesAvantRelance: Math.max(1, Number(texte(formData, "absencesAvantRelance")) || 3),
+    avisAbsencesActif: formData.get("avisAbsencesActif") === "on",
     lienMagiqueActif: formData.get("lienMagiqueActif") === "on",
     demandeAccesActive: formData.get("demandeAccesActive") === "on",
     domaineAgents: texte(formData, "domaineAgents").replace(/^@/, "").toLowerCase(),
@@ -328,6 +329,11 @@ export async function enregistrerGeneral(
   if (cfg.rappelsActifs && !smtpConfigure) {
     return erreur(
       "Les rappels de séance nécessitent une messagerie configurée (Paramètres → Messagerie).",
+    );
+  }
+  if (cfg.avisAbsencesActif && !smtpConfigure) {
+    return erreur(
+      "Le courriel après absences répétées nécessite une messagerie configurée (Paramètres → Messagerie).",
     );
   }
 
