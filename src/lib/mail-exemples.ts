@@ -1,4 +1,4 @@
-import { getGeneralSettings } from "./settings";
+import { getGeneralSettings, signatureCourriel, tournures } from "./settings";
 import { LIEN_VALIDITE_LIBELLE } from "./constants";
 
 /**
@@ -40,7 +40,8 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
   const g = await getGeneralSettings();
   const base = (g.appUrl || "https://sports.exemple.fr").replace(/\/+$/, "");
   const contact = g.contactEmail || "sports@exemple.fr";
-  const signature = `Le service des sports — ${contact}`;
+  const signature = signatureCourriel({ ...g, contactEmail: contact });
+  const e = tournures(g);
 
   return [
     {
@@ -51,10 +52,10 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       objet: `Votre accès à ${g.appName} est ouvert`,
       corps: [
         `Bonjour ${PRENOM},`,
-        `Le service des sports a validé votre demande : vous pouvez désormais consulter les activités et vous y inscrire.`,
+        `${e.enTete} a validé votre demande : vous pouvez désormais consulter les activités et vous y inscrire.`,
         `Pour vous connecter, indiquez cette adresse e-mail : vous recevrez un lien. Aucun mot de passe ne vous sera demandé.`,
         `[Accéder aux activités](${base}/acces)`,
-        `Une question ? Écrivez au service des sports : ${contact}`,
+        `Une question ? Écrivez-nous : ${contact}`,
       ].join("\n\n"),
     },
     {
@@ -79,7 +80,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       corps: [
         `Bonjour ${PRENOM},`,
         `Votre demande d'inscription à Aquagym (**mardi 12:15–13:00**) est bien enregistrée.`,
-        `Le service des sports l'examine : vous recevrez un message dès qu'une décision sera prise. Vous n'avez rien d'autre à faire d'ici là.`,
+        `${e.enTete} l'examine : vous recevrez un message dès qu'une décision sera prise. Vous n'avez rien d'autre à faire d'ici là.`,
         signature,
       ].join("\n\n"),
     },
@@ -154,10 +155,10 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       quand:
         "L'agent a manqué plusieurs séances de suite (seuil « absences avant relance ») ; une fois par série, si le réglage est activé.",
       destinataire: "l'agent",
-      objet: "On ne vous voit plus en Aquagym",
+      objet: "On ne vous voit plus — Aquagym",
       corps: [
         `Bonjour ${PRENOM},`,
-        `Vous avez manqué les 3 dernières séances de Aquagym (**mardi 12:15–13:00**, Piscine municipale), la dernière mardi 6 octobre.`,
+        `Vous avez manqué les 3 dernières séances de votre créneau **Aquagym — mardi 12:15–13:00** (Piscine municipale), la dernière mardi 6 octobre.`,
         `Si c'est un contretemps passager, à bientôt : votre place vous attend. Pensez à prévenir d'une absence depuis l'application ou depuis le rappel de séance, pour que l'animateur ne vous attende pas.`,
         `Si vos disponibilités ont changé, libérez votre place d'un clic : elle profitera à un collègue en liste d'attente, et vous pourrez vous réinscrire plus tard.`,
         `[Je libère ma place](${base}/courriel/desinscription/exemple/exemple)`,
@@ -228,7 +229,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       cle: "demandes-a-traiter",
       titre: "Demandes d'accès à traiter",
       quand: "Résumé périodique adressé au service, tant que des demandes attendent.",
-      destinataire: "le service des sports",
+      destinataire: e.equipe,
       objet: `${g.appName} — 2 demandes d'accès à traiter`,
       corps: [
         `2 personnes absentes de l'annuaire attendent un accès à ${g.appName}.`,
@@ -241,7 +242,7 @@ export async function exemplesMail(): Promise<ExempleMail[]> {
       cle: "alerte-securite",
       titre: "Alerte de sécurité",
       quand: "Un plafond d'envoi ou de tentatives est atteint. Adressé au service, jamais à un agent.",
-      destinataire: "le service des sports",
+      destinataire: e.equipe,
       objet: `${g.appName} — plafond de demandes de lien atteint`,
       corps: [
         `Le plafond de demandes de lien de connexion a été atteint : 30 demandes en une heure depuis la même adresse.`,

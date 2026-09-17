@@ -39,7 +39,7 @@ export function BoutonDesinscription({
       <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
         <p className="flex items-start gap-2 font-medium">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-          Votre place de {activite} est libérée.
+          Votre place sur le créneau {activite} est libérée.
         </p>
         <p className="mt-1">
           Elle vient d&apos;être proposée à la personne suivante sur la liste

@@ -11,7 +11,7 @@ import {
 import { participeALaSeance } from "./inscriptions";
 import { lienDesinscription } from "./liens-courriel";
 import { ouvrirMessagerie } from "./mail";
-import { getGeneralSettings, getSetting, setSetting } from "./settings";
+import { getGeneralSettings, getSetting, setSetting, signatureCourriel } from "./settings";
 import { estPresent } from "./stats";
 import { audit } from "./audit";
 
@@ -188,14 +188,14 @@ export async function envoyerAvisAbsences(): Promise<ResultatAvisAbsences> {
       const n = serie.length;
       const res = await messagerie.envoyer(
         adresse,
-        `On ne vous voit plus en ${c.activite.nom}`,
+        `On ne vous voit plus — ${c.activite.nom}`,
         [
           `Bonjour ${nomPourSalutation(i.user.displayName)},`,
-          `Vous avez manqué les ${n} dernières séances de ${c.activite.nom} (**${JOUR_LABELS[c.jour].toLowerCase()} ${c.heureDebut}–${c.heureFin}**${c.lieu ? `, ${c.lieu}` : ""}), la dernière ${fmtDateLongue(derniere)}.`,
+          `Vous avez manqué les ${n} dernières séances de votre créneau **${c.activite.nom} — ${JOUR_LABELS[c.jour].toLowerCase()} ${c.heureDebut}–${c.heureFin}**${c.lieu ? ` (${c.lieu})` : ""}, la dernière ${fmtDateLongue(derniere)}.`,
           `Si c'est un contretemps passager, à bientôt : votre place vous attend. Pensez à prévenir d'une absence depuis l'application ou depuis le rappel de séance, pour que l'animateur ne vous attende pas.`,
           `Si vos disponibilités ont changé, libérez votre place d'un clic : elle profitera à un collègue en liste d'attente, et vous pourrez vous réinscrire plus tard.`,
           base ? `[Je libère ma place](${lienDesinscription(i, base)})` : null,
-          g.contactEmail ? `Le service des sports — ${g.contactEmail}` : `Le service des sports`,
+          signatureCourriel(g),
         ]
           .filter(Boolean)
           .join("\n\n"),
