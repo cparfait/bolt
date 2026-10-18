@@ -23,7 +23,7 @@ import {
   RetirerAbsence,
   SupprimerIdentite,
 } from "@/components/fiche-agent-actions";
-import { compterInscriptionsVivantes } from "@/lib/departs";
+import { compterInscriptionsVivantes, peutBasculerAcces } from "@/lib/departs";
 import { journalDe } from "@/lib/journal";
 import { servicesProposes } from "@/lib/services";
 import {
@@ -475,27 +475,31 @@ export default async function FicheAgent({
           )}
 
           {/* Départ et suppression en dernier : gestes rares, et l'un vient
-              après l'autre dans la vie d'un compte. La suppression d'identité
+              après l'autre dans la vie d'un compte. Le compte d'un
+              administrateur ne s'ouvre et ne se ferme que par un
+              administrateur. La suppression d'identité
               est irréversible et reste à la DSI ; une fiche déjà anonymisée
               n'affiche rien, il n'y a plus d'identité à effacer. */}
-          <Panneau
-            titre={agent.active ? "Départ de l'agent" : "Compte désactivé"}
-            sousTitre={
-              agent.active
-                ? "Fermer son accès, et rendre ses places"
-                : "Il ne peut plus se connecter"
-            }
-          >
-            {agent.active ? (
-              <DesactiverAgent
-                userId={agent.id}
-                nom={agent.displayName}
-                inscriptions={inscriptionsVivantes}
-              />
-            ) : (
-              <ReactiverAgent userId={agent.id} />
-            )}
-          </Panneau>
+          {peutBasculerAcces(utilisateur, agent) && (
+            <Panneau
+              titre={agent.active ? "Départ de l'agent" : "Compte désactivé"}
+              sousTitre={
+                agent.active
+                  ? "Fermer son accès, et rendre ses places"
+                  : "Il ne peut plus se connecter"
+              }
+            >
+              {agent.active ? (
+                <DesactiverAgent
+                  userId={agent.id}
+                  nom={agent.displayName}
+                  inscriptions={inscriptionsVivantes}
+                />
+              ) : (
+                <ReactiverAgent userId={agent.id} />
+              )}
+            </Panneau>
+          )}
           {estAdmin && !agent.anonymiseAt && (
             <Panneau
               titre="Supprimer l'identité"

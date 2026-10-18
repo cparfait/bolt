@@ -1,3 +1,4 @@
+import type { Role } from "@prisma/client";
 import { prisma } from "./db";
 import { promouvoirTantQuePossible, renumeroterFile } from "./inscriptions";
 import { estCreeALaMain } from "./comptes";
@@ -83,6 +84,23 @@ export async function desinscrireDeTout(
   });
 
   return { inscriptionsRetirees: inscriptions.length, promotions };
+}
+
+/**
+ * Qui peut ouvrir ou fermer l'accès de qui.
+ *
+ * Le service des sports ferme les accès de ceux qui partent — c'est son
+ * travail, depuis la fiche agent ou la liste des animateurs. Mais un compte
+ * administrateur n'est pas de son ressort : un gestionnaire qui pouvait le
+ * désactiver retirait la main à la DSI sur l'application, et pouvait aussi
+ * rouvrir un compte administrateur qu'elle avait fermé. Ces gestes restent à
+ * un administrateur (Paramètres → Utilisateurs).
+ */
+export function peutBasculerAcces(
+  acteur: { role: Role },
+  cible: { role: Role },
+): boolean {
+  return acteur.role === "ADMIN" || cible.role !== "ADMIN";
 }
 
 export type ResultatDesactivation = ResultatDepart & {

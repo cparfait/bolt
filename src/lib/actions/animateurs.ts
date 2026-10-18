@@ -6,6 +6,7 @@ import type { CoachAcces } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/session";
 import { audit } from "@/lib/audit";
+import { peutBasculerAcces } from "@/lib/departs";
 import bcrypt from "bcryptjs";
 import { attribuerLien, lienEmargement, revoquerLien } from "@/lib/coach-access";
 import { corpsLienAnimateur, envoyerMail } from "@/lib/mail";
@@ -246,14 +247,21 @@ export async function envoyerAccesAnimateur(
 
 export async function basculerAnimateur(id: string): Promise<void> {
   const admin = await requireUser("GESTIONNAIRE");
-  const coach = await prisma.coach.findUnique({ where: { id } });
+  const coach = await prisma.coach.findUnique({
+    where: { id },
+    include: { user: { select: { role: true } } },
+  });
   if (!coach) return;
   await prisma.coach.update({ where: { id }, data: { actif: !coach.actif } });
-  // Désactiver un animateur coupe immédiatement son accès distant.
-  if (coach.actif && coach.userId) {
-    await prisma.user.update({ where: { id: coach.userId }, data: { active: false } });
-  } else if (!coach.actif && coach.userId) {
-    await prisma.user.update({ where: { id: coach.userId }, data: { active: true } });
+  // Désactiver un animateur coupe immédiatement son accès distant. Le compte
+  // qui lui est rattaché suit, sauf s'il est celui d'un administrateur et que
+  // le geste vient d'un gestionnaire : la fiche d'animateur se ferme, le compte
+  // reste à la main de la DSI (peutBasculerAcces).
+  if (coach.userId && coach.user && peutBasculerAcces(admin, coach.user)) {
+    await prisma.user.update({
+      where: { id: coach.userId },
+      data: { active: !coach.actif },
+    });
   }
   await audit(coach.actif ? "ANIMATEUR_DESACTIVE" : "ANIMATEUR_ACTIVE", {
     userId: admin.id,

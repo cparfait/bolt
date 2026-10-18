@@ -45,11 +45,25 @@ function normalizeIp(raw: string): string {
  * Adresse du client, telle que transmise par le reverse proxy.
  * Chaîne vide si aucun en-tête de proxy n'est présent — l'appelant décide quoi
  * en faire, il n'y a pas de valeur par défaut sûre.
+ *
+ * C'est la DERNIÈRE adresse de X-Forwarded-For qui compte, pas la première.
+ * Chaque proxy qui concatène (Apache, `$proxy_add_x_forwarded_for` de nginx)
+ * ajoute à droite ce qu'il a vu ; tout ce qui est à gauche vient du client et se
+ * falsifie d'un simple en-tête — « X-Forwarded-For: 10.0.0.1 » faisait passer
+ * un visiteur d'Internet pour interne dès qu'un maillon oubliait de purger.
+ * La dernière entrée est celle du proxy qui nous parle ; quand il écrase
+ * (`proxy_set_header X-Forwarded-For $remote_addr`, la configuration
+ * documentée), il n'y en a qu'une et rien ne change. Faute de proxy, Next pose
+ * lui-même l'adresse de la socket.
+ *
+ * X-Real-IP n'est plus lu : aucun proxy documenté ne le pose seul, et un client
+ * l'envoie aussi facilement que le reste.
  */
 export function clientIp(headers: Headers): string {
   const fwd = headers.get("x-forwarded-for");
-  if (fwd) return normalizeIp(fwd.split(",")[0]);
-  return normalizeIp(headers.get("x-real-ip") ?? "");
+  if (!fwd) return "";
+  const adresses = fwd.split(",").map((a) => a.trim()).filter(Boolean);
+  return normalizeIp(adresses.at(-1) ?? "");
 }
 
 /** Plages déclarées comme internes. Vide = aucun cloisonnement demandé. */

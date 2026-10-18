@@ -13,7 +13,7 @@ import {
   type Candidat,
 } from "@/lib/comptes";
 import { inscrireDirectement } from "@/lib/inscriptions";
-import { anonymiserCompte, desactiverCompte } from "@/lib/departs";
+import { anonymiserCompte, desactiverCompte, peutBasculerAcces } from "@/lib/departs";
 import { composerNomAffiche } from "@/lib/constants";
 import { requireUser } from "@/lib/session";
 import { erreur, succes, type ActionState } from "./types";
@@ -659,6 +659,16 @@ export async function desactiverAgent(
   if (userId === admin.id) {
     return erreur("Vous ne pouvez pas désactiver votre propre compte.");
   }
+  const cible = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!cible) return erreur("Agent introuvable.");
+  if (!peutBasculerAcces(admin, cible)) {
+    return erreur(
+      "Ce compte est celui d'un administrateur : seul un administrateur peut le désactiver.",
+    );
+  }
 
   const desinscrire = formData.get("desinscrire") === "on";
   const motif = String(formData.get("motif") ?? "").trim() || "départ de la collectivité";
@@ -692,6 +702,7 @@ export async function reactiverAgent(userId: string): Promise<void> {
   const admin = await requireUser("GESTIONNAIRE");
   const cible = await prisma.user.findUnique({ where: { id: userId } });
   if (!cible || cible.active) return;
+  if (!peutBasculerAcces(admin, cible)) return;
   await prisma.user.update({ where: { id: userId }, data: { active: true } });
   await audit("COMPTE_ACTIVE", { userId: admin.id, cibleId: userId, cible: cible.login });
   revalidatePath(`/agents/${userId}`);
